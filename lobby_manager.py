@@ -3,25 +3,7 @@ from tkinter import messagebox, ttk
 import json
 import os
 CHAMPION_NAMES = [
-    "Ahri", "Aatrox", "Akali", "Akshan", "Alistar", "Amumu", "Anivia", "Annie",
-    "Aphelios", "Ashe", "AurelionSol", "Aurora", "Azir", "Bard", "BelVeth", "Blitzcrank",
-    "Brand", "Braum", "Briar", "Caitlyn", "Camille", "Cassiopeia", "ChoGath", "Corki",
-    "Darius", "Diana", "DrMundo", "Draven", "Ekko", "Elise", "Evelynn", "Ezreal", "Fiddlesticks",
-    "Fiora", "Fizz", "Galio", "Gangplank", "Garen", "Gnar", "Gragas", "Graves", "Gwen",
-    "Hecarim", "Heimerdinger", "Hwei", "Illaoi", "Irelia", "Ivern", "Janna", "JarvanIV",
-    "Jax", "Jayce", "Jhin", "Jinx", "KSante", "KaiSa", "Kalista", "Karma", "Karthus", "Kassadin",
-    "Katarina", "Kayle", "Kayn", "Kennen", "KhaZix", "Kindred", "Kled", "KogMaw", "LeBlanc",
-    "LeeSin", "Leona", "Lillia", "Lissandra", "Lucian", "Lulu", "Lux", "Malphite", "Malzahar",
-    "Maokai", "MasterYi", "Milio", "MissFortune", "Mordekaiser", "Morgana", "Naafiri", "Nami",
-    "Nasus", "Nautilus", "Neeko", "Nidalee", "Nilah", "Nocturne", "Nunu", "Olaf", "Orianna",
-    "Ornn", "Pantheon", "Poppy", "Pyke", "Qiyana", "Quinn", "Rakan", "Rammus", "RekSai",
-    "Rell", "Renata", "Renekton", "Rengar", "Riven", "Rumble", "Ryze", "Samira", "Sejuani",
-    "Senna", "Seraphine", "Sett", "Shaco", "Shen", "Shyvana", "Singed", "Sion", "Sivir",
-    "Skarner", "Smolder", "Sona", "Soraka", "Swain", "Sylas", "Syndra", "TahmKench", "Taliyah",
-    "Talon", "Taric", "Teemo", "Thresh", "Tristana", "Trundle", "Tryndamere", "TwistedFate",
-    "Twitch", "Udyr", "Urgot", "Varus", "Vayne", "Veigar", "VelKoz", "Vex", "Vi", "Viego",
-    "Viktor", "Vladimir", "Volibear", "Warwick", "Wukong", "Xayah", "Xerath", "XinZhao",
-    "Yasuo", "Yone", "Yorick", "Yuumi", "Zac", "Zed", "Zeri", "Ziggs", "Zilean", "Zyra", "Zoe"
+    "jinx"
 ]
 
 LANES = ['top', 'jungle', 'middle', 'bottom', 'support']
@@ -55,11 +37,11 @@ class ChampionScraperApp:
         self.champion_listbox.grid(row=1, column=0, columnspan=2, sticky="wn", pady=25)
 
         # Filter by game count
-        tk.Label(root, text="Filter Data by Game Count:").grid(row=1, column=1, columnspan=2, sticky="wn")
-        self.game_amount_entry = tk.Entry(root, width=17)
-        self.game_amount_entry.grid(row=1, column=1, columnspan=2, sticky="wn", pady=26)
-        self.game_amount_entry.insert(0, "200")
-        self.filter_button = tk.Button(root, text="Filter", command=self.filter_by_games)
+        tk.Label(root, text="Filter Data by Popularity:").grid(row=1, column=1, columnspan=2, sticky="wn")
+        self.popularity_entry = tk.Entry(root, width=17)
+        self.popularity_entry.grid(row=1, column=1, columnspan=2, sticky="wn", pady=26)
+        self.popularity_entry.insert(0, "1")
+        self.filter_button = tk.Button(root, text="Filter", command=self.filter_by_popularity)
         self.filter_button.grid(row=1, column=1, columnspan=2, sticky="ne", pady=25)
 
         style = ttk.Style()
@@ -71,12 +53,11 @@ class ChampionScraperApp:
             frame = tk.Frame(root)
             frame.grid(row=i + 1, column=4, sticky="nsew")
             tk.Label(frame, text=f"{lane.capitalize()} Lane:").pack(anchor="w")
-            tree = ttk.Treeview(frame, columns=("Name", "Popularity", "Games", "Win Rate Difference"), show='headings')
+            tree = ttk.Treeview(frame, columns=("Name", "Popularity", "Win Rate"), show='headings')
             tree.pack(expand=True, fill='both')
             tree.heading("Name", text="Name")
             tree.heading("Popularity", text="Popularity")
-            tree.heading("Games", text="Games")
-            tree.heading("Win Rate Difference", text="Win Rate Difference")
+            tree.heading("Win Rate", text="Win Rate")
             self.treeviews[lane] = tree
 
     def start_search(self):
@@ -103,17 +84,24 @@ class ChampionScraperApp:
             print(f"Error loading data from {filename} {e}")
             return
 
+        counters_data = data.get("counters")
+        if counters_data is None:
+            counters_data = data
+
         # Add the champion to the loaded list
         self.champion_listbox.insert(tk.END, f"{full_name}_{lane}")
 
         for lane in self.all_data:
-            for name, new_data in data.get(lane, {}).items():
+            lane_data = counters_data.get(lane, {})
+            for name, new_data in lane_data.items():
+                sanitized_new_data = self.sanitize_counter_entry(new_data)
                 if name in self.all_data[lane]:
                     existing_data = self.all_data[lane][name]
-                    self.all_data[lane][name] = self.integrate_data(existing_data, new_data)
+                    self.all_data[lane][name] = self.integrate_data(existing_data, sanitized_new_data)
                 else:
-                    self.all_data[lane][name] = new_data
+                    self.all_data[lane][name] = sanitized_new_data
 
+        self.apply_current_filter()
         self.update_GUI()
 
     def reset_data(self):
@@ -134,53 +122,90 @@ class ChampionScraperApp:
                 tree.insert("", "end", values=(
                     name,
                     details["popularity"],
-                    details["games"],
-                    details["win_rate_diff"]
+                    details.get("win_rate", "0.00")
                 ))
-    def filter_by_games(self):
+    def apply_current_filter(self):
         try:
-            min_games = int(self.game_amount_entry.get())
+            min_popularity = float(self.popularity_entry.get())
         except ValueError:
-            messagebox.showerror("Invalid Input", "Please enter a valid number for games.")
+            messagebox.showerror("Invalid Input", "Please enter a valid number for popularity.")
             return
 
-        # Filter the data
         filtered_data = {lane: {} for lane in LANES}
         for lane, champions in self.all_data.items():
             for name, details in champions.items():
-                if int(details["games"]) >= min_games:
+                if self.parse_float(details.get("popularity")) >= min_popularity:
                     filtered_data[lane][name] = details
 
-        # Update the all_data with the filtered result and refresh the GUI
         self.all_data = filtered_data
+    
+    def filter_by_popularity(self):
+        self.apply_current_filter()
         self.update_GUI()
 
 
     def integrate_data(self, existing_data, new_data):
-        existing_games = int(existing_data.get("games", '0'))
-        new_games = int(new_data.get("games", '0'))
+        existing_games = self.parse_int(existing_data.get("games"))
+        new_games = self.parse_int(new_data.get("games"))
         total_games = existing_games + new_games
 
-        existing_win_rate = float(existing_data.get("win_rate", '0'))
-        new_win_rate = float(new_data.get("win_rate", '0'))
+        existing_win_rate = self.parse_float(existing_data.get("win_rate"))
+        new_win_rate = self.parse_float(new_data.get("win_rate"))
 
         weighted_win_rate = (
             ((existing_win_rate * existing_games) + (new_win_rate * new_games)) 
             / total_games if total_games > 0 else 0
         )
         
-        win_rate_diff = round(weighted_win_rate - 50, 2)
+        win_rate_diff = weighted_win_rate - 50
         
-        total_popularity = float(existing_data.get("popularity", '0')) + \
-                        float(new_data.get("popularity", '0'))
+        total_popularity = self.parse_float(existing_data.get("popularity")) + \
+                        self.parse_float(new_data.get("popularity"))
 
         existing_data.update({
             "games": f"{total_games}",
             "win_rate_diff": f"{win_rate_diff:.2f}",
-            "popularity": f"{total_popularity:.2f}"
+            "popularity": f"{total_popularity:.2f}",
+            "win_rate": f"{weighted_win_rate:.2f}"
         })
 
         return existing_data
+
+    def sanitize_counter_entry(self, entry):
+        sanitized = entry.copy()
+        sanitized["games"] = f"{self.parse_int(entry.get('games'))}"
+        sanitized["popularity"] = f"{self.parse_float(entry.get('popularity')):.2f}"
+        sanitized["win_rate"] = f"{self.parse_float(entry.get('win_rate')):.2f}"
+        sanitized["win_rate_diff"] = f"{self.parse_float(entry.get('win_rate_diff')):.2f}"
+        return sanitized
+
+    @staticmethod
+    def parse_int(value):
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            return int(value)
+        if isinstance(value, str):
+            value = value.replace(",", "").strip()
+            if not value:
+                return 0
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 0
+
+    @staticmethod
+    def parse_float(value):
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            value = value.replace(",", "").strip()
+            if not value:
+                return 0.0
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 from selenium import webdriver
-from selenium.webdriver.firefox.service import Service as FirefoxService
-from webdriver_manager.firefox import GeckoDriverManager
+from selenium.webdriver.chrome.service import Service as ChromeService
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -11,25 +11,7 @@ import os
 import argparse
 
 CHAMPION_NAMES = [
-    "Ahri", "Aatrox", "Akali", "Akshan", "Alistar", "Amumu", "Anivia", "Annie",
-    "Aphelios", "Ashe", "AurelionSol", "Aurora", "Azir", "Bard", "BelVeth", "Blitzcrank",
-    "Brand", "Braum", "Briar", "Caitlyn", "Camille", "Cassiopeia", "ChoGath", "Corki",
-    "Darius", "Diana", "DrMundo", "Draven", "Ekko", "Elise", "Evelynn", "Ezreal", "Fiddlesticks",
-    "Fiora", "Fizz", "Galio", "Gangplank", "Garen", "Gnar", "Gragas", "Graves", "Gwen",
-    "Hecarim", "Heimerdinger", "Hwei", "Illaoi", "Irelia", "Ivern", "Janna", "JarvanIV",
-    "Jax", "Jayce", "Jhin", "Jinx", "KSante", "KaiSa", "Kalista", "Karma", "Karthus", "Kassadin",
-    "Katarina", "Kayle", "Kayn", "Kennen", "KhaZix", "Kindred", "Kled", "KogMaw", "LeBlanc",
-    "LeeSin", "Leona", "Lillia", "Lissandra", "Lucian", "Lulu", "Lux", "Malphite", "Malzahar",
-    "Maokai", "MasterYi", "Milio", "MissFortune", "Mordekaiser", "Morgana", "Naafiri", "Nami",
-    "Nasus", "Nautilus", "Neeko", "Nidalee", "Nilah", "Nocturne", "Nunu", "Olaf", "Orianna",
-    "Ornn", "Pantheon", "Poppy", "Pyke", "Qiyana", "Quinn", "Rakan", "Rammus", "RekSai",
-    "Rell", "Renata", "Renekton", "Rengar", "Riven", "Rumble", "Ryze", "Samira", "Sejuani",
-    "Senna", "Seraphine", "Sett", "Shaco", "Shen", "Shyvana", "Singed", "Sion", "Sivir",
-    "Skarner", "Smolder", "Sona", "Soraka", "Swain", "Sylas", "Syndra", "TahmKench", "Taliyah",
-    "Talon", "Taric", "Teemo", "Thresh", "Tristana", "Trundle", "Tryndamere", "TwistedFate",
-    "Twitch", "Udyr", "Urgot", "Varus", "Vayne", "Veigar", "VelKoz", "Vex", "Vi", "Viego",
-    "Viktor", "Vladimir", "Volibear", "Warwick", "Wukong", "Xayah", "Xerath", "XinZhao",
-    "Yasuo", "Yone", "Yorick", "Yuumi", "Zac", "Zed", "Zeri", "Ziggs", "Zilean", "Zyra", "Zoe"
+    "jinx"
 ]
 
 LANES = ['top', 'jungle', 'middle', 'bottom', 'support']
@@ -57,7 +39,140 @@ def format_data(element):
         "win_rate_diff": win_rate_diff
     }
 
-def scrape_web(driver, url):
+def format_synergy_data(element, debug=False):
+    """Format synergy data with Win Rate, Delta 1, Delta 2, Pick Rate, Games"""
+    img_alt = 'error'
+    
+    a_tags = element.find_elements(By.TAG_NAME, 'a')
+    if not a_tags:
+        return {
+            "Name": 'error',
+            "win_rate": 'N/A',
+            "delta_1": 'N/A',
+            "delta_2": 'N/A',
+            "pick_rate": 'N/A',
+            "games": 'N/A'
+        }
+    
+    a_tag = a_tags[0]
+    
+    try:
+        # Find the champion image
+        # Structure: <a><q:template>...</q:template><span><img alt="Karma" src="...champx46/karma.webp"></span></a>
+        # We want the image inside <span>, NOT inside <q:template> (tooltip)
+        
+        # First try: find img inside <span> tag (the actual champion image)
+        span_imgs = a_tag.find_elements(By.XPATH, ".//span//img[contains(@src, 'champ')]")
+        
+        if span_imgs:
+            # Use the first image from span (actual champion, not tooltip)
+            champ_img = span_imgs[0]
+        else:
+            # Fallback: find any img with 'champ' in src, but exclude tooltip
+            all_champ_imgs = a_tag.find_elements(By.XPATH, ".//img[contains(@src, 'champ')]")
+            # Filter out tooltip images (inside q:template)
+            champ_imgs = []
+            for img in all_champ_imgs:
+                # Check if image is NOT inside q:template
+                try:
+                    template = img.find_element(By.XPATH, "./ancestor::q:template")
+                    # If we find template, skip this image
+                    continue
+                except:
+                    # No template ancestor, this is the real image
+                    champ_imgs.append(img)
+            
+            if not champ_imgs:
+                return {
+                    "Name": 'error',
+                    "win_rate": 'N/A',
+                    "delta_1": 'N/A',
+                    "delta_2": 'N/A',
+                    "pick_rate": 'N/A',
+                    "games": 'N/A'
+                }
+            
+            champ_img = champ_imgs[0]
+        
+        alt = champ_img.get_attribute('alt') or ''
+        img_src = champ_img.get_attribute('src') or ''
+        
+        if 'champ' in img_src.lower() and alt:
+            if alt not in ['Flash', 'Cleanse', 'Exhaust', 'Ignite', 'Teleport', 'Ghost', 'Barrier', 'Heal', 'Smite']:
+                if 'lane' not in alt.lower():
+                    img_alt = alt
+        
+    except Exception as e:
+        return {
+            "Name": 'error',
+            "win_rate": 'N/A',
+            "delta_1": 'N/A',
+            "delta_2": 'N/A',
+            "pick_rate": 'N/A',
+            "games": 'N/A'
+        }
+
+    # Extract data from div elements
+    # Structure: <div class="my-1">Win Rate</div>, <div class="my-1 text-[#bcc42a]">Delta 1</div>, etc.
+    try:
+        # Find all div elements with class "my-1" (Win Rate, Delta 1, Delta 2, Pick Rate)
+        data_divs = element.find_elements(By.XPATH, ".//div[contains(@class, 'my-1')]")
+        # Find games div (has text-[9px] class)
+        games_divs = element.find_elements(By.XPATH, ".//div[contains(@class, 'text-[9px]')]")
+        
+        win_rate = 'N/A'
+        delta_1 = 'N/A'
+        delta_2 = 'N/A'
+        pick_rate = 'N/A'
+        games = 'N/A'
+        
+        # Win Rate is usually the first div with my-1 class (may have span inside)
+        if len(data_divs) >= 1:
+            win_rate_text = data_divs[0].text.strip()
+            # If there's a span inside, get its text
+            span = data_divs[0].find_elements(By.TAG_NAME, 'span')
+            if span:
+                win_rate_text = span[0].text.strip()
+            win_rate = win_rate_text if win_rate_text else 'N/A'
+        
+        # Delta 1 is usually the second div with my-1 class and text-[#bcc42a]
+        if len(data_divs) >= 2:
+            delta_1 = data_divs[1].text.strip() if data_divs[1].text.strip() else 'N/A'
+        
+        # Delta 2 is usually the third div with my-1 class and text-[#f6ff36]
+        if len(data_divs) >= 3:
+            delta_2 = data_divs[2].text.strip() if data_divs[2].text.strip() else 'N/A'
+        
+        # Pick Rate is usually the fourth div with my-1 class and text-[#939bf6]
+        if len(data_divs) >= 4:
+            pick_rate = data_divs[3].text.strip() if data_divs[3].text.strip() else 'N/A'
+        
+        # Games is in a div with text-[9px] class
+        if games_divs:
+            games = games_divs[0].text.strip() if games_divs[0].text.strip() else 'N/A'
+        
+    except (ValueError, IndexError, Exception) as e:
+        # Fallback: try to parse from text
+        try:
+            text = element.text.replace('\n', ' ').strip().split()
+            win_rate = text[0] if len(text) >= 1 else 'N/A'
+            delta_1 = text[1] if len(text) >= 2 else 'N/A'
+            delta_2 = text[2] if len(text) >= 3 else 'N/A'
+            pick_rate = text[3] if len(text) >= 4 else 'N/A'
+            games = text[4] if len(text) >= 5 else 'N/A'
+        except:
+            win_rate = delta_1 = delta_2 = pick_rate = games = 'N/A'
+
+    return {
+        "Name": img_alt,
+        "win_rate": win_rate,
+        "delta_1": delta_1,
+        "delta_2": delta_2,
+        "pick_rate": pick_rate,
+        "games": games
+    }
+
+def scrape_web(driver, url, current_lane):
     driver.get(url)
 
     # Scroll down the page slightly to ensure content is loaded
@@ -84,6 +199,7 @@ def scrape_web(driver, url):
         print(f"Skip, {url}")
         return
 
+    # Scrape counter data
     lane_data = {lane: {} for lane in LANES}
     for i, lane in enumerate(LANES, start=2):
         xpath = f"/html/body/main/div[6]/div[1]/div[{i}]/div[2]"
@@ -101,12 +217,98 @@ def scrape_web(driver, url):
                 
                 if name != 'error' and name != 'N/A' and name not in lane_data[lane]:
                     lane_data[lane][name] = data
-            
+        
             # Scroll the parent element sideways to load more elements
             driver.execute_script("arguments[0].scrollLeft += 500;", parent_element)
             time.sleep(0.5)
 
-    return lane_data
+    # Scrape synergy data (Common Teammates)
+    # Synergy data structure: {lane: {champion_name: data}} (excluding current lane)
+    synergy_data = {lane: {} for lane in LANES}
+    
+    try:
+        # Find the button using data-type attribute (most reliable)
+        # The button is a div with data-type="common_synergy"
+        teammates_button = None
+        button_selectors = [
+            "//div[@data-type='common_synergy']",
+            "//div[contains(@class, 'cursor-pointer') and .//span[contains(text(), 'Common Teammates')]]",
+            "//div[contains(@class, 'cursor-pointer') and .//span[contains(text(), 'Common')]]",
+            "//span[contains(text(), 'Common Teammates')]/ancestor::div[contains(@class, 'cursor-pointer')]",
+            "//span[contains(text(), 'Common')]/ancestor::div[@data-type='common_synergy']"
+        ]
+        
+        for selector in button_selectors:
+            try:
+                teammates_button = WebDriverWait(driver, 3).until(
+                    EC.presence_of_element_located((By.XPATH, selector))
+                )
+                if teammates_button.is_displayed():
+                    break
+                else:
+                    teammates_button = None
+            except:
+                continue
+        
+        if teammates_button is None:
+            print(f"Warning: Could not find 'Common Teammates' button for {current_lane}")
+        else:
+            try:
+                # Scroll button into view
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", teammates_button)
+                time.sleep(0.5)
+                
+                # Click the button using JavaScript (more reliable for Qwik framework)
+                driver.execute_script("arguments[0].click();", teammates_button)
+                time.sleep(2)  # Wait for content to load
+                
+                # Scroll to synergy section
+                body.send_keys(Keys.PAGE_DOWN)
+                time.sleep(0.5)
+                
+                # Collect synergy data for each lane (excluding current lane)
+                lanes_to_check = [lane for lane in LANES if lane != current_lane]
+                
+                for lane in lanes_to_check:
+                    current_lane_index = LANES.index(current_lane)
+                    lane_index = LANES.index(lane)
+                    
+                    if lane_index < current_lane_index:
+                        synergy_div_index = lane_index + 2
+                    else:
+                        synergy_div_index = lane_index + 1
+                    
+                    xpath = f"/html/body/main/div[6]/div[1]/div[{synergy_div_index}]/div[2]"
+                    parent_element = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, xpath)))
+                    
+                    for _ in range(6):
+                        children = WebDriverWait(driver, 15).until(
+                            EC.presence_of_all_elements_located((By.XPATH, f"{xpath}/div[1]/*"))
+                        )
+                        
+                        for element in children:
+                            data = format_synergy_data(element)
+                            name = data.get("Name")
+                            
+                            if name != 'error' and name != 'N/A' and name not in synergy_data[lane]:
+                                synergy_data[lane][name] = data
+                        
+                        driver.execute_script("arguments[0].scrollLeft += 500;", parent_element)
+                        time.sleep(0.5)
+                            
+            except Exception as e:
+                print(f"Error clicking 'Common Teammates' button or collecting synergy data: {e}")
+            
+    except Exception as e:
+        print(f"Error scraping synergy data: {e}")
+
+    # Combine counter and synergy data
+    result = {
+        "counters": lane_data,
+        "synergy": synergy_data
+    }
+    
+    return result
 
 
 def save_data(full_name, data, lane):
@@ -130,7 +332,7 @@ def scrape_and_save(driver, full_name):
             print(f"Skip, Data for {full_name} {lane} already exists.")
             continue
         
-        data = scrape_web(driver, url)
+        data = scrape_web(driver, url, lane)
         
         # if not empty save
         if data:
@@ -162,7 +364,7 @@ def main(fifth):
     if not os.path.exists('data'):
         os.makedirs('data')
     
-    driver = webdriver.Firefox(service=FirefoxService(GeckoDriverManager().install()))
+    driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()))
 
     try:
         if fifth == 0:

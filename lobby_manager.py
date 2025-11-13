@@ -3,6 +3,7 @@ from tkinter import messagebox, ttk
 import json
 import os
 import re
+import sys
 
 CHAMPION_NAMES = [
     "jinx"
@@ -10,7 +11,35 @@ CHAMPION_NAMES = [
 
 LANES = ['top', 'jungle', 'middle', 'bottom', 'support']
 
-ALIAS_FILE = os.path.join(os.path.dirname(__file__), "champion_aliases.json")
+
+def resolve_resource_path(*path_parts: str) -> str:
+    relative_path = os.path.join(*path_parts)
+    candidates = []
+
+    if getattr(sys, 'frozen', False):
+        executable_dir = os.path.dirname(sys.executable)
+        candidates.append(os.path.join(executable_dir, relative_path))
+
+        mei_dir = getattr(sys, '_MEIPASS', None)
+        if mei_dir:
+            candidates.append(os.path.join(mei_dir, relative_path))
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates.append(os.path.join(script_dir, relative_path))
+    candidates.append(os.path.abspath(relative_path))
+
+    seen = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if os.path.exists(candidate):
+            return candidate
+
+    return candidates[0]
+
+
+ALIAS_FILE = resolve_resource_path("champion_aliases.json")
 
 CHOSEONG_LIST = [
     "ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ", "ㅅ",
@@ -51,6 +80,8 @@ def alias_variants(alias: str) -> set[str]:
 
 
 def load_alias_tables():
+    if not os.path.exists(ALIAS_FILE):
+        print(f"[WARN] Alias file not found at {ALIAS_FILE}")
     try:
         with open(ALIAS_FILE, "r", encoding="utf-8") as handle:
             alias_data = json.load(handle)
@@ -238,12 +269,19 @@ class ChampionScraperApp:
         self.name_entry.delete(0, tk.END)
 
         # Extract data from json file
-        filename = f"data/{full_name}_{lane}.json".replace(" ", "_")
+        data_filename = f"{full_name}_{lane}.json".replace(" ", "_")
+        filename = resolve_resource_path("data", data_filename)
         try:
-            with open(filename, 'r') as file:
+            with open(filename, 'r', encoding="utf-8") as file:
                 data = json.load(file)
-        except (IOError, json.JSONDecodeError) as e:
-            print(f"Error loading data from {filename} {e}")
+        except FileNotFoundError:
+            messagebox.showerror("Error", f"Counter data file '{data_filename}' not found.\n경로: {filename}")
+            return
+        except json.JSONDecodeError as e:
+            messagebox.showerror("Error", f"Counter 데이터 파일을 읽을 수 없습니다: {data_filename}\n에러: {e}")
+            return
+        except OSError as e:
+            messagebox.showerror("Error", f"Counter 데이터 파일을 여는 중 오류가 발생했습니다: {filename}\n에러: {e}")
             return
 
         counters_data = data.get("counters")
@@ -289,12 +327,19 @@ class ChampionScraperApp:
 
         self.ally_name_entry.delete(0, tk.END)
 
-        filename = f"data/{full_name}_{lane}.json".replace(" ", "_")
+        data_filename = f"{full_name}_{lane}.json".replace(" ", "_")
+        filename = resolve_resource_path("data", data_filename)
         try:
-            with open(filename, 'r') as file:
+            with open(filename, 'r', encoding="utf-8") as file:
                 data = json.load(file)
-        except (IOError, json.JSONDecodeError) as e:
-            print(f"Error loading synergy data from {filename} {e}")
+        except FileNotFoundError:
+            messagebox.showerror("Error", f"Synergy 데이터 파일 '{data_filename}'을 찾을 수 없습니다.\n경로: {filename}")
+            return
+        except json.JSONDecodeError as e:
+            messagebox.showerror("Error", f"Synergy 데이터 파일을 읽을 수 없습니다: {data_filename}\n에러: {e}")
+            return
+        except OSError as e:
+            messagebox.showerror("Error", f"Synergy 데이터 파일을 여는 중 오류가 발생했습니다: {filename}\n에러: {e}")
             return
 
         synergy_payload = data.get("synergy")

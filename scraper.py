@@ -9,6 +9,7 @@ import time
 import json
 import os
 import argparse
+import urllib3
 
 CHAMPION_NAMES = [
     "jinx"
@@ -364,6 +365,10 @@ def main(fifth):
     if not os.path.exists('data'):
         os.makedirs('data')
     
+    if os.environ.get("WDM_SSL_VERIFY") != "0":
+        os.environ["WDM_SSL_VERIFY"] = "0"
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
     driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()))
 
     try:

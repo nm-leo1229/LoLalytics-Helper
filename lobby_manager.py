@@ -93,6 +93,10 @@ class ChampionScraperApp:
         self.all_data = {lane: {} for lane in LANES}
         self.synergy_data = {lane: {} for lane in LANES}
         self.canonical_lookup, self.alias_lookup, self.display_lookup = load_alias_tables()
+        self.counter_cache = {}
+        self.synergy_cache = {}
+        self.counter_listbox_map = {}
+        self.synergy_listbox_map = {}
 
         # Counter controls
         self.counter_section = tk.LabelFrame(root, text="Counter")
@@ -114,6 +118,7 @@ class ChampionScraperApp:
         tk.Label(self.counter_section, text="Loaded Counters:").grid(row=1, column=0, columnspan=2, sticky="wn")
         self.champion_listbox = tk.Listbox(self.counter_section, height=7)
         self.champion_listbox.grid(row=1, column=0, columnspan=2, sticky="wn", pady=25)
+        self.champion_listbox.bind("<<ListboxSelect>>", self.on_counter_select)
 
         tk.Label(self.counter_section, text="Filter Data by Popularity:").grid(row=1, column=1, columnspan=2, sticky="wn")
         self.popularity_entry = tk.Entry(self.counter_section, width=17)
@@ -176,6 +181,7 @@ class ChampionScraperApp:
         tk.Label(self.synergy_section, text="Loaded Synergy:").grid(row=1, column=0, columnspan=2, sticky="wn", pady=5)
         self.synergy_listbox = tk.Listbox(self.synergy_section, height=7)
         self.synergy_listbox.grid(row=1, column=0, columnspan=2, sticky="wn", pady=25)
+        self.synergy_listbox.bind("<<ListboxSelect>>", self.on_synergy_select)
 
         tk.Label(self.synergy_section, text="Filter Synergy by Pick Rate:").grid(row=1, column=1, columnspan=2, sticky="wn")
         self.synergy_pick_rate_entry = tk.Entry(self.synergy_section, width=17)
@@ -244,23 +250,27 @@ class ChampionScraperApp:
         if counters_data is None:
             counters_data = data
 
-        self.all_data = {lane: {} for lane in LANES}
-        self.champion_listbox.delete(0, tk.END)
-
-        # Add the champion to the loaded list
+        key = (full_name, lane)
         display_name = self.display_lookup.get(full_name, full_name.title())
-        self.champion_listbox.insert(tk.END, f"{display_name} ({lane})")
+        label = f"{display_name} ({lane})"
 
-        for lane_name in self.all_data:
+        sanitized_dataset = {ln: {} for ln in LANES}
+        for lane_name in sanitized_dataset:
             lane_data = counters_data.get(lane_name, {})
             for name, new_data in lane_data.items():
-                sanitized_new_data = self.sanitize_counter_entry(new_data)
-                if name in self.all_data[lane_name]:
-                    existing_data = self.all_data[lane_name][name]
-                    self.all_data[lane_name][name] = self.integrate_data(existing_data, sanitized_new_data)
-                else:
-                    self.all_data[lane_name][name] = sanitized_new_data
+                sanitized_dataset[lane_name][name] = self.sanitize_counter_entry(new_data)
 
+        self.counter_cache[key] = sanitized_dataset
+        if label not in self.counter_listbox_map:
+            self.champion_listbox.insert(tk.END, label)
+        self.counter_listbox_map[label] = key
+        labels = self.champion_listbox.get(0, tk.END)
+        if label in labels:
+            idx = labels.index(label)
+            self.champion_listbox.selection_clear(0, tk.END)
+            self.champion_listbox.selection_set(idx)
+
+        self.all_data = self.clone_dataset(sanitized_dataset)
         self.apply_counter_filter()
         self.update_GUI()
 
@@ -292,28 +302,36 @@ class ChampionScraperApp:
             messagebox.showinfo("Info", f"No synergy data available for {full_name}_{lane}.")
             return
 
-        self.synergy_data = {lane: {} for lane in LANES}
-        self.synergy_listbox.delete(0, tk.END)
-
         display_name = self.display_lookup.get(full_name, full_name.title())
-        self.synergy_listbox.insert(tk.END, f"{display_name} ({lane})")
-
-        for lane_name in self.synergy_data:
+        label = f"{display_name} ({lane})"
+        sanitized_dataset = {ln: {} for ln in LANES}
+        for lane_name in sanitized_dataset:
             lane_synergy = synergy_payload.get(lane_name, {})
             for name, new_data in lane_synergy.items():
-                sanitized_new_data = self.sanitize_synergy_entry(new_data)
-                if name in self.synergy_data[lane_name]:
-                    existing_data = self.synergy_data[lane_name][name]
-                    self.synergy_data[lane_name][name] = self.integrate_synergy_data(existing_data, sanitized_new_data)
-                else:
-                    self.synergy_data[lane_name][name] = sanitized_new_data
+                sanitized_dataset[lane_name][name] = self.sanitize_synergy_entry(new_data)
 
+        key = (full_name, lane)
+        self.synergy_cache[key] = sanitized_dataset
+        if label not in self.synergy_listbox_map:
+            self.synergy_listbox.insert(tk.END, label)
+        self.synergy_listbox_map[label] = key
+        labels = self.synergy_listbox.get(0, tk.END)
+        if label in labels:
+            idx = labels.index(label)
+            self.synergy_listbox.selection_clear(0, tk.END)
+            self.synergy_listbox.selection_set(idx)
+
+        self.synergy_data = self.clone_dataset(sanitized_dataset)
         self.apply_synergy_filter()
         self.update_synergy_GUI()
 
     def reset_data(self):
         self.all_data = {lane: {} for lane in LANES}
         self.synergy_data = {lane: {} for lane in LANES}
+        self.counter_cache.clear()
+        self.synergy_cache.clear()
+        self.counter_listbox_map.clear()
+        self.synergy_listbox_map.clear()
         self.champion_listbox.delete(0, tk.END)
         self.synergy_listbox.delete(0, tk.END)
 
@@ -439,6 +457,41 @@ class ChampionScraperApp:
         self.synergy_data = filtered_data
     
     def filter_synergy(self):
+        self.apply_synergy_filter()
+        self.update_synergy_GUI()
+
+    @staticmethod
+    def clone_dataset(dataset):
+        if not dataset:
+            return {lane: {} for lane in LANES}
+        return {
+            lane: {name: details.copy() for name, details in lane_data.items()}
+            for lane, lane_data in dataset.items()
+        }
+
+    def on_counter_select(self, event):
+        selection = event.widget.curselection()
+        if not selection:
+            return
+        label = event.widget.get(selection[0])
+        key = self.counter_listbox_map.get(label)
+        cached = self.counter_cache.get(key) if key else None
+        if not cached:
+            return
+        self.all_data = self.clone_dataset(cached)
+        self.apply_counter_filter()
+        self.update_GUI()
+
+    def on_synergy_select(self, event):
+        selection = event.widget.curselection()
+        if not selection:
+            return
+        label = event.widget.get(selection[0])
+        key = self.synergy_listbox_map.get(label)
+        cached = self.synergy_cache.get(key) if key else None
+        if not cached:
+            return
+        self.synergy_data = self.clone_dataset(cached)
         self.apply_synergy_filter()
         self.update_synergy_GUI()
 

@@ -89,7 +89,7 @@ def load_alias_tables():
 class ChampionScraperApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Champion Scraper")
+        self.root.title("Champion Ban/Pick Helper")
         self.all_data = {lane: {} for lane in LANES}
         self.synergy_data = {lane: {} for lane in LANES}
         self.canonical_lookup, self.alias_lookup, self.display_lookup = load_alias_tables()
@@ -111,7 +111,7 @@ class ChampionScraperApp:
         self.search_button.grid(row=0, column=2, sticky="ew")
         self.root.bind('<Return>', lambda _: self.start_search())
 
-        tk.Label(self.counter_section, text="Loaded Champion Counters:").grid(row=1, column=0, columnspan=2, sticky="wn")
+        tk.Label(self.counter_section, text="Loaded Counters:").grid(row=1, column=0, columnspan=2, sticky="wn")
         self.champion_listbox = tk.Listbox(self.counter_section, height=7)
         self.champion_listbox.grid(row=1, column=0, columnspan=2, sticky="wn", pady=25)
 
@@ -119,6 +119,7 @@ class ChampionScraperApp:
         self.popularity_entry = tk.Entry(self.counter_section, width=17)
         self.popularity_entry.grid(row=1, column=1, columnspan=2, sticky="wn", pady=26)
         self.popularity_entry.insert(0, "1")
+
         self.filter_button = tk.Button(self.counter_section, text="Filter", command=self.filter_by_popularity)
         self.filter_button.grid(row=1, column=1, columnspan=2, sticky="ne", pady=25)
 
@@ -172,19 +173,20 @@ class ChampionScraperApp:
         self.ally_search_button = tk.Button(self.synergy_section, text="Load Synergy", command=self.start_synergy_search)
         self.ally_search_button.grid(row=0, column=2, sticky="ew", padx=(5, 0))
 
-        tk.Label(self.synergy_section, text="Loaded Champions Synergy:").grid(row=1, column=0, columnspan=2, sticky="wn", pady=(10, 0))
+        tk.Label(self.synergy_section, text="Loaded Synergy:").grid(row=1, column=0, columnspan=2, sticky="wn", pady=5)
         self.synergy_listbox = tk.Listbox(self.synergy_section, height=7)
-        self.synergy_listbox.grid(row=2, column=0, columnspan=2, sticky="wn", pady=(5, 10))
+        self.synergy_listbox.grid(row=1, column=0, columnspan=2, sticky="wn", pady=25)
 
-        tk.Label(self.synergy_section, text="Filter Synergy by Pick Rate:").grid(row=1, column=2, sticky="ne", pady=(10, 0))
+        tk.Label(self.synergy_section, text="Filter Synergy by Pick Rate:").grid(row=1, column=1, columnspan=2, sticky="wn")
         self.synergy_pick_rate_entry = tk.Entry(self.synergy_section, width=17)
-        self.synergy_pick_rate_entry.grid(row=2, column=2, sticky="ne", pady=(5, 10))
+        self.synergy_pick_rate_entry.grid(row=1, column=1, columnspan=2, sticky="wn", pady=26)
         self.synergy_pick_rate_entry.insert(0, "2")
+
         self.synergy_filter_button = tk.Button(self.synergy_section, text="Filter", command=self.filter_synergy)
-        self.synergy_filter_button.grid(row=3, column=2, sticky="ne", pady=(0, 10))
+        self.synergy_filter_button.grid(row=1, column=1, columnspan=2, sticky="ne", pady=(0, 25))
 
         self.synergy_lane_filter_frame = tk.LabelFrame(self.synergy_section, text="Synergy Lanes")
-        self.synergy_lane_filter_frame.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=(0, 10))
+        self.synergy_lane_filter_frame.grid(row=3, column=0, columnspan=4, sticky="ew", padx=5, pady=(0, 10))
 
         self.synergy_lane_vars = {}
         for idx, lane in enumerate(LANES):

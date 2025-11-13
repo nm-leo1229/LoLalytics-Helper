@@ -11,9 +11,23 @@ import os
 import argparse
 import urllib3
 
-CHAMPION_NAMES = [
-    "jinx"
-]
+
+def load_champion_names():
+    alias_file = os.path.join(os.path.dirname(__file__), "champion_aliases.json")
+    try:
+        with open(alias_file, "r", encoding="utf-8") as handle:
+            alias_data = json.load(handle)
+        names = list(alias_data.keys())
+        if names:
+            return names
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    return [
+        "jinx"
+    ]
+
+
+CHAMPION_NAMES = load_champion_names()
 
 LANES = ['top', 'jungle', 'middle', 'bottom', 'support']
 

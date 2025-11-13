@@ -1,0 +1,4916 @@
+{
+    "counters": {
+        "top": {
+            "Aatrox": {
+                "Name": "Aatrox",
+                "win_rate": "49.54",
+                "popularity": "4.69",
+                "games": "3,710",
+                "win_rate_diff": -0.46
+            },
+            "Ambessa": {
+                "Name": "Ambessa",
+                "win_rate": "51.74",
+                "popularity": "4.48",
+                "games": "3,541",
+                "win_rate_diff": 1.74
+            },
+            "K'Sante": {
+                "Name": "K'Sante",
+                "win_rate": "50.47",
+                "popularity": "3.79",
+                "games": "2,998",
+                "win_rate_diff": 0.47
+            },
+            "Sion": {
+                "Name": "Sion",
+                "win_rate": "50.56",
+                "popularity": "3.75",
+                "games": "2,967",
+                "win_rate_diff": 0.56
+            },
+            "Jax": {
+                "Name": "Jax",
+                "win_rate": "50.63",
+                "popularity": "3.31",
+                "games": "2,617",
+                "win_rate_diff": 0.63
+            },
+            "Renekton": {
+                "Name": "Renekton",
+                "win_rate": "49.32",
+                "popularity": "3.15",
+                "games": "2,492",
+                "win_rate_diff": -0.68
+            },
+            "Darius": {
+                "Name": "Darius",
+                "win_rate": "50.18",
+                "popularity": "3.15",
+                "games": "2,489",
+                "win_rate_diff": 0.18
+            },
+            "Malphite": {
+                "Name": "Malphite",
+                "win_rate": "48.87",
+                "popularity": "3.03",
+                "games": "2,394",
+                "win_rate_diff": -1.13
+            },
+            "Jayce": {
+                "Name": "Jayce",
+                "win_rate": "51.94",
+                "popularity": "2.60",
+                "games": "2,058",
+                "win_rate_diff": 1.94
+            },
+            "Garen": {
+                "Name": "Garen",
+                "win_rate": "53.67",
+                "popularity": "2.60",
+                "games": "2,055",
+                "win_rate_diff": 3.67
+            },
+            "Fiora": {
+                "Name": "Fiora",
+                "win_rate": "49.83",
+                "popularity": "2.55",
+                "games": "2,017",
+                "win_rate_diff": -0.17
+            },
+            "Mordekaiser": {
+                "Name": "Mordekaiser",
+                "win_rate": "51.65",
+                "popularity": "2.37",
+                "games": "1,874",
+                "win_rate_diff": 1.65
+            },
+            "Irelia": {
+                "Name": "Irelia",
+                "win_rate": "51.15",
+                "popularity": "2.32",
+                "games": "1,832",
+                "win_rate_diff": 1.15
+            },
+            "Sett": {
+                "Name": "Sett",
+                "win_rate": "50.11",
+                "popularity": "2.24",
+                "games": "1,774",
+                "win_rate_diff": 0.11
+            },
+            "Yone": {
+                "Name": "Yone",
+                "win_rate": "52.44",
+                "popularity": "2.21",
+                "games": "1,745",
+                "win_rate_diff": 2.44
+            },
+            "Riven": {
+                "Name": "Riven",
+                "win_rate": "48.35",
+                "popularity": "2.15",
+                "games": "1,698",
+                "win_rate_diff": -1.65
+            },
+            "Camille": {
+                "Name": "Camille",
+                "win_rate": "48.58",
+                "popularity": "2.05",
+                "games": "1,620",
+                "win_rate_diff": -1.42
+            },
+            "Yasuo": {
+                "Name": "Yasuo",
+                "win_rate": "51.87",
+                "popularity": "1.93",
+                "games": "1,523",
+                "win_rate_diff": 1.87
+            },
+            "Ornn": {
+                "Name": "Ornn",
+                "win_rate": "51.73",
+                "popularity": "1.90",
+                "games": "1,502",
+                "win_rate_diff": 1.73
+            },
+            "Gangplank": {
+                "Name": "Gangplank",
+                "win_rate": "46.88",
+                "popularity": "1.84",
+                "games": "1,457",
+                "win_rate_diff": -3.12
+            },
+            "Gwen": {
+                "Name": "Gwen",
+                "win_rate": "51.02",
+                "popularity": "1.80",
+                "games": "1,425",
+                "win_rate_diff": 1.02
+            },
+            "Gnar": {
+                "Name": "Gnar",
+                "win_rate": "48.59",
+                "popularity": "1.80",
+                "games": "1,422",
+                "win_rate_diff": -1.41
+            },
+            "Shen": {
+                "Name": "Shen",
+                "win_rate": "46.44",
+                "popularity": "1.74",
+                "games": "1,376",
+                "win_rate_diff": -3.56
+            },
+            "Vladimir": {
+                "Name": "Vladimir",
+                "win_rate": "49.15",
+                "popularity": "1.64",
+                "games": "1,294",
+                "win_rate_diff": -0.85
+            },
+            "Dr. Mundo": {
+                "Name": "Dr. Mundo",
+                "win_rate": "53.49",
+                "popularity": "1.59",
+                "games": "1,260",
+                "win_rate_diff": 3.49
+            },
+            "Gragas": {
+                "Name": "Gragas",
+                "win_rate": "51.84",
+                "popularity": "1.44",
+                "games": "1,142",
+                "win_rate_diff": 1.84
+            },
+            "Rumble": {
+                "Name": "Rumble",
+                "win_rate": "52.86",
+                "popularity": "1.41",
+                "games": "1,118",
+                "win_rate_diff": 2.86
+            },
+            "Singed": {
+                "Name": "Singed",
+                "win_rate": "46.75",
+                "popularity": "1.36",
+                "games": "1,076",
+                "win_rate_diff": -3.25
+            },
+            "Kayle": {
+                "Name": "Kayle",
+                "win_rate": "49.15",
+                "popularity": "1.34",
+                "games": "1,060",
+                "win_rate_diff": -0.85
+            },
+            "Cho'Gath": {
+                "Name": "Cho'Gath",
+                "win_rate": "49.16",
+                "popularity": "1.29",
+                "games": "1,017",
+                "win_rate_diff": -0.84
+            },
+            "Tryndamere": {
+                "Name": "Tryndamere",
+                "win_rate": "51.31",
+                "popularity": "1.21",
+                "games": "957",
+                "win_rate_diff": 1.31
+            },
+            "Urgot": {
+                "Name": "Urgot",
+                "win_rate": "47.58",
+                "popularity": "1.20",
+                "games": "950",
+                "win_rate_diff": -2.42
+            },
+            "Yorick": {
+                "Name": "Yorick",
+                "win_rate": "48.73",
+                "popularity": "1.20",
+                "games": "946",
+                "win_rate_diff": -1.27
+            },
+            "Pantheon": {
+                "Name": "Pantheon",
+                "win_rate": "47.99",
+                "popularity": "1.16",
+                "games": "919",
+                "win_rate_diff": -2.01
+            },
+            "Kennen": {
+                "Name": "Kennen",
+                "win_rate": "46.91",
+                "popularity": "1.08",
+                "games": "857",
+                "win_rate_diff": -3.09
+            },
+            "Sylas": {
+                "Name": "Sylas",
+                "win_rate": "53.68",
+                "popularity": "1.08",
+                "games": "857",
+                "win_rate_diff": 3.68
+            },
+            "Kled": {
+                "Name": "Kled",
+                "win_rate": "49.20",
+                "popularity": "1.02",
+                "games": "809",
+                "win_rate_diff": -0.8
+            },
+            "Olaf": {
+                "Name": "Olaf",
+                "win_rate": "45.27",
+                "popularity": "1.02",
+                "games": "804",
+                "win_rate_diff": -4.73
+            },
+            "Akali": {
+                "Name": "Akali",
+                "win_rate": "52.33",
+                "popularity": "0.98",
+                "games": "772",
+                "win_rate_diff": 2.33
+            },
+            "Nasus": {
+                "Name": "Nasus",
+                "win_rate": "54.37",
+                "popularity": "0.91",
+                "games": "721",
+                "win_rate_diff": 4.37
+            },
+            "Volibear": {
+                "Name": "Volibear",
+                "win_rate": "53.92",
+                "popularity": "0.89",
+                "games": "701",
+                "win_rate_diff": 3.92
+            },
+            "Teemo": {
+                "Name": "Teemo",
+                "win_rate": "52.62",
+                "popularity": "0.87",
+                "games": "688",
+                "win_rate_diff": 2.62
+            },
+            "Quinn": {
+                "Name": "Quinn",
+                "win_rate": "47.47",
+                "popularity": "0.85",
+                "games": "672",
+                "win_rate_diff": -2.53
+            },
+            "Poppy": {
+                "Name": "Poppy",
+                "win_rate": "48.10",
+                "popularity": "0.83",
+                "games": "659",
+                "win_rate_diff": -1.9
+            },
+            "Illaoi": {
+                "Name": "Illaoi",
+                "win_rate": "50.54",
+                "popularity": "0.82",
+                "games": "647",
+                "win_rate_diff": 0.54
+            },
+            "Rek'Sai": {
+                "Name": "Rek'Sai",
+                "win_rate": "52.48",
+                "popularity": "0.81",
+                "games": "644",
+                "win_rate_diff": 2.48
+            },
+            "Warwick": {
+                "Name": "Warwick",
+                "win_rate": "47.82",
+                "popularity": "0.70",
+                "games": "550",
+                "win_rate_diff": -2.18
+            },
+            "Cassiopeia": {
+                "Name": "Cassiopeia",
+                "win_rate": "48.45",
+                "popularity": "0.69",
+                "games": "549",
+                "win_rate_diff": -1.55
+            },
+            "Vayne": {
+                "Name": "Vayne",
+                "win_rate": "51.21",
+                "popularity": "0.68",
+                "games": "539",
+                "win_rate_diff": 1.21
+            },
+            "Aurora": {
+                "Name": "Aurora",
+                "win_rate": "49.71",
+                "popularity": "0.65",
+                "games": "517",
+                "win_rate_diff": -0.29
+            },
+            "Ryze": {
+                "Name": "Ryze",
+                "win_rate": "53.62",
+                "popularity": "0.61",
+                "games": "483",
+                "win_rate_diff": 3.62
+            },
+            "Zac": {
+                "Name": "Zac",
+                "win_rate": "46.98",
+                "popularity": "0.46",
+                "games": "364",
+                "win_rate_diff": -3.02
+            },
+            "Varus": {
+                "Name": "Varus",
+                "win_rate": "48.81",
+                "popularity": "0.43",
+                "games": "336",
+                "win_rate_diff": -1.19
+            },
+            "Heimerdinger": {
+                "Name": "Heimerdinger",
+                "win_rate": "51.89",
+                "popularity": "0.40",
+                "games": "318",
+                "win_rate_diff": 1.89
+            },
+            "Swain": {
+                "Name": "Swain",
+                "win_rate": "46.58",
+                "popularity": "0.39",
+                "games": "307",
+                "win_rate_diff": -3.42
+            },
+            "Wukong": {
+                "Name": "Wukong",
+                "win_rate": "51.82",
+                "popularity": "0.38",
+                "games": "303",
+                "win_rate_diff": 1.82
+            },
+            "Udyr": {
+                "Name": "Udyr",
+                "win_rate": "50.98",
+                "popularity": "0.32",
+                "games": "255",
+                "win_rate_diff": 0.98
+            },
+            "Trundle": {
+                "Name": "Trundle",
+                "win_rate": "53.11",
+                "popularity": "0.30",
+                "games": "241",
+                "win_rate_diff": 3.11
+            },
+            "Tahm Kench": {
+                "Name": "Tahm Kench",
+                "win_rate": "53.33",
+                "popularity": "0.28",
+                "games": "225",
+                "win_rate_diff": 3.33
+            },
+            "Kayn": {
+                "Name": "Kayn",
+                "win_rate": "50.74",
+                "popularity": "0.26",
+                "games": "203",
+                "win_rate_diff": 0.74
+            },
+            "Rengar": {
+                "Name": "Rengar",
+                "win_rate": "52.75",
+                "popularity": "0.23",
+                "games": "182",
+                "win_rate_diff": 2.75
+            },
+            "Smolder": {
+                "Name": "Smolder",
+                "win_rate": "54.44",
+                "popularity": "0.23",
+                "games": "180",
+                "win_rate_diff": 4.44
+            },
+            "Anivia": {
+                "Name": "Anivia",
+                "win_rate": "49.70",
+                "popularity": "0.21",
+                "games": "169",
+                "win_rate_diff": -0.3
+            },
+            "Galio": {
+                "Name": "Galio",
+                "win_rate": "53.29",
+                "popularity": "0.21",
+                "games": "167",
+                "win_rate_diff": 3.29
+            },
+            "Fiddlesticks": {
+                "Name": "Fiddlesticks",
+                "win_rate": "51.88",
+                "popularity": "0.20",
+                "games": "160",
+                "win_rate_diff": 1.88
+            },
+            "Master Yi": {
+                "Name": "Master Yi",
+                "win_rate": "60.40",
+                "popularity": "0.19",
+                "games": "149",
+                "win_rate_diff": 10.4
+            },
+            "Zed": {
+                "Name": "Zed",
+                "win_rate": "48.48",
+                "popularity": "0.17",
+                "games": "132",
+                "win_rate_diff": -1.52
+            },
+            "Lee Sin": {
+                "Name": "Lee Sin",
+                "win_rate": "48.82",
+                "popularity": "0.16",
+                "games": "127",
+                "win_rate_diff": -1.18
+            },
+            "Maokai": {
+                "Name": "Maokai",
+                "win_rate": "46.34",
+                "popularity": "0.16",
+                "games": "123",
+                "win_rate_diff": -3.66
+            },
+            "Malzahar": {
+                "Name": "Malzahar",
+                "win_rate": "57.14",
+                "popularity": "0.15",
+                "games": "119",
+                "win_rate_diff": 7.14
+            },
+            "Sejuani": {
+                "Name": "Sejuani",
+                "win_rate": "49.54",
+                "popularity": "0.14",
+                "games": "109",
+                "win_rate_diff": -0.46
+            },
+            "Graves": {
+                "Name": "Graves",
+                "win_rate": "50.93",
+                "popularity": "0.14",
+                "games": "108",
+                "win_rate_diff": 0.93
+            },
+            "Karma": {
+                "Name": "Karma",
+                "win_rate": "58.65",
+                "popularity": "0.13",
+                "games": "104",
+                "win_rate_diff": 8.65
+            }
+        },
+        "jungle": {
+            "Lee Sin": {
+                "Name": "Lee Sin",
+                "win_rate": "49.68",
+                "popularity": "7.03",
+                "games": "5,553",
+                "win_rate_diff": -0.32
+            },
+            "Viego": {
+                "Name": "Viego",
+                "win_rate": "52.37",
+                "popularity": "5.72",
+                "games": "4,522",
+                "win_rate_diff": 2.37
+            },
+            "Jarvan IV": {
+                "Name": "Jarvan IV",
+                "win_rate": "48.86",
+                "popularity": "4.72",
+                "games": "3,731",
+                "win_rate_diff": -1.14
+            },
+            "Graves": {
+                "Name": "Graves",
+                "win_rate": "49.48",
+                "popularity": "4.72",
+                "games": "3,729",
+                "win_rate_diff": -0.52
+            },
+            "Sylas": {
+                "Name": "Sylas",
+                "win_rate": "46.71",
+                "popularity": "4.49",
+                "games": "3,552",
+                "win_rate_diff": -3.29
+            },
+            "Qiyana": {
+                "Name": "Qiyana",
+                "win_rate": "51.93",
+                "popularity": "4.16",
+                "games": "3,291",
+                "win_rate_diff": 1.93
+            },
+            "Diana": {
+                "Name": "Diana",
+                "win_rate": "48.99",
+                "popularity": "3.56",
+                "games": "2,815",
+                "win_rate_diff": -1.01
+            },
+            "Kha'Zix": {
+                "Name": "Kha'Zix",
+                "win_rate": "50.13",
+                "popularity": "3.28",
+                "games": "2,593",
+                "win_rate_diff": 0.13
+            },
+            "Zed": {
+                "Name": "Zed",
+                "win_rate": "52.03",
+                "popularity": "3.08",
+                "games": "2,437",
+                "win_rate_diff": 2.03
+            },
+            "Xin Zhao": {
+                "Name": "Xin Zhao",
+                "win_rate": "50.35",
+                "popularity": "3.07",
+                "games": "2,423",
+                "win_rate_diff": 0.35
+            },
+            "Rengar": {
+                "Name": "Rengar",
+                "win_rate": "53.24",
+                "popularity": "2.77",
+                "games": "2,190",
+                "win_rate_diff": 3.24
+            },
+            "Ekko": {
+                "Name": "Ekko",
+                "win_rate": "49.69",
+                "popularity": "2.66",
+                "games": "2,105",
+                "win_rate_diff": -0.31
+            },
+            "Nidalee": {
+                "Name": "Nidalee",
+                "win_rate": "49.65",
+                "popularity": "2.54",
+                "games": "2,010",
+                "win_rate_diff": -0.35
+            },
+            "Talon": {
+                "Name": "Talon",
+                "win_rate": "48.99",
+                "popularity": "2.49",
+                "games": "1,972",
+                "win_rate_diff": -1.01
+            },
+            "Master Yi": {
+                "Name": "Master Yi",
+                "win_rate": "51.37",
+                "popularity": "2.27",
+                "games": "1,791",
+                "win_rate_diff": 1.37
+            },
+            "Wukong": {
+                "Name": "Wukong",
+                "win_rate": "49.94",
+                "popularity": "2.26",
+                "games": "1,784",
+                "win_rate_diff": -0.06
+            },
+            "Kayn": {
+                "Name": "Kayn",
+                "win_rate": "50.06",
+                "popularity": "2.25",
+                "games": "1,776",
+                "win_rate_diff": 0.06
+            },
+            "Hecarim": {
+                "Name": "Hecarim",
+                "win_rate": "50.52",
+                "popularity": "2.21",
+                "games": "1,746",
+                "win_rate_diff": 0.52
+            },
+            "Kindred": {
+                "Name": "Kindred",
+                "win_rate": "48.45",
+                "popularity": "1.96",
+                "games": "1,550",
+                "win_rate_diff": -1.55
+            },
+            "Zac": {
+                "Name": "Zac",
+                "win_rate": "48.79",
+                "popularity": "1.78",
+                "games": "1,408",
+                "win_rate_diff": -1.21
+            },
+            "Jax": {
+                "Name": "Jax",
+                "win_rate": "51.03",
+                "popularity": "1.66",
+                "games": "1,309",
+                "win_rate_diff": 1.03
+            },
+            "Nocturne": {
+                "Name": "Nocturne",
+                "win_rate": "51.93",
+                "popularity": "1.54",
+                "games": "1,215",
+                "win_rate_diff": 1.93
+            },
+            "Shaco": {
+                "Name": "Shaco",
+                "win_rate": "49.67",
+                "popularity": "1.53",
+                "games": "1,210",
+                "win_rate_diff": -0.33
+            },
+            "Naafiri": {
+                "Name": "Naafiri",
+                "win_rate": "53.33",
+                "popularity": "1.50",
+                "games": "1,185",
+                "win_rate_diff": 3.33
+            },
+            "Vi": {
+                "Name": "Vi",
+                "win_rate": "54.22",
+                "popularity": "1.47",
+                "games": "1,162",
+                "win_rate_diff": 4.22
+            },
+            "Rek'Sai": {
+                "Name": "Rek'Sai",
+                "win_rate": "44.93",
+                "popularity": "1.45",
+                "games": "1,144",
+                "win_rate_diff": -5.07
+            },
+            "Lillia": {
+                "Name": "Lillia",
+                "win_rate": "48.02",
+                "popularity": "1.44",
+                "games": "1,135",
+                "win_rate_diff": -1.98
+            },
+            "Elise": {
+                "Name": "Elise",
+                "win_rate": "52.46",
+                "popularity": "1.36",
+                "games": "1,077",
+                "win_rate_diff": 2.46
+            },
+            "Briar": {
+                "Name": "Briar",
+                "win_rate": "51.06",
+                "popularity": "1.26",
+                "games": "995",
+                "win_rate_diff": 1.06
+            },
+            "Fiddlesticks": {
+                "Name": "Fiddlesticks",
+                "win_rate": "51.13",
+                "popularity": "1.18",
+                "games": "931",
+                "win_rate_diff": 1.13
+            },
+            "Bel'Veth": {
+                "Name": "Bel'Veth",
+                "win_rate": "49.78",
+                "popularity": "1.15",
+                "games": "906",
+                "win_rate_diff": -0.22
+            },
+            "Pantheon": {
+                "Name": "Pantheon",
+                "win_rate": "51.24",
+                "popularity": "1.12",
+                "games": "884",
+                "win_rate_diff": 1.24
+            },
+            "Karthus": {
+                "Name": "Karthus",
+                "win_rate": "49.89",
+                "popularity": "1.11",
+                "games": "878",
+                "win_rate_diff": -0.11
+            },
+            "Volibear": {
+                "Name": "Volibear",
+                "win_rate": "50.89",
+                "popularity": "1.06",
+                "games": "841",
+                "win_rate_diff": 0.89
+            },
+            "Evelynn": {
+                "Name": "Evelynn",
+                "win_rate": "51.61",
+                "popularity": "1.06",
+                "games": "839",
+                "win_rate_diff": 1.61
+            },
+            "Nunu & Willump": {
+                "Name": "Nunu & Willump",
+                "win_rate": "51.21",
+                "popularity": "1.05",
+                "games": "826",
+                "win_rate_diff": 1.21
+            },
+            "Dr. Mundo": {
+                "Name": "Dr. Mundo",
+                "win_rate": "54.04",
+                "popularity": "0.96",
+                "games": "755",
+                "win_rate_diff": 4.04
+            },
+            "Udyr": {
+                "Name": "Udyr",
+                "win_rate": "49.20",
+                "popularity": "0.95",
+                "games": "748",
+                "win_rate_diff": -0.8
+            },
+            "Trundle": {
+                "Name": "Trundle",
+                "win_rate": "50.42",
+                "popularity": "0.91",
+                "games": "716",
+                "win_rate_diff": 0.42
+            },
+            "Warwick": {
+                "Name": "Warwick",
+                "win_rate": "51.34",
+                "popularity": "0.80",
+                "games": "633",
+                "win_rate_diff": 1.34
+            },
+            "Gwen": {
+                "Name": "Gwen",
+                "win_rate": "51.22",
+                "popularity": "0.78",
+                "games": "615",
+                "win_rate_diff": 1.22
+            },
+            "Amumu": {
+                "Name": "Amumu",
+                "win_rate": "53.56",
+                "popularity": "0.71",
+                "games": "562",
+                "win_rate_diff": 3.56
+            },
+            "Ivern": {
+                "Name": "Ivern",
+                "win_rate": "46.99",
+                "popularity": "0.69",
+                "games": "549",
+                "win_rate_diff": -3.01
+            },
+            "Taliyah": {
+                "Name": "Taliyah",
+                "win_rate": "49.47",
+                "popularity": "0.60",
+                "games": "473",
+                "win_rate_diff": -0.53
+            },
+            "Zyra": {
+                "Name": "Zyra",
+                "win_rate": "47.84",
+                "popularity": "0.59",
+                "games": "464",
+                "win_rate_diff": -2.16
+            },
+            "Sejuani": {
+                "Name": "Sejuani",
+                "win_rate": "58.14",
+                "popularity": "0.54",
+                "games": "430",
+                "win_rate_diff": 8.14
+            },
+            "Skarner": {
+                "Name": "Skarner",
+                "win_rate": "55.23",
+                "popularity": "0.47",
+                "games": "373",
+                "win_rate_diff": 5.23
+            },
+            "Rammus": {
+                "Name": "Rammus",
+                "win_rate": "53.64",
+                "popularity": "0.47",
+                "games": "371",
+                "win_rate_diff": 3.64
+            },
+            "Gragas": {
+                "Name": "Gragas",
+                "win_rate": "47.28",
+                "popularity": "0.40",
+                "games": "313",
+                "win_rate_diff": -2.72
+            },
+            "Shyvana": {
+                "Name": "Shyvana",
+                "win_rate": "53.05",
+                "popularity": "0.35",
+                "games": "279",
+                "win_rate_diff": 3.05
+            },
+            "Morgana": {
+                "Name": "Morgana",
+                "win_rate": "50.43",
+                "popularity": "0.30",
+                "games": "234",
+                "win_rate_diff": 0.43
+            },
+            "Brand": {
+                "Name": "Brand",
+                "win_rate": "50.22",
+                "popularity": "0.29",
+                "games": "229",
+                "win_rate_diff": 0.22
+            },
+            "Poppy": {
+                "Name": "Poppy",
+                "win_rate": "47.58",
+                "popularity": "0.29",
+                "games": "227",
+                "win_rate_diff": -2.42
+            },
+            "Ambessa": {
+                "Name": "Ambessa",
+                "win_rate": "54.19",
+                "popularity": "0.23",
+                "games": "179",
+                "win_rate_diff": 4.19
+            },
+            "Teemo": {
+                "Name": "Teemo",
+                "win_rate": "53.80",
+                "popularity": "0.20",
+                "games": "158",
+                "win_rate_diff": 3.8
+            },
+            "Olaf": {
+                "Name": "Olaf",
+                "win_rate": "45.52",
+                "popularity": "0.17",
+                "games": "134",
+                "win_rate_diff": -4.48
+            },
+            "Mordekaiser": {
+                "Name": "Mordekaiser",
+                "win_rate": "49.04",
+                "popularity": "0.13",
+                "games": "104",
+                "win_rate_diff": -0.96
+            },
+            "Darius": {
+                "Name": "Darius",
+                "win_rate": "56.00",
+                "popularity": "0.13",
+                "games": "100",
+                "win_rate_diff": 6.0
+            },
+            "Rumble": {
+                "Name": "Rumble",
+                "win_rate": "55.00",
+                "popularity": "0.13",
+                "games": "100",
+                "win_rate_diff": 5.0
+            },
+            "Maokai": {
+                "Name": "Maokai",
+                "win_rate": "54.35",
+                "popularity": "0.12",
+                "games": "92",
+                "win_rate_diff": 4.35
+            },
+            "Sion": {
+                "Name": "Sion",
+                "win_rate": "52.24",
+                "popularity": "0.08",
+                "games": "67",
+                "win_rate_diff": 2.24
+            },
+            "Nasus": {
+                "Name": "Nasus",
+                "win_rate": "53.13",
+                "popularity": "0.08",
+                "games": "64",
+                "win_rate_diff": 3.13
+            },
+            "Neeko": {
+                "Name": "Neeko",
+                "win_rate": "61.54",
+                "popularity": "0.07",
+                "games": "52",
+                "win_rate_diff": 11.54
+            },
+            "Nautilus": {
+                "Name": "Nautilus",
+                "win_rate": "52.17",
+                "popularity": "0.06",
+                "games": "46",
+                "win_rate_diff": 2.17
+            },
+            "Tryndamere": {
+                "Name": "Tryndamere",
+                "win_rate": "55.00",
+                "popularity": "0.05",
+                "games": "40",
+                "win_rate_diff": 5.0
+            },
+            "Shen": {
+                "Name": "Shen",
+                "win_rate": "46.88",
+                "popularity": "0.04",
+                "games": "32",
+                "win_rate_diff": -3.12
+            },
+            "Cho'Gath": {
+                "Name": "Cho'Gath",
+                "win_rate": "58.06",
+                "popularity": "0.04",
+                "games": "31",
+                "win_rate_diff": 8.06
+            },
+            "Twitch": {
+                "Name": "Twitch",
+                "win_rate": "53.33",
+                "popularity": "0.04",
+                "games": "30",
+                "win_rate_diff": 3.33
+            },
+            "Vayne": {
+                "Name": "Vayne",
+                "win_rate": "60.87",
+                "popularity": "0.03",
+                "games": "23",
+                "win_rate_diff": 10.87
+            },
+            "Yone": {
+                "Name": "Yone",
+                "win_rate": "61.90",
+                "popularity": "0.03",
+                "games": "21",
+                "win_rate_diff": 11.9
+            },
+            "Urgot": {
+                "Name": "Urgot",
+                "win_rate": "52.38",
+                "popularity": "0.03",
+                "games": "21",
+                "win_rate_diff": 2.38
+            },
+            "Yorick": {
+                "Name": "Yorick",
+                "win_rate": "55.00",
+                "popularity": "0.03",
+                "games": "20",
+                "win_rate_diff": 5.0
+            },
+            "Aatrox": {
+                "Name": "Aatrox",
+                "win_rate": "68.42",
+                "popularity": "0.02",
+                "games": "19",
+                "win_rate_diff": 18.42
+            }
+        },
+        "middle": {
+            "Sylas": {
+                "Name": "Sylas",
+                "win_rate": "48.89",
+                "popularity": "5.71",
+                "games": "4,510",
+                "win_rate_diff": -1.11
+            },
+            "Orianna": {
+                "Name": "Orianna",
+                "win_rate": "50.78",
+                "popularity": "5.45",
+                "games": "4,309",
+                "win_rate_diff": 0.78
+            },
+            "Katarina": {
+                "Name": "Katarina",
+                "win_rate": "49.83",
+                "popularity": "3.70",
+                "games": "2,924",
+                "win_rate_diff": -0.17
+            },
+            "Syndra": {
+                "Name": "Syndra",
+                "win_rate": "48.06",
+                "popularity": "3.59",
+                "games": "2,834",
+                "win_rate_diff": -1.94
+            },
+            "Yasuo": {
+                "Name": "Yasuo",
+                "win_rate": "52.45",
+                "popularity": "3.58",
+                "games": "2,831",
+                "win_rate_diff": 2.45
+            },
+            "Akali": {
+                "Name": "Akali",
+                "win_rate": "52.73",
+                "popularity": "3.24",
+                "games": "2,562",
+                "win_rate_diff": 2.73
+            },
+            "Ahri": {
+                "Name": "Ahri",
+                "win_rate": "51.45",
+                "popularity": "2.96",
+                "games": "2,342",
+                "win_rate_diff": 1.45
+            },
+            "Hwei": {
+                "Name": "Hwei",
+                "win_rate": "47.15",
+                "popularity": "2.82",
+                "games": "2,225",
+                "win_rate_diff": -2.85
+            },
+            "Viktor": {
+                "Name": "Viktor",
+                "win_rate": "51.16",
+                "popularity": "2.67",
+                "games": "2,111",
+                "win_rate_diff": 1.16
+            },
+            "Ryze": {
+                "Name": "Ryze",
+                "win_rate": "53.47",
+                "popularity": "2.66",
+                "games": "2,102",
+                "win_rate_diff": 3.47
+            },
+            "LeBlanc": {
+                "Name": "LeBlanc",
+                "win_rate": "50.43",
+                "popularity": "2.63",
+                "games": "2,078",
+                "win_rate_diff": 0.43
+            },
+            "Mel": {
+                "Name": "Mel",
+                "win_rate": "52.88",
+                "popularity": "2.52",
+                "games": "1,995",
+                "win_rate_diff": 2.88
+            },
+            "Zed": {
+                "Name": "Zed",
+                "win_rate": "48.98",
+                "popularity": "2.48",
+                "games": "1,958",
+                "win_rate_diff": -1.02
+            },
+            "Yone": {
+                "Name": "Yone",
+                "win_rate": "55.19",
+                "popularity": "2.47",
+                "games": "1,955",
+                "win_rate_diff": 5.19
+            },
+            "Taliyah": {
+                "Name": "Taliyah",
+                "win_rate": "46.83",
+                "popularity": "2.32",
+                "games": "1,830",
+                "win_rate_diff": -3.17
+            },
+            "Galio": {
+                "Name": "Galio",
+                "win_rate": "51.66",
+                "popularity": "2.25",
+                "games": "1,775",
+                "win_rate_diff": 1.66
+            },
+            "Zoe": {
+                "Name": "Zoe",
+                "win_rate": "49.09",
+                "popularity": "2.23",
+                "games": "1,764",
+                "win_rate_diff": -0.91
+            },
+            "Twisted Fate": {
+                "Name": "Twisted Fate",
+                "win_rate": "48.49",
+                "popularity": "2.09",
+                "games": "1,654",
+                "win_rate_diff": -1.51
+            },
+            "Aurora": {
+                "Name": "Aurora",
+                "win_rate": "51.34",
+                "popularity": "2.08",
+                "games": "1,646",
+                "win_rate_diff": 1.34
+            },
+            "Malzahar": {
+                "Name": "Malzahar",
+                "win_rate": "52.73",
+                "popularity": "2.04",
+                "games": "1,614",
+                "win_rate_diff": 2.73
+            },
+            "Vladimir": {
+                "Name": "Vladimir",
+                "win_rate": "49.13",
+                "popularity": "1.82",
+                "games": "1,439",
+                "win_rate_diff": -0.87
+            },
+            "Azir": {
+                "Name": "Azir",
+                "win_rate": "57.38",
+                "popularity": "1.80",
+                "games": "1,422",
+                "win_rate_diff": 7.38
+            },
+            "Akshan": {
+                "Name": "Akshan",
+                "win_rate": "51.38",
+                "popularity": "1.79",
+                "games": "1,411",
+                "win_rate_diff": 1.38
+            },
+            "Diana": {
+                "Name": "Diana",
+                "win_rate": "48.25",
+                "popularity": "1.63",
+                "games": "1,285",
+                "win_rate_diff": -1.75
+            },
+            "Xerath": {
+                "Name": "Xerath",
+                "win_rate": "48.20",
+                "popularity": "1.58",
+                "games": "1,251",
+                "win_rate_diff": -1.8
+            },
+            "Ekko": {
+                "Name": "Ekko",
+                "win_rate": "51.02",
+                "popularity": "1.50",
+                "games": "1,182",
+                "win_rate_diff": 1.02
+            },
+            "Qiyana": {
+                "Name": "Qiyana",
+                "win_rate": "48.50",
+                "popularity": "1.47",
+                "games": "1,165",
+                "win_rate_diff": -1.5
+            },
+            "Anivia": {
+                "Name": "Anivia",
+                "win_rate": "45.23",
+                "popularity": "1.46",
+                "games": "1,154",
+                "win_rate_diff": -4.77
+            },
+            "Morgana": {
+                "Name": "Morgana",
+                "win_rate": "48.43",
+                "popularity": "1.41",
+                "games": "1,115",
+                "win_rate_diff": -1.57
+            },
+            "Fizz": {
+                "Name": "Fizz",
+                "win_rate": "48.38",
+                "popularity": "1.41",
+                "games": "1,112",
+                "win_rate_diff": -1.62
+            },
+            "Kassadin": {
+                "Name": "Kassadin",
+                "win_rate": "47.69",
+                "popularity": "1.40",
+                "games": "1,103",
+                "win_rate_diff": -2.31
+            },
+            "Lissandra": {
+                "Name": "Lissandra",
+                "win_rate": "49.39",
+                "popularity": "1.34",
+                "games": "1,059",
+                "win_rate_diff": -0.61
+            },
+            "Irelia": {
+                "Name": "Irelia",
+                "win_rate": "51.45",
+                "popularity": "1.18",
+                "games": "933",
+                "win_rate_diff": 1.45
+            },
+            "Veigar": {
+                "Name": "Veigar",
+                "win_rate": "51.77",
+                "popularity": "1.18",
+                "games": "931",
+                "win_rate_diff": 1.77
+            },
+            "Lux": {
+                "Name": "Lux",
+                "win_rate": "49.08",
+                "popularity": "1.17",
+                "games": "925",
+                "win_rate_diff": -0.92
+            },
+            "Cassiopeia": {
+                "Name": "Cassiopeia",
+                "win_rate": "50.93",
+                "popularity": "1.09",
+                "games": "862",
+                "win_rate_diff": 0.93
+            },
+            "Vex": {
+                "Name": "Vex",
+                "win_rate": "46.83",
+                "popularity": "1.06",
+                "games": "837",
+                "win_rate_diff": -3.17
+            },
+            "Kayle": {
+                "Name": "Kayle",
+                "win_rate": "52.01",
+                "popularity": "1.01",
+                "games": "798",
+                "win_rate_diff": 2.01
+            },
+            "Talon": {
+                "Name": "Talon",
+                "win_rate": "48.70",
+                "popularity": "0.92",
+                "games": "731",
+                "win_rate_diff": -1.3
+            },
+            "Aurelion Sol": {
+                "Name": "Aurelion Sol",
+                "win_rate": "48.55",
+                "popularity": "0.79",
+                "games": "622",
+                "win_rate_diff": -1.45
+            },
+            "Annie": {
+                "Name": "Annie",
+                "win_rate": "47.92",
+                "popularity": "0.73",
+                "games": "576",
+                "win_rate_diff": -2.08
+            },
+            "Vel'Koz": {
+                "Name": "Vel'Koz",
+                "win_rate": "48.84",
+                "popularity": "0.71",
+                "games": "559",
+                "win_rate_diff": -1.16
+            },
+            "Naafiri": {
+                "Name": "Naafiri",
+                "win_rate": "51.81",
+                "popularity": "0.70",
+                "games": "552",
+                "win_rate_diff": 1.81
+            },
+            "Smolder": {
+                "Name": "Smolder",
+                "win_rate": "52.74",
+                "popularity": "0.60",
+                "games": "474",
+                "win_rate_diff": 2.74
+            },
+            "Jayce": {
+                "Name": "Jayce",
+                "win_rate": "49.78",
+                "popularity": "0.58",
+                "games": "456",
+                "win_rate_diff": -0.22
+            },
+            "Ziggs": {
+                "Name": "Ziggs",
+                "win_rate": "49.58",
+                "popularity": "0.45",
+                "games": "353",
+                "win_rate_diff": -0.42
+            },
+            "Swain": {
+                "Name": "Swain",
+                "win_rate": "49.57",
+                "popularity": "0.44",
+                "games": "349",
+                "win_rate_diff": -0.43
+            },
+            "Corki": {
+                "Name": "Corki",
+                "win_rate": "55.56",
+                "popularity": "0.39",
+                "games": "306",
+                "win_rate_diff": 5.56
+            },
+            "Malphite": {
+                "Name": "Malphite",
+                "win_rate": "50.16",
+                "popularity": "0.39",
+                "games": "305",
+                "win_rate_diff": 0.16
+            },
+            "Sion": {
+                "Name": "Sion",
+                "win_rate": "56.61",
+                "popularity": "0.37",
+                "games": "295",
+                "win_rate_diff": 6.61
+            },
+            "Pantheon": {
+                "Name": "Pantheon",
+                "win_rate": "46.64",
+                "popularity": "0.36",
+                "games": "283",
+                "win_rate_diff": -3.36
+            },
+            "Quinn": {
+                "Name": "Quinn",
+                "win_rate": "48.92",
+                "popularity": "0.35",
+                "games": "278",
+                "win_rate_diff": -1.08
+            },
+            "Tristana": {
+                "Name": "Tristana",
+                "win_rate": "59.93",
+                "popularity": "0.34",
+                "games": "272",
+                "win_rate_diff": 9.93
+            },
+            "Neeko": {
+                "Name": "Neeko",
+                "win_rate": "51.87",
+                "popularity": "0.34",
+                "games": "268",
+                "win_rate_diff": 1.87
+            },
+            "Brand": {
+                "Name": "Brand",
+                "win_rate": "50.40",
+                "popularity": "0.31",
+                "games": "248",
+                "win_rate_diff": 0.4
+            },
+            "Kennen": {
+                "Name": "Kennen",
+                "win_rate": "50.41",
+                "popularity": "0.31",
+                "games": "242",
+                "win_rate_diff": 0.41
+            },
+            "Ambessa": {
+                "Name": "Ambessa",
+                "win_rate": "54.30",
+                "popularity": "0.28",
+                "games": "221",
+                "win_rate_diff": 4.3
+            },
+            "Cho'Gath": {
+                "Name": "Cho'Gath",
+                "win_rate": "45.62",
+                "popularity": "0.27",
+                "games": "217",
+                "win_rate_diff": -4.38
+            },
+            "Tryndamere": {
+                "Name": "Tryndamere",
+                "win_rate": "50.51",
+                "popularity": "0.25",
+                "games": "196",
+                "win_rate_diff": 0.51
+            },
+            "Gragas": {
+                "Name": "Gragas",
+                "win_rate": "53.02",
+                "popularity": "0.19",
+                "games": "149",
+                "win_rate_diff": 3.02
+            },
+            "Zilean": {
+                "Name": "Zilean",
+                "win_rate": "38.36",
+                "popularity": "0.18",
+                "games": "146",
+                "win_rate_diff": -11.64
+            },
+            "Karma": {
+                "Name": "Karma",
+                "win_rate": "51.06",
+                "popularity": "0.18",
+                "games": "141",
+                "win_rate_diff": 1.06
+            },
+            "Twitch": {
+                "Name": "Twitch",
+                "win_rate": "45.32",
+                "popularity": "0.18",
+                "games": "139",
+                "win_rate_diff": -4.68
+            },
+            "Renekton": {
+                "Name": "Renekton",
+                "win_rate": "51.85",
+                "popularity": "0.17",
+                "games": "135",
+                "win_rate_diff": 1.85
+            },
+            "Zac": {
+                "Name": "Zac",
+                "win_rate": "41.22",
+                "popularity": "0.17",
+                "games": "131",
+                "win_rate_diff": -8.78
+            },
+            "Garen": {
+                "Name": "Garen",
+                "win_rate": "46.09",
+                "popularity": "0.16",
+                "games": "128",
+                "win_rate_diff": -3.91
+            },
+            "Nunu & Willump": {
+                "Name": "Nunu & Willump",
+                "win_rate": "47.11",
+                "popularity": "0.15",
+                "games": "121",
+                "win_rate_diff": -2.89
+            },
+            "Gangplank": {
+                "Name": "Gangplank",
+                "win_rate": "54.13",
+                "popularity": "0.14",
+                "games": "109",
+                "win_rate_diff": 4.13
+            },
+            "Seraphine": {
+                "Name": "Seraphine",
+                "win_rate": "53.47",
+                "popularity": "0.13",
+                "games": "101",
+                "win_rate_diff": 3.47
+            },
+            "Viego": {
+                "Name": "Viego",
+                "win_rate": "49.48",
+                "popularity": "0.12",
+                "games": "97",
+                "win_rate_diff": -0.52
+            },
+            "Singed": {
+                "Name": "Singed",
+                "win_rate": "48.39",
+                "popularity": "0.12",
+                "games": "93",
+                "win_rate_diff": -1.61
+            },
+            "Gwen": {
+                "Name": "Gwen",
+                "win_rate": "50.54",
+                "popularity": "0.12",
+                "games": "93",
+                "win_rate_diff": 0.54
+            },
+            "K'Sante": {
+                "Name": "K'Sante",
+                "win_rate": "51.61",
+                "popularity": "0.12",
+                "games": "93",
+                "win_rate_diff": 1.61
+            }
+        },
+        "bottom": {
+            "Kai'Sa": {
+                "Name": "Kai'Sa",
+                "win_rate": "50.49",
+                "popularity": "14.68",
+                "games": "11,605",
+                "win_rate_diff": 0.49
+            },
+            "Ezreal": {
+                "Name": "Ezreal",
+                "win_rate": "51.91",
+                "popularity": "5.87",
+                "games": "4,639",
+                "win_rate_diff": 1.91
+            },
+            "Ashe": {
+                "Name": "Ashe",
+                "win_rate": "49.14",
+                "popularity": "5.65",
+                "games": "4,465",
+                "win_rate_diff": -0.86
+            },
+            "Jinx": {
+                "Name": "Jinx",
+                "win_rate": "47.96",
+                "popularity": "5.61",
+                "games": "4,437",
+                "win_rate_diff": -2.04
+            },
+            "Caitlyn": {
+                "Name": "Caitlyn",
+                "win_rate": "49.91",
+                "popularity": "5.59",
+                "games": "4,420",
+                "win_rate_diff": -0.09
+            },
+            "Lucian": {
+                "Name": "Lucian",
+                "win_rate": "51.52",
+                "popularity": "5.49",
+                "games": "4,340",
+                "win_rate_diff": 1.52
+            },
+            "Yunara": {
+                "Name": "Yunara",
+                "win_rate": "53.47",
+                "popularity": "5.41",
+                "games": "4,277",
+                "win_rate_diff": 3.47
+            },
+            "Jhin": {
+                "Name": "Jhin",
+                "win_rate": "52.36",
+                "popularity": "4.91",
+                "games": "3,883",
+                "win_rate_diff": 2.36
+            },
+            "Sivir": {
+                "Name": "Sivir",
+                "win_rate": "50.06",
+                "popularity": "4.59",
+                "games": "3,630",
+                "win_rate_diff": 0.06
+            },
+            "Smolder": {
+                "Name": "Smolder",
+                "win_rate": "49.92",
+                "popularity": "3.94",
+                "games": "3,115",
+                "win_rate_diff": -0.08
+            },
+            "Aphelios": {
+                "Name": "Aphelios",
+                "win_rate": "50.56",
+                "popularity": "3.27",
+                "games": "2,583",
+                "win_rate_diff": 0.56
+            },
+            "Samira": {
+                "Name": "Samira",
+                "win_rate": "53.56",
+                "popularity": "3.00",
+                "games": "2,375",
+                "win_rate_diff": 3.56
+            },
+            "Tristana": {
+                "Name": "Tristana",
+                "win_rate": "51.83",
+                "popularity": "2.90",
+                "games": "2,292",
+                "win_rate_diff": 1.83
+            },
+            "Draven": {
+                "Name": "Draven",
+                "win_rate": "49.58",
+                "popularity": "2.73",
+                "games": "2,156",
+                "win_rate_diff": -0.42
+            },
+            "Vayne": {
+                "Name": "Vayne",
+                "win_rate": "48.02",
+                "popularity": "2.68",
+                "games": "2,122",
+                "win_rate_diff": -1.98
+            },
+            "Xayah": {
+                "Name": "Xayah",
+                "win_rate": "49.07",
+                "popularity": "2.52",
+                "games": "1,991",
+                "win_rate_diff": -0.93
+            },
+            "Corki": {
+                "Name": "Corki",
+                "win_rate": "52.54",
+                "popularity": "2.46",
+                "games": "1,947",
+                "win_rate_diff": 2.54
+            },
+            "Miss Fortune": {
+                "Name": "Miss Fortune",
+                "win_rate": "49.17",
+                "popularity": "2.35",
+                "games": "1,861",
+                "win_rate_diff": -0.83
+            },
+            "Varus": {
+                "Name": "Varus",
+                "win_rate": "52.01",
+                "popularity": "2.11",
+                "games": "1,667",
+                "win_rate_diff": 2.01
+            },
+            "Twitch": {
+                "Name": "Twitch",
+                "win_rate": "50.28",
+                "popularity": "1.82",
+                "games": "1,442",
+                "win_rate_diff": 0.28
+            },
+            "Ziggs": {
+                "Name": "Ziggs",
+                "win_rate": "48.23",
+                "popularity": "1.54",
+                "games": "1,217",
+                "win_rate_diff": -1.77
+            },
+            "Zeri": {
+                "Name": "Zeri",
+                "win_rate": "49.59",
+                "popularity": "1.39",
+                "games": "1,097",
+                "win_rate_diff": -0.41
+            },
+            "Mel": {
+                "Name": "Mel",
+                "win_rate": "50.06",
+                "popularity": "1.10",
+                "games": "873",
+                "win_rate_diff": 0.06
+            },
+            "Nilah": {
+                "Name": "Nilah",
+                "win_rate": "49.37",
+                "popularity": "1.00",
+                "games": "790",
+                "win_rate_diff": -0.63
+            },
+            "Kalista": {
+                "Name": "Kalista",
+                "win_rate": "50.37",
+                "popularity": "0.86",
+                "games": "679",
+                "win_rate_diff": 0.37
+            },
+            "Kog'Maw": {
+                "Name": "Kog'Maw",
+                "win_rate": "47.24",
+                "popularity": "0.82",
+                "games": "652",
+                "win_rate_diff": -2.76
+            },
+            "Yasuo": {
+                "Name": "Yasuo",
+                "win_rate": "52.36",
+                "popularity": "0.75",
+                "games": "592",
+                "win_rate_diff": 2.36
+            },
+            "Senna": {
+                "Name": "Senna",
+                "win_rate": "44.00",
+                "popularity": "0.51",
+                "games": "400",
+                "win_rate_diff": -6.0
+            },
+            "Swain": {
+                "Name": "Swain",
+                "win_rate": "48.25",
+                "popularity": "0.43",
+                "games": "342",
+                "win_rate_diff": -1.75
+            },
+            "Hwei": {
+                "Name": "Hwei",
+                "win_rate": "48.51",
+                "popularity": "0.43",
+                "games": "336",
+                "win_rate_diff": -1.49
+            },
+            "Karthus": {
+                "Name": "Karthus",
+                "win_rate": "43.28",
+                "popularity": "0.30",
+                "games": "238",
+                "win_rate_diff": -6.72
+            },
+            "Veigar": {
+                "Name": "Veigar",
+                "win_rate": "42.17",
+                "popularity": "0.29",
+                "games": "230",
+                "win_rate_diff": -7.83
+            },
+            "Lux": {
+                "Name": "Lux",
+                "win_rate": "51.77",
+                "popularity": "0.29",
+                "games": "226",
+                "win_rate_diff": 1.77
+            },
+            "Vel'Koz": {
+                "Name": "Vel'Koz",
+                "win_rate": "41.98",
+                "popularity": "0.27",
+                "games": "212",
+                "win_rate_diff": -8.02
+            },
+            "Seraphine": {
+                "Name": "Seraphine",
+                "win_rate": "46.73",
+                "popularity": "0.25",
+                "games": "199",
+                "win_rate_diff": -3.27
+            },
+            "Aurelion Sol": {
+                "Name": "Aurelion Sol",
+                "win_rate": "44.09",
+                "popularity": "0.24",
+                "games": "186",
+                "win_rate_diff": -5.91
+            },
+            "Cassiopeia": {
+                "Name": "Cassiopeia",
+                "win_rate": "45.81",
+                "popularity": "0.23",
+                "games": "179",
+                "win_rate_diff": -4.19
+            },
+            "Brand": {
+                "Name": "Brand",
+                "win_rate": "45.97",
+                "popularity": "0.16",
+                "games": "124",
+                "win_rate_diff": -4.03
+            },
+            "Syndra": {
+                "Name": "Syndra",
+                "win_rate": "45.45",
+                "popularity": "0.14",
+                "games": "110",
+                "win_rate_diff": -4.55
+            },
+            "Viktor": {
+                "Name": "Viktor",
+                "win_rate": "56.16",
+                "popularity": "0.09",
+                "games": "73",
+                "win_rate_diff": 6.16
+            },
+            "Xerath": {
+                "Name": "Xerath",
+                "win_rate": "50.00",
+                "popularity": "0.08",
+                "games": "66",
+                "win_rate_diff": 0.0
+            },
+            "Heimerdinger": {
+                "Name": "Heimerdinger",
+                "win_rate": "48.39",
+                "popularity": "0.08",
+                "games": "62",
+                "win_rate_diff": -1.61
+            },
+            "Zyra": {
+                "Name": "Zyra",
+                "win_rate": "46.43",
+                "popularity": "0.07",
+                "games": "56",
+                "win_rate_diff": -3.57
+            },
+            "Taliyah": {
+                "Name": "Taliyah",
+                "win_rate": "55.81",
+                "popularity": "0.05",
+                "games": "43",
+                "win_rate_diff": 5.81
+            },
+            "Akshan": {
+                "Name": "Akshan",
+                "win_rate": "50.00",
+                "popularity": "0.05",
+                "games": "42",
+                "win_rate_diff": 0.0
+            },
+            "Ahri": {
+                "Name": "Ahri",
+                "win_rate": "36.11",
+                "popularity": "0.05",
+                "games": "36",
+                "win_rate_diff": -13.89
+            },
+            "Anivia": {
+                "Name": "Anivia",
+                "win_rate": "41.67",
+                "popularity": "0.05",
+                "games": "36",
+                "win_rate_diff": -8.33
+            },
+            "Malzahar": {
+                "Name": "Malzahar",
+                "win_rate": "54.29",
+                "popularity": "0.04",
+                "games": "35",
+                "win_rate_diff": 4.29
+            },
+            "Katarina": {
+                "Name": "Katarina",
+                "win_rate": "48.48",
+                "popularity": "0.04",
+                "games": "33",
+                "win_rate_diff": -1.52
+            },
+            "Morgana": {
+                "Name": "Morgana",
+                "win_rate": "46.43",
+                "popularity": "0.04",
+                "games": "28",
+                "win_rate_diff": -3.57
+            },
+            "Aurora": {
+                "Name": "Aurora",
+                "win_rate": "36.00",
+                "popularity": "0.03",
+                "games": "25",
+                "win_rate_diff": -14.0
+            },
+            "Sion": {
+                "Name": "Sion",
+                "win_rate": "50.00",
+                "popularity": "0.03",
+                "games": "24",
+                "win_rate_diff": 0.0
+            },
+            "Vladimir": {
+                "Name": "Vladimir",
+                "win_rate": "35.00",
+                "popularity": "0.03",
+                "games": "20",
+                "win_rate_diff": -15.0
+            },
+            "Irelia": {
+                "Name": "Irelia",
+                "win_rate": "65.00",
+                "popularity": "0.03",
+                "games": "20",
+                "win_rate_diff": 15.0
+            },
+            "Yone": {
+                "Name": "Yone",
+                "win_rate": "63.16",
+                "popularity": "0.02",
+                "games": "19",
+                "win_rate_diff": 13.16
+            },
+            "Kindred": {
+                "Name": "Kindred",
+                "win_rate": "57.89",
+                "popularity": "0.02",
+                "games": "19",
+                "win_rate_diff": 7.89
+            },
+            "Kayle": {
+                "Name": "Kayle",
+                "win_rate": "36.84",
+                "popularity": "0.02",
+                "games": "19",
+                "win_rate_diff": -13.16
+            },
+            "Sylas": {
+                "Name": "Sylas",
+                "win_rate": "62.50",
+                "popularity": "0.02",
+                "games": "16",
+                "win_rate_diff": 12.5
+            },
+            "Singed": {
+                "Name": "Singed",
+                "win_rate": "43.75",
+                "popularity": "0.02",
+                "games": "16",
+                "win_rate_diff": -6.25
+            },
+            "Rengar": {
+                "Name": "Rengar",
+                "win_rate": "60.00",
+                "popularity": "0.02",
+                "games": "15",
+                "win_rate_diff": 10.0
+            },
+            "Twisted Fate": {
+                "Name": "Twisted Fate",
+                "win_rate": "73.33",
+                "popularity": "0.02",
+                "games": "15",
+                "win_rate_diff": 23.33
+            },
+            "Ekko": {
+                "Name": "Ekko",
+                "win_rate": "57.14",
+                "popularity": "0.02",
+                "games": "14",
+                "win_rate_diff": 7.14
+            },
+            "Cho'Gath": {
+                "Name": "Cho'Gath",
+                "win_rate": "38.46",
+                "popularity": "0.02",
+                "games": "13",
+                "win_rate_diff": -11.54
+            },
+            "Zoe": {
+                "Name": "Zoe",
+                "win_rate": "61.54",
+                "popularity": "0.02",
+                "games": "13",
+                "win_rate_diff": 11.54
+            },
+            "Quinn": {
+                "Name": "Quinn",
+                "win_rate": "41.67",
+                "popularity": "0.02",
+                "games": "12",
+                "win_rate_diff": -8.33
+            },
+            "Pantheon": {
+                "Name": "Pantheon",
+                "win_rate": "66.67",
+                "popularity": "0.02",
+                "games": "12",
+                "win_rate_diff": 16.67
+            },
+            "Neeko": {
+                "Name": "Neeko",
+                "win_rate": "54.55",
+                "popularity": "0.01",
+                "games": "11",
+                "win_rate_diff": 4.55
+            },
+            "Qiyana": {
+                "Name": "Qiyana",
+                "win_rate": "45.45",
+                "popularity": "0.01",
+                "games": "11",
+                "win_rate_diff": -4.55
+            },
+            "Fiora": {
+                "Name": "Fiora",
+                "win_rate": "50.00",
+                "popularity": "0.01",
+                "games": "10",
+                "win_rate_diff": 0.0
+            },
+            "Zilean": {
+                "Name": "Zilean",
+                "win_rate": "40.00",
+                "popularity": "0.01",
+                "games": "10",
+                "win_rate_diff": -10.0
+            },
+            "K'Sante": {
+                "Name": "K'Sante",
+                "win_rate": "30.00",
+                "popularity": "0.01",
+                "games": "10",
+                "win_rate_diff": -20.0
+            },
+            "Naafiri": {
+                "Name": "Naafiri",
+                "win_rate": "66.67",
+                "popularity": "0.01",
+                "games": "9",
+                "win_rate_diff": 16.67
+            },
+            "Orianna": {
+                "Name": "Orianna",
+                "win_rate": "62.50",
+                "popularity": "0.01",
+                "games": "8",
+                "win_rate_diff": 12.5
+            }
+        },
+        "support": {
+            "Thresh": {
+                "Name": "Thresh",
+                "win_rate": "50.84",
+                "popularity": "6.17",
+                "games": "4,878",
+                "win_rate_diff": 0.84
+            },
+            "Nautilus": {
+                "Name": "Nautilus",
+                "win_rate": "52.22",
+                "popularity": "5.73",
+                "games": "4,527",
+                "win_rate_diff": 2.22
+            },
+            "Nami": {
+                "Name": "Nami",
+                "win_rate": "50.16",
+                "popularity": "5.12",
+                "games": "4,049",
+                "win_rate_diff": 0.16
+            },
+            "Rell": {
+                "Name": "Rell",
+                "win_rate": "52.29",
+                "popularity": "4.89",
+                "games": "3,869",
+                "win_rate_diff": 2.29
+            },
+            "Lulu": {
+                "Name": "Lulu",
+                "win_rate": "49.31",
+                "popularity": "4.70",
+                "games": "3,715",
+                "win_rate_diff": -0.69
+            },
+            "Braum": {
+                "Name": "Braum",
+                "win_rate": "51.02",
+                "popularity": "4.57",
+                "games": "3,612",
+                "win_rate_diff": 1.02
+            },
+            "Leona": {
+                "Name": "Leona",
+                "win_rate": "50.77",
+                "popularity": "4.49",
+                "games": "3,551",
+                "win_rate_diff": 0.77
+            },
+            "Karma": {
+                "Name": "Karma",
+                "win_rate": "48.12",
+                "popularity": "4.18",
+                "games": "3,302",
+                "win_rate_diff": -1.88
+            },
+            "Bard": {
+                "Name": "Bard",
+                "win_rate": "49.33",
+                "popularity": "4.16",
+                "games": "3,292",
+                "win_rate_diff": -0.67
+            },
+            "Rakan": {
+                "Name": "Rakan",
+                "win_rate": "50.23",
+                "popularity": "4.11",
+                "games": "3,249",
+                "win_rate_diff": 0.23
+            },
+            "Pyke": {
+                "Name": "Pyke",
+                "win_rate": "52.24",
+                "popularity": "3.47",
+                "games": "2,741",
+                "win_rate_diff": 2.24
+            },
+            "Blitzcrank": {
+                "Name": "Blitzcrank",
+                "win_rate": "52.11",
+                "popularity": "3.44",
+                "games": "2,721",
+                "win_rate_diff": 2.11
+            },
+            "Poppy": {
+                "Name": "Poppy",
+                "win_rate": "46.96",
+                "popularity": "3.39",
+                "games": "2,683",
+                "win_rate_diff": -3.04
+            },
+            "Milio": {
+                "Name": "Milio",
+                "win_rate": "48.99",
+                "popularity": "3.39",
+                "games": "2,682",
+                "win_rate_diff": -1.01
+            },
+            "Janna": {
+                "Name": "Janna",
+                "win_rate": "46.04",
+                "popularity": "2.97",
+                "games": "2,350",
+                "win_rate_diff": -3.96
+            },
+            "Neeko": {
+                "Name": "Neeko",
+                "win_rate": "49.54",
+                "popularity": "2.60",
+                "games": "2,055",
+                "win_rate_diff": -0.46
+            },
+            "Yuumi": {
+                "Name": "Yuumi",
+                "win_rate": "54.84",
+                "popularity": "2.29",
+                "games": "1,809",
+                "win_rate_diff": 4.84
+            },
+            "Soraka": {
+                "Name": "Soraka",
+                "win_rate": "48.05",
+                "popularity": "2.11",
+                "games": "1,665",
+                "win_rate_diff": -1.95
+            },
+            "Morgana": {
+                "Name": "Morgana",
+                "win_rate": "47.08",
+                "popularity": "1.89",
+                "games": "1,491",
+                "win_rate_diff": -2.92
+            },
+            "Pantheon": {
+                "Name": "Pantheon",
+                "win_rate": "51.47",
+                "popularity": "1.55",
+                "games": "1,224",
+                "win_rate_diff": 1.47
+            },
+            "Senna": {
+                "Name": "Senna",
+                "win_rate": "50.34",
+                "popularity": "1.51",
+                "games": "1,194",
+                "win_rate_diff": 0.34
+            },
+            "Seraphine": {
+                "Name": "Seraphine",
+                "win_rate": "49.19",
+                "popularity": "1.41",
+                "games": "1,118",
+                "win_rate_diff": -0.81
+            },
+            "Sona": {
+                "Name": "Sona",
+                "win_rate": "47.83",
+                "popularity": "1.37",
+                "games": "1,085",
+                "win_rate_diff": -2.17
+            },
+            "Zilean": {
+                "Name": "Zilean",
+                "win_rate": "49.26",
+                "popularity": "1.11",
+                "games": "879",
+                "win_rate_diff": -0.74
+            },
+            "Elise": {
+                "Name": "Elise",
+                "win_rate": "52.22",
+                "popularity": "1.11",
+                "games": "877",
+                "win_rate_diff": 2.22
+            },
+            "Taric": {
+                "Name": "Taric",
+                "win_rate": "47.07",
+                "popularity": "1.03",
+                "games": "818",
+                "win_rate_diff": -2.93
+            },
+            "Lux": {
+                "Name": "Lux",
+                "win_rate": "50.82",
+                "popularity": "1.01",
+                "games": "797",
+                "win_rate_diff": 0.82
+            },
+            "Vel'Koz": {
+                "Name": "Vel'Koz",
+                "win_rate": "44.73",
+                "popularity": "0.97",
+                "games": "769",
+                "win_rate_diff": -5.27
+            },
+            "Mel": {
+                "Name": "Mel",
+                "win_rate": "55.79",
+                "popularity": "0.88",
+                "games": "699",
+                "win_rate_diff": 5.79
+            },
+            "Maokai": {
+                "Name": "Maokai",
+                "win_rate": "52.85",
+                "popularity": "0.87",
+                "games": "685",
+                "win_rate_diff": 2.85
+            },
+            "Zyra": {
+                "Name": "Zyra",
+                "win_rate": "47.74",
+                "popularity": "0.84",
+                "games": "664",
+                "win_rate_diff": -2.26
+            },
+            "Renata Glasc": {
+                "Name": "Renata Glasc",
+                "win_rate": "48.94",
+                "popularity": "0.84",
+                "games": "662",
+                "win_rate_diff": -1.06
+            },
+            "Swain": {
+                "Name": "Swain",
+                "win_rate": "50.32",
+                "popularity": "0.80",
+                "games": "632",
+                "win_rate_diff": 0.32
+            },
+            "Shaco": {
+                "Name": "Shaco",
+                "win_rate": "52.58",
+                "popularity": "0.74",
+                "games": "582",
+                "win_rate_diff": 2.58
+            },
+            "Sylas": {
+                "Name": "Sylas",
+                "win_rate": "50.09",
+                "popularity": "0.71",
+                "games": "565",
+                "win_rate_diff": 0.09
+            },
+            "Tahm Kench": {
+                "Name": "Tahm Kench",
+                "win_rate": "52.11",
+                "popularity": "0.69",
+                "games": "545",
+                "win_rate_diff": 2.11
+            },
+            "Brand": {
+                "Name": "Brand",
+                "win_rate": "50.49",
+                "popularity": "0.64",
+                "games": "509",
+                "win_rate_diff": 0.49
+            },
+            "Xerath": {
+                "Name": "Xerath",
+                "win_rate": "55.56",
+                "popularity": "0.64",
+                "games": "504",
+                "win_rate_diff": 5.56
+            },
+            "Fiddlesticks": {
+                "Name": "Fiddlesticks",
+                "win_rate": "52.63",
+                "popularity": "0.50",
+                "games": "399",
+                "win_rate_diff": 2.63
+            },
+            "Zoe": {
+                "Name": "Zoe",
+                "win_rate": "48.91",
+                "popularity": "0.47",
+                "games": "368",
+                "win_rate_diff": -1.09
+            },
+            "Amumu": {
+                "Name": "Amumu",
+                "win_rate": "53.17",
+                "popularity": "0.42",
+                "games": "331",
+                "win_rate_diff": 3.17
+            },
+            "LeBlanc": {
+                "Name": "LeBlanc",
+                "win_rate": "44.16",
+                "popularity": "0.39",
+                "games": "308",
+                "win_rate_diff": -5.84
+            },
+            "Galio": {
+                "Name": "Galio",
+                "win_rate": "45.23",
+                "popularity": "0.36",
+                "games": "283",
+                "win_rate_diff": -4.77
+            },
+            "Zac": {
+                "Name": "Zac",
+                "win_rate": "44.70",
+                "popularity": "0.33",
+                "games": "264",
+                "win_rate_diff": -5.3
+            },
+            "Nidalee": {
+                "Name": "Nidalee",
+                "win_rate": "52.82",
+                "popularity": "0.31",
+                "games": "248",
+                "win_rate_diff": 2.82
+            },
+            "Gragas": {
+                "Name": "Gragas",
+                "win_rate": "49.79",
+                "popularity": "0.31",
+                "games": "243",
+                "win_rate_diff": -0.21
+            },
+            "Camille": {
+                "Name": "Camille",
+                "win_rate": "59.07",
+                "popularity": "0.24",
+                "games": "193",
+                "win_rate_diff": 9.07
+            },
+            "Shen": {
+                "Name": "Shen",
+                "win_rate": "52.11",
+                "popularity": "0.24",
+                "games": "190",
+                "win_rate_diff": 2.11
+            },
+            "Hwei": {
+                "Name": "Hwei",
+                "win_rate": "46.20",
+                "popularity": "0.23",
+                "games": "184",
+                "win_rate_diff": -3.8
+            },
+            "Jarvan IV": {
+                "Name": "Jarvan IV",
+                "win_rate": "54.55",
+                "popularity": "0.19",
+                "games": "154",
+                "win_rate_diff": 4.55
+            },
+            "Anivia": {
+                "Name": "Anivia",
+                "win_rate": "43.15",
+                "popularity": "0.18",
+                "games": "146",
+                "win_rate_diff": -6.85
+            },
+            "Teemo": {
+                "Name": "Teemo",
+                "win_rate": "55.32",
+                "popularity": "0.18",
+                "games": "141",
+                "win_rate_diff": 5.32
+            },
+            "Rammus": {
+                "Name": "Rammus",
+                "win_rate": "56.39",
+                "popularity": "0.17",
+                "games": "133",
+                "win_rate_diff": 6.39
+            },
+            "Ashe": {
+                "Name": "Ashe",
+                "win_rate": "55.81",
+                "popularity": "0.16",
+                "games": "129",
+                "win_rate_diff": 5.81
+            },
+            "Veigar": {
+                "Name": "Veigar",
+                "win_rate": "51.30",
+                "popularity": "0.15",
+                "games": "115",
+                "win_rate_diff": 1.3
+            },
+            "Rengar": {
+                "Name": "Rengar",
+                "win_rate": "55.00",
+                "popularity": "0.13",
+                "games": "100",
+                "win_rate_diff": 5.0
+            },
+            "Kennen": {
+                "Name": "Kennen",
+                "win_rate": "48.98",
+                "popularity": "0.12",
+                "games": "98",
+                "win_rate_diff": -1.02
+            },
+            "Annie": {
+                "Name": "Annie",
+                "win_rate": "52.94",
+                "popularity": "0.11",
+                "games": "85",
+                "win_rate_diff": 2.94
+            },
+            "Heimerdinger": {
+                "Name": "Heimerdinger",
+                "win_rate": "57.50",
+                "popularity": "0.10",
+                "games": "80",
+                "win_rate_diff": 7.5
+            },
+            "Twitch": {
+                "Name": "Twitch",
+                "win_rate": "55.70",
+                "popularity": "0.10",
+                "games": "79",
+                "win_rate_diff": 5.7
+            },
+            "Ivern": {
+                "Name": "Ivern",
+                "win_rate": "53.25",
+                "popularity": "0.10",
+                "games": "77",
+                "win_rate_diff": 3.25
+            },
+            "Sett": {
+                "Name": "Sett",
+                "win_rate": "55.84",
+                "popularity": "0.10",
+                "games": "77",
+                "win_rate_diff": 5.84
+            },
+            "Twisted Fate": {
+                "Name": "Twisted Fate",
+                "win_rate": "45.21",
+                "popularity": "0.09",
+                "games": "73",
+                "win_rate_diff": -4.79
+            },
+            "K'Sante": {
+                "Name": "K'Sante",
+                "win_rate": "64.38",
+                "popularity": "0.09",
+                "games": "73",
+                "win_rate_diff": 14.38
+            },
+            "Sion": {
+                "Name": "Sion",
+                "win_rate": "54.79",
+                "popularity": "0.09",
+                "games": "73",
+                "win_rate_diff": 4.79
+            },
+            "Malphite": {
+                "Name": "Malphite",
+                "win_rate": "66.67",
+                "popularity": "0.08",
+                "games": "63",
+                "win_rate_diff": 16.67
+            },
+            "Taliyah": {
+                "Name": "Taliyah",
+                "win_rate": "53.97",
+                "popularity": "0.08",
+                "games": "63",
+                "win_rate_diff": 3.97
+            },
+            "Skarner": {
+                "Name": "Skarner",
+                "win_rate": "66.13",
+                "popularity": "0.08",
+                "games": "62",
+                "win_rate_diff": 16.13
+            },
+            "Trundle": {
+                "Name": "Trundle",
+                "win_rate": "53.45",
+                "popularity": "0.07",
+                "games": "58",
+                "win_rate_diff": 3.45
+            },
+            "Qiyana": {
+                "Name": "Qiyana",
+                "win_rate": "57.14",
+                "popularity": "0.05",
+                "games": "42",
+                "win_rate_diff": 7.14
+            },
+            "Lee Sin": {
+                "Name": "Lee Sin",
+                "win_rate": "61.54",
+                "popularity": "0.05",
+                "games": "39",
+                "win_rate_diff": 11.54
+            },
+            "Cho'Gath": {
+                "Name": "Cho'Gath",
+                "win_rate": "55.26",
+                "popularity": "0.05",
+                "games": "38",
+                "win_rate_diff": 5.26
+            },
+            "Wukong": {
+                "Name": "Wukong",
+                "win_rate": "60.53",
+                "popularity": "0.05",
+                "games": "38",
+                "win_rate_diff": 10.53
+            }
+        }
+    },
+    "synergy": {
+        "top": {
+            "Aatrox": {
+                "Name": "Aatrox",
+                "win_rate": "50.51",
+                "delta_1": "-0.05",
+                "delta_2": "0.85",
+                "pick_rate": "4.62",
+                "games": "3,649"
+            },
+            "Ambessa": {
+                "Name": "Ambessa",
+                "win_rate": "49.85",
+                "delta_1": "-0.91",
+                "delta_2": "-0.21",
+                "pick_rate": "4.51",
+                "games": "3,561"
+            },
+            "K'Sante": {
+                "Name": "K'Sante",
+                "win_rate": "46.37",
+                "delta_1": "-3.05",
+                "delta_2": "-0.99",
+                "pick_rate": "3.48",
+                "games": "2,752"
+            },
+            "Sion": {
+                "Name": "Sion",
+                "win_rate": "50.85",
+                "delta_1": "-0.15",
+                "delta_2": "0.33",
+                "pick_rate": "3.48",
+                "games": "2,749"
+            },
+            "Jax": {
+                "Name": "Jax",
+                "win_rate": "50.06",
+                "delta_1": "-0.99",
+                "delta_2": "-0.58",
+                "pick_rate": "3.17",
+                "games": "2,509"
+            },
+            "Renekton": {
+                "Name": "Renekton",
+                "win_rate": "49.76",
+                "delta_1": "-0.61",
+                "delta_2": "0.50",
+                "pick_rate": "3.13",
+                "games": "2,474"
+            },
+            "Jayce": {
+                "Name": "Jayce",
+                "win_rate": "50.71",
+                "delta_1": "0.20",
+                "delta_2": "1.16",
+                "pick_rate": "3.01",
+                "games": "2,378"
+            },
+            "Darius": {
+                "Name": "Darius",
+                "win_rate": "50.40",
+                "delta_1": "-0.78",
+                "delta_2": "-0.49",
+                "pick_rate": "2.84",
+                "games": "2,246"
+            },
+            "Garen": {
+                "Name": "Garen",
+                "win_rate": "50.75",
+                "delta_1": "-0.34",
+                "delta_2": "0.04",
+                "pick_rate": "2.68",
+                "games": "2,122"
+            },
+            "Malphite": {
+                "Name": "Malphite",
+                "win_rate": "53.08",
+                "delta_1": "1.19",
+                "delta_2": "0.77",
+                "pick_rate": "2.61",
+                "games": "2,063"
+            },
+            "Yasuo": {
+                "Name": "Yasuo",
+                "win_rate": "52.65",
+                "delta_1": "1.87",
+                "delta_2": "2.56",
+                "pick_rate": "2.55",
+                "games": "2,017"
+            },
+            "Fiora": {
+                "Name": "Fiora",
+                "win_rate": "52.34",
+                "delta_1": "0.68",
+                "delta_2": "0.49",
+                "pick_rate": "2.54",
+                "games": "2,008"
+            },
+            "Mordekaiser": {
+                "Name": "Mordekaiser",
+                "win_rate": "49.77",
+                "delta_1": "-0.99",
+                "delta_2": "-0.28",
+                "pick_rate": "2.50",
+                "games": "1,977"
+            },
+            "Yone": {
+                "Name": "Yone",
+                "win_rate": "48.40",
+                "delta_1": "-1.78",
+                "delta_2": "-0.49",
+                "pick_rate": "2.33",
+                "games": "1,841"
+            },
+            "Riven": {
+                "Name": "Riven",
+                "win_rate": "52.12",
+                "delta_1": "0.31",
+                "delta_2": "-0.04",
+                "pick_rate": "2.24",
+                "games": "1,771"
+            },
+            "Irelia": {
+                "Name": "Irelia",
+                "win_rate": "52.18",
+                "delta_1": "0.63",
+                "delta_2": "0.55",
+                "pick_rate": "2.23",
+                "games": "1,765"
+            },
+            "Sett": {
+                "Name": "Sett",
+                "win_rate": "50.32",
+                "delta_1": "-1.07",
+                "delta_2": "-0.99",
+                "pick_rate": "2.14",
+                "games": "1,693"
+            },
+            "Gangplank": {
+                "Name": "Gangplank",
+                "win_rate": "51.47",
+                "delta_1": "0.13",
+                "delta_2": "0.27",
+                "pick_rate": "2.03",
+                "games": "1,603"
+            },
+            "Camille": {
+                "Name": "Camille",
+                "win_rate": "50.76",
+                "delta_1": "-0.31",
+                "delta_2": "0.10",
+                "pick_rate": "1.92",
+                "games": "1,519"
+            },
+            "Gwen": {
+                "Name": "Gwen",
+                "win_rate": "47.67",
+                "delta_1": "-3.22",
+                "delta_2": "-2.65",
+                "pick_rate": "1.87",
+                "games": "1,481"
+            },
+            "Vladimir": {
+                "Name": "Vladimir",
+                "win_rate": "51.20",
+                "delta_1": "0.03",
+                "delta_2": "0.32",
+                "pick_rate": "1.79",
+                "games": "1,418"
+            },
+            "Gnar": {
+                "Name": "Gnar",
+                "win_rate": "49.66",
+                "delta_1": "-1.11",
+                "delta_2": "-0.41",
+                "pick_rate": "1.68",
+                "games": "1,331"
+            },
+            "Shen": {
+                "Name": "Shen",
+                "win_rate": "54.02",
+                "delta_1": "2.37",
+                "delta_2": "2.19",
+                "pick_rate": "1.65",
+                "games": "1,307"
+            },
+            "Ornn": {
+                "Name": "Ornn",
+                "win_rate": "51.11",
+                "delta_1": "0.29",
+                "delta_2": "0.94",
+                "pick_rate": "1.65",
+                "games": "1,303"
+            },
+            "Rumble": {
+                "Name": "Rumble",
+                "win_rate": "51.70",
+                "delta_1": "1.27",
+                "delta_2": "2.31",
+                "pick_rate": "1.60",
+                "games": "1,263"
+            },
+            "Dr. Mundo": {
+                "Name": "Dr. Mundo",
+                "win_rate": "49.51",
+                "delta_1": "-0.70",
+                "delta_2": "0.56",
+                "pick_rate": "1.56",
+                "games": "1,232"
+            },
+            "Gragas": {
+                "Name": "Gragas",
+                "win_rate": "48.04",
+                "delta_1": "-2.93",
+                "delta_2": "-2.43",
+                "pick_rate": "1.52",
+                "games": "1,199"
+            },
+            "Kayle": {
+                "Name": "Kayle",
+                "win_rate": "50.04",
+                "delta_1": "-1.53",
+                "delta_2": "-1.63",
+                "pick_rate": "1.50",
+                "games": "1,183"
+            },
+            "Singed": {
+                "Name": "Singed",
+                "win_rate": "52.31",
+                "delta_1": "0.28",
+                "delta_2": "-0.28",
+                "pick_rate": "1.34",
+                "games": "1,059"
+            },
+            "Urgot": {
+                "Name": "Urgot",
+                "win_rate": "51.67",
+                "delta_1": "-0.08",
+                "delta_2": "-0.36",
+                "pick_rate": "1.33",
+                "games": "1,051"
+            },
+            "Cho'Gath": {
+                "Name": "Cho'Gath",
+                "win_rate": "50.77",
+                "delta_1": "-0.48",
+                "delta_2": "-0.27",
+                "pick_rate": "1.24",
+                "games": "979"
+            },
+            "Yorick": {
+                "Name": "Yorick",
+                "win_rate": "49.04",
+                "delta_1": "-1.76",
+                "delta_2": "-1.09",
+                "pick_rate": "1.19",
+                "games": "938"
+            },
+            "Tryndamere": {
+                "Name": "Tryndamere",
+                "win_rate": "51.60",
+                "delta_1": "0.59",
+                "delta_2": "1.04",
+                "pick_rate": "1.11",
+                "games": "874"
+            },
+            "Akali": {
+                "Name": "Akali",
+                "win_rate": "47.91",
+                "delta_1": "-2.92",
+                "delta_2": "-2.27",
+                "pick_rate": "1.09",
+                "games": "862"
+            },
+            "Kled": {
+                "Name": "Kled",
+                "win_rate": "52.15",
+                "delta_1": "-0.13",
+                "delta_2": "-0.94",
+                "pick_rate": "1.09",
+                "games": "859"
+            },
+            "Pantheon": {
+                "Name": "Pantheon",
+                "win_rate": "51.76",
+                "delta_1": "0.51",
+                "delta_2": "0.74",
+                "pick_rate": "1.08",
+                "games": "850"
+            },
+            "Kennen": {
+                "Name": "Kennen",
+                "win_rate": "54.82",
+                "delta_1": "2.91",
+                "delta_2": "2.47",
+                "pick_rate": "1.06",
+                "games": "841"
+            },
+            "Teemo": {
+                "Name": "Teemo",
+                "win_rate": "52.07",
+                "delta_1": "0.76",
+                "delta_2": "0.91",
+                "pick_rate": "1.01",
+                "games": "797"
+            },
+            "Quinn": {
+                "Name": "Quinn",
+                "win_rate": "55.65",
+                "delta_1": "2.90",
+                "delta_2": "1.63",
+                "pick_rate": "1.01",
+                "games": "796"
+            },
+            "Olaf": {
+                "Name": "Olaf",
+                "win_rate": "50.98",
+                "delta_1": "-0.71",
+                "delta_2": "-0.92",
+                "pick_rate": "0.97",
+                "games": "765"
+            },
+            "Nasus": {
+                "Name": "Nasus",
+                "win_rate": "48.58",
+                "delta_1": "-1.83",
+                "delta_2": "-0.77",
+                "pick_rate": "0.93",
+                "games": "739"
+            },
+            "Volibear": {
+                "Name": "Volibear",
+                "win_rate": "47.27",
+                "delta_1": "-2.49",
+                "delta_2": "-0.78",
+                "pick_rate": "0.88",
+                "games": "696"
+            },
+            "Rek'Sai": {
+                "Name": "Rek'Sai",
+                "win_rate": "48.96",
+                "delta_1": "-1.73",
+                "delta_2": "-0.94",
+                "pick_rate": "0.85",
+                "games": "670"
+            },
+            "Vayne": {
+                "Name": "Vayne",
+                "win_rate": "49.92",
+                "delta_1": "-1.43",
+                "delta_2": "-1.31",
+                "pick_rate": "0.83",
+                "games": "659"
+            },
+            "Poppy": {
+                "Name": "Poppy",
+                "win_rate": "48.55",
+                "delta_1": "-2.65",
+                "delta_2": "-2.37",
+                "pick_rate": "0.83",
+                "games": "657"
+            },
+            "Warwick": {
+                "Name": "Warwick",
+                "win_rate": "48.45",
+                "delta_1": "-3.21",
+                "delta_2": "-3.40",
+                "pick_rate": "0.74",
+                "games": "582"
+            },
+            "Aurora": {
+                "Name": "Aurora",
+                "win_rate": "52.23",
+                "delta_1": "1.87",
+                "delta_2": "2.97",
+                "pick_rate": "0.74",
+                "games": "582"
+            },
+            "Illaoi": {
+                "Name": "Illaoi",
+                "win_rate": "52.00",
+                "delta_1": "1.11",
+                "delta_2": "1.70",
+                "pick_rate": "0.70",
+                "games": "550"
+            },
+            "Ryze": {
+                "Name": "Ryze",
+                "win_rate": "50.09",
+                "delta_1": "-0.70",
+                "delta_2": "-0.03",
+                "pick_rate": "0.68",
+                "games": "535"
+            },
+            "Cassiopeia": {
+                "Name": "Cassiopeia",
+                "win_rate": "53.28",
+                "delta_1": "1.16",
+                "delta_2": "0.51",
+                "pick_rate": "0.66",
+                "games": "518"
+            },
+            "Heimerdinger": {
+                "Name": "Heimerdinger",
+                "win_rate": "45.91",
+                "delta_1": "-5.10",
+                "delta_2": "-4.64",
+                "pick_rate": "0.51",
+                "games": "403"
+            },
+            "Sylas": {
+                "Name": "Sylas",
+                "win_rate": "48.38",
+                "delta_1": "-2.69",
+                "delta_2": "-2.29",
+                "pick_rate": "0.51",
+                "games": "401"
+            },
+            "Varus": {
+                "Name": "Varus",
+                "win_rate": "48.72",
+                "delta_1": "-2.24",
+                "delta_2": "-1.73",
+                "pick_rate": "0.44",
+                "games": "351"
+            },
+            "Zac": {
+                "Name": "Zac",
+                "win_rate": "54.33",
+                "delta_1": "2.78",
+                "delta_2": "2.70",
+                "pick_rate": "0.38",
+                "games": "300"
+            },
+            "Swain": {
+                "Name": "Swain",
+                "win_rate": "52.01",
+                "delta_1": "0.46",
+                "delta_2": "0.39",
+                "pick_rate": "0.38",
+                "games": "298"
+            },
+            "Wukong": {
+                "Name": "Wukong",
+                "win_rate": "44.95",
+                "delta_1": "-5.78",
+                "delta_2": "-5.03",
+                "pick_rate": "0.36",
+                "games": "287"
+            },
+            "Udyr": {
+                "Name": "Udyr",
+                "win_rate": "48.95",
+                "delta_1": "-1.39",
+                "delta_2": "-0.25",
+                "pick_rate": "0.30",
+                "games": "239"
+            },
+            "Smolder": {
+                "Name": "Smolder",
+                "win_rate": "47.39",
+                "delta_1": "-0.84",
+                "delta_2": "2.41",
+                "pick_rate": "0.29",
+                "games": "230"
+            },
+            "Tahm Kench": {
+                "Name": "Tahm Kench",
+                "win_rate": "53.17",
+                "delta_1": "2.58",
+                "delta_2": "3.45",
+                "pick_rate": "0.26",
+                "games": "205"
+            },
+            "Trundle": {
+                "Name": "Trundle",
+                "win_rate": "42.79",
+                "delta_1": "-6.82",
+                "delta_2": "-4.95",
+                "pick_rate": "0.25",
+                "games": "201"
+            },
+            "Anivia": {
+                "Name": "Anivia",
+                "win_rate": "52.54",
+                "delta_1": "0.06",
+                "delta_2": "-0.94",
+                "pick_rate": "0.22",
+                "games": "177"
+            },
+            "Rengar": {
+                "Name": "Rengar",
+                "win_rate": "57.59",
+                "delta_1": "6.26",
+                "delta_2": "6.40",
+                "pick_rate": "0.20",
+                "games": "158"
+            },
+            "Kayn": {
+                "Name": "Kayn",
+                "win_rate": "45.45",
+                "delta_1": "-3.92",
+                "delta_2": "-1.82",
+                "pick_rate": "0.19",
+                "games": "154"
+            },
+            "Galio": {
+                "Name": "Galio",
+                "win_rate": "45.03",
+                "delta_1": "-5.62",
+                "delta_2": "-4.80",
+                "pick_rate": "0.19",
+                "games": "151"
+            },
+            "Fiddlesticks": {
+                "Name": "Fiddlesticks",
+                "win_rate": "48.00",
+                "delta_1": "-4.12",
+                "delta_2": "-4.77",
+                "pick_rate": "0.19",
+                "games": "150"
+            },
+            "Karma": {
+                "Name": "Karma",
+                "win_rate": "57.43",
+                "delta_1": "6.62",
+                "delta_2": "7.27",
+                "pick_rate": "0.19",
+                "games": "148"
+            },
+            "Lee Sin": {
+                "Name": "Lee Sin",
+                "win_rate": "46.26",
+                "delta_1": "-2.99",
+                "delta_2": "-0.77",
+                "pick_rate": "0.19",
+                "games": "147"
+            },
+            "Maokai": {
+                "Name": "Maokai",
+                "win_rate": "48.18",
+                "delta_1": "-2.48",
+                "delta_2": "-1.66",
+                "pick_rate": "0.17",
+                "games": "137"
+            },
+            "Zed": {
+                "Name": "Zed",
+                "win_rate": "52.59",
+                "delta_1": "1.70",
+                "delta_2": "2.27",
+                "pick_rate": "0.17",
+                "games": "135"
+            },
+            "Master Yi": {
+                "Name": "Master Yi",
+                "win_rate": "45.31",
+                "delta_1": "-2.99",
+                "delta_2": "0.18",
+                "pick_rate": "0.16",
+                "games": "128"
+            },
+            "Naafiri": {
+                "Name": "Naafiri",
+                "win_rate": "47.15",
+                "delta_1": "-4.33",
+                "delta_2": "-4.33",
+                "pick_rate": "0.16",
+                "games": "123"
+            },
+            "Malzahar": {
+                "Name": "Malzahar",
+                "win_rate": "54.10",
+                "delta_1": "3.16",
+                "delta_2": "3.69",
+                "pick_rate": "0.15",
+                "games": "122"
+            },
+            "Qiyana": {
+                "Name": "Qiyana",
+                "win_rate": "52.21",
+                "delta_1": "0.26",
+                "delta_2": "-0.23",
+                "pick_rate": "0.14",
+                "games": "113"
+            }
+        },
+        "jungle": {
+            "Lee Sin": {
+                "Name": "Lee Sin",
+                "win_rate": "50.63",
+                "delta_1": "-0.41",
+                "delta_2": "0.02",
+                "pick_rate": "7.09",
+                "games": "5,607"
+            },
+            "Viego": {
+                "Name": "Viego",
+                "win_rate": "49.84",
+                "delta_1": "-0.82",
+                "delta_2": "-0.02",
+                "pick_rate": "5.87",
+                "games": "4,641"
+            },
+            "Sylas": {
+                "Name": "Sylas",
+                "win_rate": "49.89",
+                "delta_1": "-1.09",
+                "delta_2": "-0.59",
+                "pick_rate": "5.85",
+                "games": "4,622"
+            },
+            "Graves": {
+                "Name": "Graves",
+                "win_rate": "50.30",
+                "delta_1": "-0.50",
+                "delta_2": "0.18",
+                "pick_rate": "5.22",
+                "games": "4,127"
+            },
+            "Qiyana": {
+                "Name": "Qiyana",
+                "win_rate": "49.50",
+                "delta_1": "-0.31",
+                "delta_2": "1.34",
+                "pick_rate": "4.28",
+                "games": "3,380"
+            },
+            "Jarvan IV": {
+                "Name": "Jarvan IV",
+                "win_rate": "50.78",
+                "delta_1": "-0.28",
+                "delta_2": "0.12",
+                "pick_rate": "4.12",
+                "games": "3,259"
+            },
+            "Kha'Zix": {
+                "Name": "Kha'Zix",
+                "win_rate": "50.69",
+                "delta_1": "-0.62",
+                "delta_2": "-0.45",
+                "pick_rate": "3.59",
+                "games": "2,837"
+            },
+            "Diana": {
+                "Name": "Diana",
+                "win_rate": "51.39",
+                "delta_1": "0.00",
+                "delta_2": "0.08",
+                "pick_rate": "3.28",
+                "games": "2,592"
+            },
+            "Nidalee": {
+                "Name": "Nidalee",
+                "win_rate": "52.10",
+                "delta_1": "0.77",
+                "delta_2": "0.91",
+                "pick_rate": "3.10",
+                "games": "2,453"
+            },
+            "Zed": {
+                "Name": "Zed",
+                "win_rate": "47.83",
+                "delta_1": "-2.07",
+                "delta_2": "-0.49",
+                "pick_rate": "3.09",
+                "games": "2,446"
+            },
+            "Xin Zhao": {
+                "Name": "Xin Zhao",
+                "win_rate": "49.24",
+                "delta_1": "-1.38",
+                "delta_2": "-0.52",
+                "pick_rate": "2.82",
+                "games": "2,230"
+            },
+            "Ekko": {
+                "Name": "Ekko",
+                "win_rate": "52.43",
+                "delta_1": "0.90",
+                "delta_2": "0.85",
+                "pick_rate": "2.66",
+                "games": "2,102"
+            },
+            "Rengar": {
+                "Name": "Rengar",
+                "win_rate": "52.16",
+                "delta_1": "1.49",
+                "delta_2": "2.29",
+                "pick_rate": "2.52",
+                "games": "1,990"
+            },
+            "Talon": {
+                "Name": "Talon",
+                "win_rate": "52.84",
+                "delta_1": "1.47",
+                "delta_2": "1.57",
+                "pick_rate": "2.41",
+                "games": "1,902"
+            },
+            "Kayn": {
+                "Name": "Kayn",
+                "win_rate": "48.64",
+                "delta_1": "-2.59",
+                "delta_2": "-2.34",
+                "pick_rate": "2.19",
+                "games": "1,733"
+            },
+            "Hecarim": {
+                "Name": "Hecarim",
+                "win_rate": "50.40",
+                "delta_1": "-0.85",
+                "delta_2": "-0.62",
+                "pick_rate": "2.07",
+                "games": "1,633"
+            },
+            "Master Yi": {
+                "Name": "Master Yi",
+                "win_rate": "50.74",
+                "delta_1": "-0.84",
+                "delta_2": "-0.94",
+                "pick_rate": "1.97",
+                "games": "1,559"
+            },
+            "Wukong": {
+                "Name": "Wukong",
+                "win_rate": "49.94",
+                "delta_1": "-0.76",
+                "delta_2": "0.01",
+                "pick_rate": "1.96",
+                "games": "1,548"
+            },
+            "Kindred": {
+                "Name": "Kindred",
+                "win_rate": "52.86",
+                "delta_1": "0.92",
+                "delta_2": "0.46",
+                "pick_rate": "1.95",
+                "games": "1,538"
+            },
+            "Shaco": {
+                "Name": "Shaco",
+                "win_rate": "51.81",
+                "delta_1": "0.42",
+                "delta_2": "0.49",
+                "pick_rate": "1.61",
+                "games": "1,270"
+            },
+            "Elise": {
+                "Name": "Elise",
+                "win_rate": "49.07",
+                "delta_1": "-2.02",
+                "delta_2": "-1.64",
+                "pick_rate": "1.49",
+                "games": "1,180"
+            },
+            "Naafiri": {
+                "Name": "Naafiri",
+                "win_rate": "48.51",
+                "delta_1": "-2.02",
+                "delta_2": "-1.08",
+                "pick_rate": "1.49",
+                "games": "1,175"
+            },
+            "Vi": {
+                "Name": "Vi",
+                "win_rate": "47.48",
+                "delta_1": "-2.59",
+                "delta_2": "-1.19",
+                "pick_rate": "1.46",
+                "games": "1,152"
+            },
+            "Jax": {
+                "Name": "Jax",
+                "win_rate": "49.69",
+                "delta_1": "-1.81",
+                "delta_2": "-1.84",
+                "pick_rate": "1.44",
+                "games": "1,141"
+            },
+            "Lillia": {
+                "Name": "Lillia",
+                "win_rate": "51.29",
+                "delta_1": "0.27",
+                "delta_2": "0.73",
+                "pick_rate": "1.42",
+                "games": "1,121"
+            },
+            "Nocturne": {
+                "Name": "Nocturne",
+                "win_rate": "50.27",
+                "delta_1": "-0.38",
+                "delta_2": "0.43",
+                "pick_rate": "1.41",
+                "games": "1,112"
+            },
+            "Rek'Sai": {
+                "Name": "Rek'Sai",
+                "win_rate": "54.55",
+                "delta_1": "2.45",
+                "delta_2": "1.82",
+                "pick_rate": "1.35",
+                "games": "1,065"
+            },
+            "Karthus": {
+                "Name": "Karthus",
+                "win_rate": "49.95",
+                "delta_1": "-1.19",
+                "delta_2": "-0.85",
+                "pick_rate": "1.31",
+                "games": "1,039"
+            },
+            "Zac": {
+                "Name": "Zac",
+                "win_rate": "49.50",
+                "delta_1": "-2.08",
+                "delta_2": "-2.18",
+                "pick_rate": "1.26",
+                "games": "992"
+            },
+            "Briar": {
+                "Name": "Briar",
+                "win_rate": "50.16",
+                "delta_1": "-1.21",
+                "delta_2": "-1.10",
+                "pick_rate": "1.20",
+                "games": "949"
+            },
+            "Evelynn": {
+                "Name": "Evelynn",
+                "win_rate": "52.22",
+                "delta_1": "0.54",
+                "delta_2": "0.33",
+                "pick_rate": "1.19",
+                "games": "944"
+            },
+            "Bel'Veth": {
+                "Name": "Bel'Veth",
+                "win_rate": "50.66",
+                "delta_1": "-1.35",
+                "delta_2": "-1.89",
+                "pick_rate": "1.15",
+                "games": "906"
+            },
+            "Nunu & Willump": {
+                "Name": "Nunu & Willump",
+                "win_rate": "50.70",
+                "delta_1": "-0.93",
+                "delta_2": "-1.09",
+                "pick_rate": "1.08",
+                "games": "854"
+            },
+            "Fiddlesticks": {
+                "Name": "Fiddlesticks",
+                "win_rate": "50.48",
+                "delta_1": "-1.18",
+                "delta_2": "-1.37",
+                "pick_rate": "1.06",
+                "games": "834"
+            },
+            "Ivern": {
+                "Name": "Ivern",
+                "win_rate": "51.88",
+                "delta_1": "0.22",
+                "delta_2": "0.03",
+                "pick_rate": "1.01",
+                "games": "796"
+            },
+            "Pantheon": {
+                "Name": "Pantheon",
+                "win_rate": "50.06",
+                "delta_1": "0.38",
+                "delta_2": "2.17",
+                "pick_rate": "0.99",
+                "games": "783"
+            },
+            "Volibear": {
+                "Name": "Volibear",
+                "win_rate": "49.41",
+                "delta_1": "-1.71",
+                "delta_2": "-1.36",
+                "pick_rate": "0.96",
+                "games": "759"
+            },
+            "Dr. Mundo": {
+                "Name": "Dr. Mundo",
+                "win_rate": "50.36",
+                "delta_1": "0.42",
+                "delta_2": "1.95",
+                "pick_rate": "0.87",
+                "games": "687"
+            },
+            "Udyr": {
+                "Name": "Udyr",
+                "win_rate": "50.52",
+                "delta_1": "-1.33",
+                "delta_2": "-1.70",
+                "pick_rate": "0.85",
+                "games": "675"
+            },
+            "Taliyah": {
+                "Name": "Taliyah",
+                "win_rate": "54.90",
+                "delta_1": "3.90",
+                "delta_2": "4.38",
+                "pick_rate": "0.77",
+                "games": "612"
+            },
+            "Zyra": {
+                "Name": "Zyra",
+                "win_rate": "53.72",
+                "delta_1": "2.04",
+                "delta_2": "1.82",
+                "pick_rate": "0.77",
+                "games": "605"
+            },
+            "Gwen": {
+                "Name": "Gwen",
+                "win_rate": "51.10",
+                "delta_1": "0.21",
+                "delta_2": "0.79",
+                "pick_rate": "0.75",
+                "games": "591"
+            },
+            "Warwick": {
+                "Name": "Warwick",
+                "win_rate": "48.14",
+                "delta_1": "-3.54",
+                "delta_2": "-3.74",
+                "pick_rate": "0.75",
+                "games": "590"
+            },
+            "Trundle": {
+                "Name": "Trundle",
+                "win_rate": "48.97",
+                "delta_1": "-2.35",
+                "delta_2": "-2.20",
+                "pick_rate": "0.74",
+                "games": "582"
+            },
+            "Amumu": {
+                "Name": "Amumu",
+                "win_rate": "50.50",
+                "delta_1": "-0.61",
+                "delta_2": "-0.25",
+                "pick_rate": "0.51",
+                "games": "402"
+            },
+            "Sejuani": {
+                "Name": "Sejuani",
+                "win_rate": "50.66",
+                "delta_1": "0.63",
+                "delta_2": "2.08",
+                "pick_rate": "0.48",
+                "games": "379"
+            },
+            "Morgana": {
+                "Name": "Morgana",
+                "win_rate": "53.11",
+                "delta_1": "1.82",
+                "delta_2": "1.99",
+                "pick_rate": "0.45",
+                "games": "354"
+            },
+            "Gragas": {
+                "Name": "Gragas",
+                "win_rate": "50.14",
+                "delta_1": "-1.05",
+                "delta_2": "-0.77",
+                "pick_rate": "0.44",
+                "games": "349"
+            },
+            "Skarner": {
+                "Name": "Skarner",
+                "win_rate": "43.56",
+                "delta_1": "-5.28",
+                "delta_2": "-2.64",
+                "pick_rate": "0.38",
+                "games": "303"
+            },
+            "Brand": {
+                "Name": "Brand",
+                "win_rate": "48.99",
+                "delta_1": "-1.74",
+                "delta_2": "-0.99",
+                "pick_rate": "0.37",
+                "games": "296"
+            },
+            "Poppy": {
+                "Name": "Poppy",
+                "win_rate": "52.20",
+                "delta_1": "1.76",
+                "delta_2": "2.79",
+                "pick_rate": "0.37",
+                "games": "295"
+            },
+            "Rammus": {
+                "Name": "Rammus",
+                "win_rate": "46.71",
+                "delta_1": "-4.65",
+                "delta_2": "-4.53",
+                "pick_rate": "0.37",
+                "games": "289"
+            },
+            "Shyvana": {
+                "Name": "Shyvana",
+                "win_rate": "47.60",
+                "delta_1": "-3.18",
+                "delta_2": "-2.49",
+                "pick_rate": "0.34",
+                "games": "271"
+            },
+            "Ambessa": {
+                "Name": "Ambessa",
+                "win_rate": "46.82",
+                "delta_1": "-2.76",
+                "delta_2": "-0.87",
+                "pick_rate": "0.22",
+                "games": "173"
+            },
+            "Teemo": {
+                "Name": "Teemo",
+                "win_rate": "51.59",
+                "delta_1": "0.74",
+                "delta_2": "1.36",
+                "pick_rate": "0.20",
+                "games": "157"
+            },
+            "Olaf": {
+                "Name": "Olaf",
+                "win_rate": "51.24",
+                "delta_1": "0.12",
+                "delta_2": "0.46",
+                "pick_rate": "0.15",
+                "games": "121"
+            },
+            "Mordekaiser": {
+                "Name": "Mordekaiser",
+                "win_rate": "50.00",
+                "delta_1": "-0.22",
+                "delta_2": "1.04",
+                "pick_rate": "0.13",
+                "games": "104"
+            },
+            "Darius": {
+                "Name": "Darius",
+                "win_rate": "54.26",
+                "delta_1": "3.36",
+                "delta_2": "3.93",
+                "pick_rate": "0.12",
+                "games": "94"
+            },
+            "Rumble": {
+                "Name": "Rumble",
+                "win_rate": "51.09",
+                "delta_1": "-0.24",
+                "delta_2": "-0.10",
+                "pick_rate": "0.12",
+                "games": "92"
+            },
+            "Maokai": {
+                "Name": "Maokai",
+                "win_rate": "38.24",
+                "delta_1": "-11.12",
+                "delta_2": "-9.01",
+                "pick_rate": "0.09",
+                "games": "68"
+            },
+            "Sion": {
+                "Name": "Sion",
+                "win_rate": "45.45",
+                "delta_1": "-4.04",
+                "delta_2": "-2.05",
+                "pick_rate": "0.07",
+                "games": "55"
+            },
+            "Nasus": {
+                "Name": "Nasus",
+                "win_rate": "46.30",
+                "delta_1": "-4.06",
+                "delta_2": "-2.95",
+                "pick_rate": "0.07",
+                "games": "54"
+            },
+            "Neeko": {
+                "Name": "Neeko",
+                "win_rate": "57.69",
+                "delta_1": "8.16",
+                "delta_2": "10.09",
+                "pick_rate": "0.07",
+                "games": "52"
+            },
+            "Tryndamere": {
+                "Name": "Tryndamere",
+                "win_rate": "50.00",
+                "delta_1": "0.70",
+                "delta_2": "2.87",
+                "pick_rate": "0.06",
+                "games": "46"
+            },
+            "Urgot": {
+                "Name": "Urgot",
+                "win_rate": "57.14",
+                "delta_1": "5.92",
+                "delta_2": "6.17",
+                "pick_rate": "0.04",
+                "games": "35"
+            },
+            "Vayne": {
+                "Name": "Vayne",
+                "win_rate": "44.12",
+                "delta_1": "-1.78",
+                "delta_2": "3.81",
+                "pick_rate": "0.04",
+                "games": "34"
+            },
+            "Twitch": {
+                "Name": "Twitch",
+                "win_rate": "56.25",
+                "delta_1": "6.60",
+                "delta_2": "8.42",
+                "pick_rate": "0.04",
+                "games": "32"
+            },
+            "Kai'Sa": {
+                "Name": "Kai'Sa",
+                "win_rate": "56.25",
+                "delta_1": "8.16",
+                "delta_2": "11.53",
+                "pick_rate": "0.04",
+                "games": "32"
+            },
+            "Shen": {
+                "Name": "Shen",
+                "win_rate": "44.44",
+                "delta_1": "-4.84",
+                "delta_2": "-2.64",
+                "pick_rate": "0.03",
+                "games": "27"
+            },
+            "Sett": {
+                "Name": "Sett",
+                "win_rate": "48.00",
+                "delta_1": "-0.81",
+                "delta_2": "1.84",
+                "pick_rate": "0.03",
+                "games": "25"
+            },
+            "Cho'Gath": {
+                "Name": "Cho'Gath",
+                "win_rate": "36.00",
+                "delta_1": "-12.39",
+                "delta_2": "-9.30",
+                "pick_rate": "0.03",
+                "games": "25"
+            },
+            "Malphite": {
+                "Name": "Malphite",
+                "win_rate": "52.38",
+                "delta_1": "5.79",
+                "delta_2": "10.68",
+                "pick_rate": "0.03",
+                "games": "21"
+            },
+            "Nautilus": {
+                "Name": "Nautilus",
+                "win_rate": "42.11",
+                "delta_1": "-6.21",
+                "delta_2": "-3.05",
+                "pick_rate": "0.02",
+                "games": "19"
+            }
+        },
+        "middle": {
+            "Orianna": {
+                "Name": "Orianna",
+                "win_rate": "49.53",
+                "delta_1": "-0.90",
+                "delta_2": "0.14",
+                "pick_rate": "5.92",
+                "games": "4,678"
+            },
+            "Yasuo": {
+                "Name": "Yasuo",
+                "win_rate": "51.32",
+                "delta_1": "0.52",
+                "delta_2": "1.18",
+                "pick_rate": "4.41",
+                "games": "3,484"
+            },
+            "Syndra": {
+                "Name": "Syndra",
+                "win_rate": "52.21",
+                "delta_1": "0.68",
+                "delta_2": "0.61",
+                "pick_rate": "3.74",
+                "games": "2,959"
+            },
+            "Sylas": {
+                "Name": "Sylas",
+                "win_rate": "48.09",
+                "delta_1": "-2.67",
+                "delta_2": "-1.96",
+                "pick_rate": "3.54",
+                "games": "2,795"
+            },
+            "Katarina": {
+                "Name": "Katarina",
+                "win_rate": "51.59",
+                "delta_1": "-0.24",
+                "delta_2": "-0.60",
+                "pick_rate": "3.34",
+                "games": "2,638"
+            },
+            "Akali": {
+                "Name": "Akali",
+                "win_rate": "50.37",
+                "delta_1": "-0.24",
+                "delta_2": "0.63",
+                "pick_rate": "3.27",
+                "games": "2,587"
+            },
+            "Ahri": {
+                "Name": "Ahri",
+                "win_rate": "49.18",
+                "delta_1": "-1.75",
+                "delta_2": "-1.21",
+                "pick_rate": "3.03",
+                "games": "2,391"
+            },
+            "LeBlanc": {
+                "Name": "LeBlanc",
+                "win_rate": "52.96",
+                "delta_1": "1.68",
+                "delta_2": "1.86",
+                "pick_rate": "3.01",
+                "games": "2,379"
+            },
+            "Hwei": {
+                "Name": "Hwei",
+                "win_rate": "52.91",
+                "delta_1": "1.82",
+                "delta_2": "2.20",
+                "pick_rate": "2.92",
+                "games": "2,306"
+            },
+            "Ryze": {
+                "Name": "Ryze",
+                "win_rate": "48.95",
+                "delta_1": "-1.01",
+                "delta_2": "0.51",
+                "pick_rate": "2.82",
+                "games": "2,229"
+            },
+            "Viktor": {
+                "Name": "Viktor",
+                "win_rate": "48.61",
+                "delta_1": "-1.62",
+                "delta_2": "-0.37",
+                "pick_rate": "2.73",
+                "games": "2,154"
+            },
+            "Mel": {
+                "Name": "Mel",
+                "win_rate": "48.24",
+                "delta_1": "-1.98",
+                "delta_2": "-0.72",
+                "pick_rate": "2.58",
+                "games": "2,042"
+            },
+            "Zoe": {
+                "Name": "Zoe",
+                "win_rate": "51.49",
+                "delta_1": "-0.22",
+                "delta_2": "-0.46",
+                "pick_rate": "2.51",
+                "games": "1,985"
+            },
+            "Zed": {
+                "Name": "Zed",
+                "win_rate": "50.05",
+                "delta_1": "-0.88",
+                "delta_2": "-0.34",
+                "pick_rate": "2.42",
+                "games": "1,916"
+            },
+            "Yone": {
+                "Name": "Yone",
+                "win_rate": "49.68",
+                "delta_1": "0.23",
+                "delta_2": "2.24",
+                "pick_rate": "2.39",
+                "games": "1,892"
+            },
+            "Taliyah": {
+                "Name": "Taliyah",
+                "win_rate": "51.30",
+                "delta_1": "0.75",
+                "delta_2": "1.67",
+                "pick_rate": "2.39",
+                "games": "1,887"
+            },
+            "Twisted Fate": {
+                "Name": "Twisted Fate",
+                "win_rate": "50.61",
+                "delta_1": "-0.38",
+                "delta_2": "0.10",
+                "pick_rate": "2.18",
+                "games": "1,725"
+            },
+            "Aurora": {
+                "Name": "Aurora",
+                "win_rate": "50.27",
+                "delta_1": "-0.01",
+                "delta_2": "1.19",
+                "pick_rate": "2.13",
+                "games": "1,681"
+            },
+            "Galio": {
+                "Name": "Galio",
+                "win_rate": "48.04",
+                "delta_1": "-2.31",
+                "delta_2": "-1.19",
+                "pick_rate": "2.10",
+                "games": "1,657"
+            },
+            "Malzahar": {
+                "Name": "Malzahar",
+                "win_rate": "48.21",
+                "delta_1": "-2.62",
+                "delta_2": "-1.97",
+                "pick_rate": "1.91",
+                "games": "1,512"
+            },
+            "Xerath": {
+                "Name": "Xerath",
+                "win_rate": "49.93",
+                "delta_1": "-1.53",
+                "delta_2": "-1.51",
+                "pick_rate": "1.81",
+                "games": "1,428"
+            },
+            "Azir": {
+                "Name": "Azir",
+                "win_rate": "46.18",
+                "delta_1": "-2.04",
+                "delta_2": "1.22",
+                "pick_rate": "1.75",
+                "games": "1,386"
+            },
+            "Vladimir": {
+                "Name": "Vladimir",
+                "win_rate": "53.88",
+                "delta_1": "2.53",
+                "delta_2": "2.65",
+                "pick_rate": "1.73",
+                "games": "1,366"
+            },
+            "Morgana": {
+                "Name": "Morgana",
+                "win_rate": "52.14",
+                "delta_1": "0.21",
+                "delta_2": "-0.25",
+                "pick_rate": "1.71",
+                "games": "1,352"
+            },
+            "Akshan": {
+                "Name": "Akshan",
+                "win_rate": "51.27",
+                "delta_1": "-0.56",
+                "delta_2": "-0.93",
+                "pick_rate": "1.65",
+                "games": "1,303"
+            },
+            "Qiyana": {
+                "Name": "Qiyana",
+                "win_rate": "54.45",
+                "delta_1": "2.34",
+                "delta_2": "1.70",
+                "pick_rate": "1.54",
+                "games": "1,214"
+            },
+            "Fizz": {
+                "Name": "Fizz",
+                "win_rate": "50.88",
+                "delta_1": "-0.63",
+                "delta_2": "-0.67",
+                "pick_rate": "1.50",
+                "games": "1,189"
+            },
+            "Anivia": {
+                "Name": "Anivia",
+                "win_rate": "51.74",
+                "delta_1": "-0.19",
+                "delta_2": "-0.65",
+                "pick_rate": "1.49",
+                "games": "1,177"
+            },
+            "Diana": {
+                "Name": "Diana",
+                "win_rate": "51.39",
+                "delta_1": "-0.14",
+                "delta_2": "-0.19",
+                "pick_rate": "1.45",
+                "games": "1,148"
+            },
+            "Kassadin": {
+                "Name": "Kassadin",
+                "win_rate": "50.66",
+                "delta_1": "-1.05",
+                "delta_2": "-1.29",
+                "pick_rate": "1.44",
+                "games": "1,137"
+            },
+            "Ekko": {
+                "Name": "Ekko",
+                "win_rate": "48.55",
+                "delta_1": "-2.43",
+                "delta_2": "-1.94",
+                "pick_rate": "1.39",
+                "games": "1,102"
+            },
+            "Lux": {
+                "Name": "Lux",
+                "win_rate": "50.95",
+                "delta_1": "-0.05",
+                "delta_2": "0.41",
+                "pick_rate": "1.39",
+                "games": "1,101"
+            },
+            "Veigar": {
+                "Name": "Veigar",
+                "win_rate": "52.40",
+                "delta_1": "1.13",
+                "delta_2": "1.33",
+                "pick_rate": "1.24",
+                "games": "981"
+            },
+            "Lissandra": {
+                "Name": "Lissandra",
+                "win_rate": "49.13",
+                "delta_1": "-1.97",
+                "delta_2": "-1.60",
+                "pick_rate": "1.23",
+                "games": "973"
+            },
+            "Vex": {
+                "Name": "Vex",
+                "win_rate": "52.17",
+                "delta_1": "0.17",
+                "delta_2": "-0.36",
+                "pick_rate": "1.14",
+                "games": "899"
+            },
+            "Irelia": {
+                "Name": "Irelia",
+                "win_rate": "51.83",
+                "delta_1": "0.60",
+                "delta_2": "0.85",
+                "pick_rate": "1.11",
+                "games": "876"
+            },
+            "Kayle": {
+                "Name": "Kayle",
+                "win_rate": "52.54",
+                "delta_1": "1.25",
+                "delta_2": "1.43",
+                "pick_rate": "1.02",
+                "games": "807"
+            },
+            "Cassiopeia": {
+                "Name": "Cassiopeia",
+                "win_rate": "51.13",
+                "delta_1": "-0.65",
+                "delta_2": "-0.96",
+                "pick_rate": "1.01",
+                "games": "800"
+            },
+            "Talon": {
+                "Name": "Talon",
+                "win_rate": "52.19",
+                "delta_1": "0.45",
+                "delta_2": "0.19",
+                "pick_rate": "0.92",
+                "games": "730"
+            },
+            "Aurelion Sol": {
+                "Name": "Aurelion Sol",
+                "win_rate": "52.07",
+                "delta_1": "0.71",
+                "delta_2": "0.83",
+                "pick_rate": "0.86",
+                "games": "676"
+            },
+            "Vel'Koz": {
+                "Name": "Vel'Koz",
+                "win_rate": "48.35",
+                "delta_1": "-3.57",
+                "delta_2": "-4.01",
+                "pick_rate": "0.80",
+                "games": "635"
+            },
+            "Jayce": {
+                "Name": "Jayce",
+                "win_rate": "53.31",
+                "delta_1": "2.27",
+                "delta_2": "2.70",
+                "pick_rate": "0.71",
+                "games": "559"
+            },
+            "Annie": {
+                "Name": "Annie",
+                "win_rate": "47.74",
+                "delta_1": "-3.40",
+                "delta_2": "-3.07",
+                "pick_rate": "0.67",
+                "games": "530"
+            },
+            "Naafiri": {
+                "Name": "Naafiri",
+                "win_rate": "49.01",
+                "delta_1": "-3.07",
+                "delta_2": "-3.68",
+                "pick_rate": "0.64",
+                "games": "504"
+            },
+            "Smolder": {
+                "Name": "Smolder",
+                "win_rate": "44.26",
+                "delta_1": "-4.24",
+                "delta_2": "-1.26",
+                "pick_rate": "0.62",
+                "games": "488"
+            },
+            "Ziggs": {
+                "Name": "Ziggs",
+                "win_rate": "50.52",
+                "delta_1": "0.11",
+                "delta_2": "1.16",
+                "pick_rate": "0.49",
+                "games": "384"
+            },
+            "Corki": {
+                "Name": "Corki",
+                "win_rate": "48.27",
+                "delta_1": "-0.92",
+                "delta_2": "1.35",
+                "pick_rate": "0.44",
+                "games": "346"
+            },
+            "Swain": {
+                "Name": "Swain",
+                "win_rate": "50.50",
+                "delta_1": "-1.04",
+                "delta_2": "-1.10",
+                "pick_rate": "0.38",
+                "games": "303"
+            },
+            "Tristana": {
+                "Name": "Tristana",
+                "win_rate": "46.43",
+                "delta_1": "-3.06",
+                "delta_2": "-1.07",
+                "pick_rate": "0.35",
+                "games": "280"
+            },
+            "Neeko": {
+                "Name": "Neeko",
+                "win_rate": "51.08",
+                "delta_1": "-1.00",
+                "delta_2": "-1.60",
+                "pick_rate": "0.35",
+                "games": "278"
+            },
+            "Sion": {
+                "Name": "Sion",
+                "win_rate": "53.51",
+                "delta_1": "2.61",
+                "delta_2": "3.18",
+                "pick_rate": "0.34",
+                "games": "271"
+            },
+            "Quinn": {
+                "Name": "Quinn",
+                "win_rate": "51.42",
+                "delta_1": "-1.01",
+                "delta_2": "-1.96",
+                "pick_rate": "0.31",
+                "games": "247"
+            },
+            "Malphite": {
+                "Name": "Malphite",
+                "win_rate": "51.22",
+                "delta_1": "-0.62",
+                "delta_2": "-0.98",
+                "pick_rate": "0.31",
+                "games": "246"
+            },
+            "Pantheon": {
+                "Name": "Pantheon",
+                "win_rate": "56.15",
+                "delta_1": "4.35",
+                "delta_2": "4.02",
+                "pick_rate": "0.31",
+                "games": "244"
+            },
+            "Brand": {
+                "Name": "Brand",
+                "win_rate": "52.74",
+                "delta_1": "1.03",
+                "delta_2": "0.79",
+                "pick_rate": "0.30",
+                "games": "237"
+            },
+            "Ambessa": {
+                "Name": "Ambessa",
+                "win_rate": "51.15",
+                "delta_1": "-0.52",
+                "delta_2": "-0.71",
+                "pick_rate": "0.27",
+                "games": "217"
+            },
+            "Kennen": {
+                "Name": "Kennen",
+                "win_rate": "56.67",
+                "delta_1": "4.01",
+                "delta_2": "2.81",
+                "pick_rate": "0.27",
+                "games": "210"
+            },
+            "Karma": {
+                "Name": "Karma",
+                "win_rate": "51.12",
+                "delta_1": "-0.09",
+                "delta_2": "0.17",
+                "pick_rate": "0.23",
+                "games": "178"
+            },
+            "Tryndamere": {
+                "Name": "Tryndamere",
+                "win_rate": "48.84",
+                "delta_1": "-2.50",
+                "delta_2": "-2.36",
+                "pick_rate": "0.22",
+                "games": "172"
+            },
+            "Zilean": {
+                "Name": "Zilean",
+                "win_rate": "53.09",
+                "delta_1": "1.30",
+                "delta_2": "0.97",
+                "pick_rate": "0.20",
+                "games": "162"
+            },
+            "Cho'Gath": {
+                "Name": "Cho'Gath",
+                "win_rate": "48.73",
+                "delta_1": "-2.43",
+                "delta_2": "-2.11",
+                "pick_rate": "0.20",
+                "games": "158"
+            },
+            "Twitch": {
+                "Name": "Twitch",
+                "win_rate": "51.61",
+                "delta_1": "0.41",
+                "delta_2": "0.69",
+                "pick_rate": "0.20",
+                "games": "155"
+            },
+            "Nunu & Willump": {
+                "Name": "Nunu & Willump",
+                "win_rate": "49.67",
+                "delta_1": "-1.21",
+                "delta_2": "-0.61",
+                "pick_rate": "0.19",
+                "games": "151"
+            },
+            "Garen": {
+                "Name": "Garen",
+                "win_rate": "51.66",
+                "delta_1": "0.32",
+                "delta_2": "0.45",
+                "pick_rate": "0.19",
+                "games": "151"
+            },
+            "Seraphine": {
+                "Name": "Seraphine",
+                "win_rate": "48.06",
+                "delta_1": "-2.29",
+                "delta_2": "-1.16",
+                "pick_rate": "0.16",
+                "games": "129"
+            },
+            "Gragas": {
+                "Name": "Gragas",
+                "win_rate": "45.90",
+                "delta_1": "-5.60",
+                "delta_2": "-5.62",
+                "pick_rate": "0.15",
+                "games": "122"
+            },
+            "Gangplank": {
+                "Name": "Gangplank",
+                "win_rate": "45.69",
+                "delta_1": "-4.45",
+                "delta_2": "-3.12",
+                "pick_rate": "0.15",
+                "games": "116"
+            },
+            "Varus": {
+                "Name": "Varus",
+                "win_rate": "42.24",
+                "delta_1": "-6.96",
+                "delta_2": "-4.68",
+                "pick_rate": "0.15",
+                "games": "116"
+            },
+            "Renekton": {
+                "Name": "Renekton",
+                "win_rate": "46.02",
+                "delta_1": "-5.12",
+                "delta_2": "-4.79",
+                "pick_rate": "0.14",
+                "games": "113"
+            },
+            "Heimerdinger": {
+                "Name": "Heimerdinger",
+                "win_rate": "52.29",
+                "delta_1": "0.40",
+                "delta_2": "-0.03",
+                "pick_rate": "0.14",
+                "games": "109"
+            },
+            "Kai'Sa": {
+                "Name": "Kai'Sa",
+                "win_rate": "49.00",
+                "delta_1": "1.04",
+                "delta_2": "4.54",
+                "pick_rate": "0.13",
+                "games": "100"
+            },
+            "Zac": {
+                "Name": "Zac",
+                "win_rate": "39.58",
+                "delta_1": "-11.83",
+                "delta_2": "-11.76",
+                "pick_rate": "0.12",
+                "games": "96"
+            },
+            "Viego": {
+                "Name": "Viego",
+                "win_rate": "52.08",
+                "delta_1": "1.62",
+                "delta_2": "2.63",
+                "pick_rate": "0.12",
+                "games": "96"
+            }
+        },
+        "bottom": {
+            "Kai'Sa": {
+                "Name": "Kai'Sa",
+                "win_rate": "50.88",
+                "delta_1": "-0.20",
+                "delta_2": "0.18",
+                "pick_rate": "19.87",
+                "games": "15,708"
+            },
+            "Yunara": {
+                "Name": "Yunara",
+                "win_rate": "47.17",
+                "delta_1": "-2.33",
+                "delta_2": "-0.36",
+                "pick_rate": "5.66",
+                "games": "4,475"
+            },
+            "Jinx": {
+                "Name": "Jinx",
+                "win_rate": "51.85",
+                "delta_1": "0.11",
+                "delta_2": "-0.16",
+                "pick_rate": "5.56",
+                "games": "4,397"
+            },
+            "Jhin": {
+                "Name": "Jhin",
+                "win_rate": "47.95",
+                "delta_1": "-2.35",
+                "delta_2": "-1.18",
+                "pick_rate": "5.39",
+                "games": "4,259"
+            },
+            "Ezreal": {
+                "Name": "Ezreal",
+                "win_rate": "48.72",
+                "delta_1": "-1.30",
+                "delta_2": "0.15",
+                "pick_rate": "5.26",
+                "games": "4,156"
+            },
+            "Ashe": {
+                "Name": "Ashe",
+                "win_rate": "52.51",
+                "delta_1": "0.53",
+                "delta_2": "0.03",
+                "pick_rate": "5.20",
+                "games": "4,110"
+            },
+            "Caitlyn": {
+                "Name": "Caitlyn",
+                "win_rate": "47.49",
+                "delta_1": "-3.30",
+                "delta_2": "-2.62",
+                "pick_rate": "4.56",
+                "games": "3,605"
+            },
+            "Smolder": {
+                "Name": "Smolder",
+                "win_rate": "49.35",
+                "delta_1": "-1.58",
+                "delta_2": "-1.03",
+                "pick_rate": "3.96",
+                "games": "3,133"
+            },
+            "Samira": {
+                "Name": "Samira",
+                "win_rate": "52.61",
+                "delta_1": "1.11",
+                "delta_2": "1.09",
+                "pick_rate": "3.51",
+                "games": "2,773"
+            },
+            "Aphelios": {
+                "Name": "Aphelios",
+                "win_rate": "50.49",
+                "delta_1": "-0.18",
+                "delta_2": "0.62",
+                "pick_rate": "3.22",
+                "games": "2,543"
+            },
+            "Draven": {
+                "Name": "Draven",
+                "win_rate": "52.64",
+                "delta_1": "1.28",
+                "delta_2": "1.38",
+                "pick_rate": "3.07",
+                "games": "2,428"
+            },
+            "Lucian": {
+                "Name": "Lucian",
+                "win_rate": "50.75",
+                "delta_1": "-0.16",
+                "delta_2": "0.41",
+                "pick_rate": "3.04",
+                "games": "2,406"
+            },
+            "Tristana": {
+                "Name": "Tristana",
+                "win_rate": "50.74",
+                "delta_1": "-0.75",
+                "delta_2": "-0.77",
+                "pick_rate": "2.98",
+                "games": "2,353"
+            },
+            "Miss Fortune": {
+                "Name": "Miss Fortune",
+                "win_rate": "50.96",
+                "delta_1": "-0.34",
+                "delta_2": "-0.16",
+                "pick_rate": "2.77",
+                "games": "2,188"
+            },
+            "Sivir": {
+                "Name": "Sivir",
+                "win_rate": "51.12",
+                "delta_1": "0.30",
+                "delta_2": "0.95",
+                "pick_rate": "2.66",
+                "games": "2,103"
+            },
+            "Corki": {
+                "Name": "Corki",
+                "win_rate": "46.71",
+                "delta_1": "-3.34",
+                "delta_2": "-1.92",
+                "pick_rate": "2.54",
+                "games": "2,004"
+            },
+            "Ziggs": {
+                "Name": "Ziggs",
+                "win_rate": "54.21",
+                "delta_1": "2.33",
+                "delta_2": "1.92",
+                "pick_rate": "2.12",
+                "games": "1,673"
+            },
+            "Varus": {
+                "Name": "Varus",
+                "win_rate": "46.56",
+                "delta_1": "-2.91",
+                "delta_2": "-0.90",
+                "pick_rate": "2.04",
+                "games": "1,615"
+            },
+            "Vayne": {
+                "Name": "Vayne",
+                "win_rate": "52.35",
+                "delta_1": "0.70",
+                "delta_2": "0.52",
+                "pick_rate": "2.04",
+                "games": "1,614"
+            },
+            "Xayah": {
+                "Name": "Xayah",
+                "win_rate": "50.47",
+                "delta_1": "-0.27",
+                "delta_2": "0.47",
+                "pick_rate": "1.90",
+                "games": "1,502"
+            },
+            "Twitch": {
+                "Name": "Twitch",
+                "win_rate": "51.91",
+                "delta_1": "0.76",
+                "delta_2": "1.08",
+                "pick_rate": "1.49",
+                "games": "1,177"
+            },
+            "Yasuo": {
+                "Name": "Yasuo",
+                "win_rate": "52.49",
+                "delta_1": "0.67",
+                "delta_2": "0.32",
+                "pick_rate": "1.22",
+                "games": "964"
+            },
+            "Zeri": {
+                "Name": "Zeri",
+                "win_rate": "48.86",
+                "delta_1": "-2.24",
+                "delta_2": "-1.86",
+                "pick_rate": "1.17",
+                "games": "921"
+            },
+            "Mel": {
+                "Name": "Mel",
+                "win_rate": "53.65",
+                "delta_1": "2.74",
+                "delta_2": "3.30",
+                "pick_rate": "0.99",
+                "games": "781"
+            },
+            "Kalista": {
+                "Name": "Kalista",
+                "win_rate": "49.61",
+                "delta_1": "-0.63",
+                "delta_2": "0.61",
+                "pick_rate": "0.97",
+                "games": "766"
+            },
+            "Senna": {
+                "Name": "Senna",
+                "win_rate": "54.93",
+                "delta_1": "3.46",
+                "delta_2": "3.45",
+                "pick_rate": "0.72",
+                "games": "568"
+            },
+            "Nilah": {
+                "Name": "Nilah",
+                "win_rate": "53.59",
+                "delta_1": "1.43",
+                "delta_2": "0.74",
+                "pick_rate": "0.64",
+                "games": "502"
+            },
+            "Kog'Maw": {
+                "Name": "Kog'Maw",
+                "win_rate": "51.72",
+                "delta_1": "-0.28",
+                "delta_2": "-0.81",
+                "pick_rate": "0.59",
+                "games": "466"
+            },
+            "Veigar": {
+                "Name": "Veigar",
+                "win_rate": "52.48",
+                "delta_1": "0.49",
+                "delta_2": "-0.03",
+                "pick_rate": "0.59",
+                "games": "463"
+            },
+            "Hwei": {
+                "Name": "Hwei",
+                "win_rate": "50.93",
+                "delta_1": "-1.36",
+                "delta_2": "-2.17",
+                "pick_rate": "0.54",
+                "games": "430"
+            },
+            "Vel'Koz": {
+                "Name": "Vel'Koz",
+                "win_rate": "58.48",
+                "delta_1": "5.56",
+                "delta_2": "4.11",
+                "pick_rate": "0.43",
+                "games": "342"
+            },
+            "Karthus": {
+                "Name": "Karthus",
+                "win_rate": "50.18",
+                "delta_1": "-1.83",
+                "delta_2": "-2.37",
+                "pick_rate": "0.35",
+                "games": "279"
+            },
+            "Seraphine": {
+                "Name": "Seraphine",
+                "win_rate": "48.91",
+                "delta_1": "-2.42",
+                "delta_2": "-2.28",
+                "pick_rate": "0.35",
+                "games": "276"
+            },
+            "Swain": {
+                "Name": "Swain",
+                "win_rate": "56.93",
+                "delta_1": "5.36",
+                "delta_2": "5.26",
+                "pick_rate": "0.34",
+                "games": "267"
+            },
+            "Cassiopeia": {
+                "Name": "Cassiopeia",
+                "win_rate": "51.21",
+                "delta_1": "-1.37",
+                "delta_2": "-2.48",
+                "pick_rate": "0.26",
+                "games": "207"
+            },
+            "Aurelion Sol": {
+                "Name": "Aurelion Sol",
+                "win_rate": "49.49",
+                "delta_1": "-1.79",
+                "delta_2": "-1.60",
+                "pick_rate": "0.25",
+                "games": "198"
+            },
+            "Lux": {
+                "Name": "Lux",
+                "win_rate": "54.92",
+                "delta_1": "3.48",
+                "delta_2": "3.50",
+                "pick_rate": "0.24",
+                "games": "193"
+            },
+            "Syndra": {
+                "Name": "Syndra",
+                "win_rate": "48.51",
+                "delta_1": "-3.58",
+                "delta_2": "-4.19",
+                "pick_rate": "0.17",
+                "games": "134"
+            },
+            "Brand": {
+                "Name": "Brand",
+                "win_rate": "51.52",
+                "delta_1": "-0.72",
+                "delta_2": "-1.49",
+                "pick_rate": "0.17",
+                "games": "132"
+            },
+            "Xerath": {
+                "Name": "Xerath",
+                "win_rate": "45.35",
+                "delta_1": "-6.32",
+                "delta_2": "-6.52",
+                "pick_rate": "0.11",
+                "games": "86"
+            },
+            "Zyra": {
+                "Name": "Zyra",
+                "win_rate": "54.05",
+                "delta_1": "1.91",
+                "delta_2": "1.25",
+                "pick_rate": "0.09",
+                "games": "74"
+            },
+            "Viktor": {
+                "Name": "Viktor",
+                "win_rate": "60.00",
+                "delta_1": "8.21",
+                "delta_2": "7.89",
+                "pick_rate": "0.09",
+                "games": "70"
+            },
+            "Taliyah": {
+                "Name": "Taliyah",
+                "win_rate": "44.90",
+                "delta_1": "-4.91",
+                "delta_2": "-3.24",
+                "pick_rate": "0.06",
+                "games": "49"
+            },
+            "Heimerdinger": {
+                "Name": "Heimerdinger",
+                "win_rate": "45.83",
+                "delta_1": "-5.15",
+                "delta_2": "-4.66",
+                "pick_rate": "0.06",
+                "games": "48"
+            },
+            "Anivia": {
+                "Name": "Anivia",
+                "win_rate": "61.54",
+                "delta_1": "8.78",
+                "delta_2": "7.49",
+                "pick_rate": "0.05",
+                "games": "39"
+            },
+            "Akshan": {
+                "Name": "Akshan",
+                "win_rate": "39.47",
+                "delta_1": "-10.87",
+                "delta_2": "-9.73",
+                "pick_rate": "0.05",
+                "games": "38"
+            },
+            "Malzahar": {
+                "Name": "Malzahar",
+                "win_rate": "50.00",
+                "delta_1": "-1.01",
+                "delta_2": "-0.55",
+                "pick_rate": "0.04",
+                "games": "30"
+            },
+            "Katarina": {
+                "Name": "Katarina",
+                "win_rate": "55.56",
+                "delta_1": "3.16",
+                "delta_2": "2.23",
+                "pick_rate": "0.03",
+                "games": "27"
+            },
+            "Ahri": {
+                "Name": "Ahri",
+                "win_rate": "52.00",
+                "delta_1": "0.03",
+                "delta_2": "-0.47",
+                "pick_rate": "0.03",
+                "games": "25"
+            },
+            "Morgana": {
+                "Name": "Morgana",
+                "win_rate": "40.91",
+                "delta_1": "-11.93",
+                "delta_2": "-13.29",
+                "pick_rate": "0.03",
+                "games": "22"
+            },
+            "Cho'Gath": {
+                "Name": "Cho'Gath",
+                "win_rate": "36.36",
+                "delta_1": "-14.10",
+                "delta_2": "-13.08",
+                "pick_rate": "0.03",
+                "games": "22"
+            },
+            "Orianna": {
+                "Name": "Orianna",
+                "win_rate": "70.00",
+                "delta_1": "19.66",
+                "delta_2": "20.79",
+                "pick_rate": "0.03",
+                "games": "20"
+            },
+            "Aurora": {
+                "Name": "Aurora",
+                "win_rate": "58.82",
+                "delta_1": "8.99",
+                "delta_2": "10.63",
+                "pick_rate": "0.02",
+                "games": "17"
+            },
+            "Vladimir": {
+                "Name": "Vladimir",
+                "win_rate": "41.18",
+                "delta_1": "-10.50",
+                "delta_2": "-10.71",
+                "pick_rate": "0.02",
+                "games": "17"
+            },
+            "Twisted Fate": {
+                "Name": "Twisted Fate",
+                "win_rate": "56.25",
+                "delta_1": "7.75",
+                "delta_2": "10.71",
+                "pick_rate": "0.02",
+                "games": "16"
+            },
+            "Neeko": {
+                "Name": "Neeko",
+                "win_rate": "50.00",
+                "delta_1": "-0.06",
+                "delta_2": "1.35",
+                "pick_rate": "0.02",
+                "games": "16"
+            },
+            "Irelia": {
+                "Name": "Irelia",
+                "win_rate": "30.77",
+                "delta_1": "-18.45",
+                "delta_2": "-16.20",
+                "pick_rate": "0.02",
+                "games": "13"
+            },
+            "Kindred": {
+                "Name": "Kindred",
+                "win_rate": "58.33",
+                "delta_1": "7.86",
+                "delta_2": "8.86",
+                "pick_rate": "0.02",
+                "games": "12"
+            },
+            "Singed": {
+                "Name": "Singed",
+                "win_rate": "36.36",
+                "delta_1": "-14.10",
+                "delta_2": "-13.09",
+                "pick_rate": "0.01",
+                "games": "11"
+            },
+            "Yone": {
+                "Name": "Yone",
+                "win_rate": "30.00",
+                "delta_1": "-18.70",
+                "delta_2": "-15.93",
+                "pick_rate": "0.01",
+                "games": "10"
+            },
+            "Ekko": {
+                "Name": "Ekko",
+                "win_rate": "60.00",
+                "delta_1": "6.81",
+                "delta_2": "5.10",
+                "pick_rate": "0.01",
+                "games": "10"
+            },
+            "Teemo": {
+                "Name": "Teemo",
+                "win_rate": "70.00",
+                "delta_1": "22.93",
+                "delta_2": "27.34",
+                "pick_rate": "0.01",
+                "games": "10"
+            },
+            "Kayle": {
+                "Name": "Kayle",
+                "win_rate": "20.00",
+                "delta_1": "-31.39",
+                "delta_2": "-31.31",
+                "pick_rate": "0.01",
+                "games": "10"
+            },
+            "Quinn": {
+                "Name": "Quinn",
+                "win_rate": "66.67",
+                "delta_1": "16.04",
+                "delta_2": "16.88",
+                "pick_rate": "0.01",
+                "games": "9"
+            },
+            "Zoe": {
+                "Name": "Zoe",
+                "win_rate": "25.00",
+                "delta_1": "-23.94",
+                "delta_2": "-21.41",
+                "pick_rate": "0.01",
+                "games": "8"
+            },
+            "Sett": {
+                "Name": "Sett",
+                "win_rate": "37.50",
+                "delta_1": "-14.20",
+                "delta_2": "-14.43",
+                "pick_rate": "0.01",
+                "games": "8"
+            },
+            "Ivern": {
+                "Name": "Ivern",
+                "win_rate": "57.14",
+                "delta_1": "9.84",
+                "delta_2": "14.01",
+                "pick_rate": "0.01",
+                "games": "7"
+            },
+            "Sion": {
+                "Name": "Sion",
+                "win_rate": "42.86",
+                "delta_1": "-7.13",
+                "delta_2": "-5.64",
+                "pick_rate": "0.01",
+                "games": "7"
+            },
+            "Pantheon": {
+                "Name": "Pantheon",
+                "win_rate": "42.86",
+                "delta_1": "-4.73",
+                "delta_2": "-0.84",
+                "pick_rate": "0.01",
+                "games": "7"
+            },
+            "Vi": {
+                "Name": "Vi",
+                "win_rate": "57.14",
+                "delta_1": "4.15",
+                "delta_2": "2.64",
+                "pick_rate": "0.01",
+                "games": "7"
+            },
+            "Karma": {
+                "Name": "Karma",
+                "win_rate": "33.33",
+                "delta_1": "-11.93",
+                "delta_2": "-5.70",
+                "pick_rate": "0.01",
+                "games": "6"
+            },
+            "Graves": {
+                "Name": "Graves",
+                "win_rate": "50.00",
+                "delta_1": "0.74",
+                "delta_2": "2.96",
+                "pick_rate": "0.01",
+                "games": "6"
+            },
+            "Sona": {
+                "Name": "Sona",
+                "win_rate": "50.00",
+                "delta_1": "2.74",
+                "delta_2": "6.96",
+                "pick_rate": "0.01",
+                "games": "6"
+            }
+        },
+        "support": {}
+    }
+}

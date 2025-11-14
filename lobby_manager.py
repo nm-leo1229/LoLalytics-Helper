@@ -51,6 +51,7 @@ SYNERGY_LOW_GAMES_DEFAULT = 1500
 LOW_SAMPLE_COLOR = "#888888"
 NORMAL_SAMPLE_COLOR = "#111111"
 WARNING_ICON = "⚠"
+DASHBOARD_ROWS_PER_LANE = 3
 
 CHOSEONG_LIST = [
     "ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ", "ㅅ",
@@ -70,7 +71,7 @@ def extract_choseong(text: str) -> str:
     return "".join(choseong)
 
 
-def alias_variants(alias: str) -> set[str]:
+def alias_variants(alias: str, include_initials: bool = True) -> set[str]:
     variants = set()
     candidate = alias.strip()
     if not candidate:
@@ -84,10 +85,14 @@ def alias_variants(alias: str) -> set[str]:
         variants.add(alnum_only)
 
     initials = extract_choseong(candidate)
-    if initials:
+    if include_initials and initials:
         variants.add(initials.lower())
 
     return variants
+
+
+def contains_hangul_syllable(text: str) -> bool:
+    return any(0xAC00 <= ord(ch) <= 0xD7A3 for ch in text)
 
 
 def load_alias_tables():
@@ -298,6 +303,14 @@ class ChampionScraperApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Champion Ban/Pick Helper")
+        self.root.grid_rowconfigure(0, weight=1)
+        self.root.grid_columnconfigure(0, weight=1)
+        self.notebook = ttk.Notebook(root)
+        self.notebook.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self.main_tab = tk.Frame(self.notebook)
+        self.main_tab.grid_rowconfigure(6, weight=1)
+        self.main_tab.grid_columnconfigure(5, weight=1)
+        self.notebook.add(self.main_tab, text="Main")
         self.all_data = {lane: {} for lane in LANES}
         self.synergy_data = {lane: {} for lane in LANES}
         (
@@ -315,7 +328,7 @@ class ChampionScraperApp:
         self.synergy_typing_after_id = None
 
         # Counter controls
-        self.counter_section = tk.LabelFrame(root, text="Counter")
+        self.counter_section = tk.LabelFrame(self.main_tab, text="Counter")
         self.counter_section.grid(row=1, column=0, columnspan=4, sticky="ew", padx=5, pady=(10, 0))
         self.counter_section.grid_columnconfigure(0, weight=1)
         self.counter_section.grid_columnconfigure(1, weight=1)
@@ -368,8 +381,8 @@ class ChampionScraperApp:
         self.counter_min_games_entry = tk.Entry(self.counter_reliability_frame, width=10)
         self.counter_min_games_entry.grid(row=0, column=1, padx=(5, 10), sticky="w")
         self.counter_min_games_entry.insert(0, str(COUNTER_LOW_GAMES_DEFAULT))
-        self.counter_min_games_entry.bind("<KeyRelease>", lambda _event: self.update_GUI())
-        self.counter_min_games_entry.bind("<FocusOut>", lambda _event: self.update_GUI())
+        self.counter_min_games_entry.bind("<KeyRelease>", self.on_counter_threshold_change)
+        self.counter_min_games_entry.bind("<FocusOut>", self.on_counter_threshold_change)
         tk.Label(
             self.counter_reliability_frame,
             text=f"{WARNING_ICON} 회색 = 데이터 부족"
@@ -397,7 +410,7 @@ class ChampionScraperApp:
         self.treeviews = {}
         self.lane_frames = {}
         for lane in LANES:
-            frame = tk.Frame(root)
+            frame = tk.Frame(self.main_tab)
             tk.Label(frame, text=f"{lane.capitalize()} Counter:").pack(anchor="w")
             tree = ttk.Treeview(frame, columns=("Name", "Popularity", "Win Rate"), show='headings')
             tree.pack(expand=True, fill='both')
@@ -412,7 +425,7 @@ class ChampionScraperApp:
         self.update_lane_visibility()
 
         # Synergy controls
-        self.synergy_section = tk.LabelFrame(root, text="Ally Synergy")
+        self.synergy_section = tk.LabelFrame(self.main_tab, text="Ally Synergy")
         self.synergy_section.grid(row=3, column=0, columnspan=4, sticky="ew", padx=5, pady=(10, 0))
         self.synergy_section.grid_columnconfigure(0, weight=1)
         self.synergy_section.grid_columnconfigure(1, weight=1)
@@ -464,8 +477,8 @@ class ChampionScraperApp:
         self.synergy_min_games_entry = tk.Entry(self.synergy_reliability_frame, width=10)
         self.synergy_min_games_entry.grid(row=0, column=1, padx=(5, 10), sticky="w")
         self.synergy_min_games_entry.insert(0, str(SYNERGY_LOW_GAMES_DEFAULT))
-        self.synergy_min_games_entry.bind("<KeyRelease>", lambda _event: self.update_synergy_GUI())
-        self.synergy_min_games_entry.bind("<FocusOut>", lambda _event: self.update_synergy_GUI())
+        self.synergy_min_games_entry.bind("<KeyRelease>", self.on_synergy_threshold_change)
+        self.synergy_min_games_entry.bind("<FocusOut>", self.on_synergy_threshold_change)
         tk.Label(
             self.synergy_reliability_frame,
             text=f"{WARNING_ICON} 회색 = 데이터 부족"
@@ -474,7 +487,7 @@ class ChampionScraperApp:
         self.synergy_lane_filter_frame = tk.LabelFrame(self.synergy_section, text="Synergy Lanes")
         self.synergy_lane_filter_frame.grid(row=3, column=0, columnspan=4, sticky="ew", padx=5, pady=(0, 10))
 
-        self.highlight_frame = tk.LabelFrame(root, text="Top Bot Lane Duos")
+        self.highlight_frame = tk.LabelFrame(self.main_tab, text="Top Bot Lane Duos")
         self.highlight_frame.grid(row=4, column=0, columnspan=4, sticky="ew", padx=5, pady=(0, 10))
 
         controls_row = tk.Frame(self.highlight_frame)
@@ -522,7 +535,7 @@ class ChampionScraperApp:
         self.synergy_treeviews = {}
         self.synergy_frames = {}
         for lane in LANES:
-            frame = tk.Frame(root)
+            frame = tk.Frame(self.main_tab)
             tk.Label(frame, text=f"{lane.capitalize()} Synergy:").pack(anchor="w")
             tree = ttk.Treeview(frame, columns=("Name", "Pick Rate", "Win Rate"), show='headings')
             tree.pack(expand=True, fill='both')
@@ -535,6 +548,19 @@ class ChampionScraperApp:
             self.synergy_frames[lane] = frame
 
         self.update_synergy_visibility()
+        self.build_dashboard_tab()
+        self.refresh_dashboard_sources()
+
+    def build_dashboard_tab(self):
+        if hasattr(self, "dashboard_tab"):
+            return
+        self.dashboard_tab = tk.Frame(self.notebook)
+        self.notebook.add(self.dashboard_tab, text="Dashboard")
+        tk.Label(
+            self.dashboard_tab,
+            text="Dashboard 탭은 사용자 정의를 위해 비워져 있습니다.",
+            font=("Segoe UI", 11, "bold")
+        ).pack(expand=True, fill="both", pady=80)
 
     def on_counter_input_changed(self, _event=None):
         if not self.counter_auto_load_var.get():
@@ -631,6 +657,155 @@ class ChampionScraperApp:
             if self.synergy_auto_load_var.get():
                 self.schedule_synergy_auto_load(delay=0)
 
+    def on_counter_threshold_change(self, _event=None):
+        self.update_GUI()
+        self.update_dashboard_counter_view()
+
+    def on_synergy_threshold_change(self, _event=None):
+        self.update_synergy_GUI()
+        self.update_dashboard_synergy_view()
+
+    def refresh_dashboard_sources(self):
+        self.refresh_dashboard_counter_source()
+        self.refresh_dashboard_synergy_source()
+
+    def refresh_dashboard_counter_source(self):
+        if not hasattr(self, "dashboard_counter_select"):
+            return
+        selected_labels = {
+            self.dashboard_counter_select.get(idx)
+            for idx in self.dashboard_counter_select.curselection()
+        }
+        self.dashboard_counter_select.delete(0, tk.END)
+        for label in self.champion_listbox.get(0, tk.END):
+            current_index = self.dashboard_counter_select.size()
+            self.dashboard_counter_select.insert(tk.END, label)
+            if label in selected_labels:
+                self.dashboard_counter_select.selection_set(current_index)
+        self.update_dashboard_counter_view()
+
+    def refresh_dashboard_synergy_source(self):
+        if not hasattr(self, "dashboard_synergy_select"):
+            return
+        selected_labels = {
+            self.dashboard_synergy_select.get(idx)
+            for idx in self.dashboard_synergy_select.curselection()
+        }
+        self.dashboard_synergy_select.delete(0, tk.END)
+        for label in self.synergy_listbox.get(0, tk.END):
+            current_index = self.dashboard_synergy_select.size()
+            self.dashboard_synergy_select.insert(tk.END, label)
+            if label in selected_labels:
+                self.dashboard_synergy_select.selection_set(current_index)
+        self.update_dashboard_synergy_view()
+
+    def update_dashboard_counter_view(self, _event=None):
+        if not hasattr(self, "dashboard_counter_tree"):
+            return
+        for item in self.dashboard_counter_tree.get_children():
+            self.dashboard_counter_tree.delete(item)
+
+        if not hasattr(self, "dashboard_counter_select"):
+            return
+
+        selections = self.dashboard_counter_select.curselection()
+        if not selections:
+            return
+        labels = [self.dashboard_counter_select.get(idx) for idx in selections]
+        rows = self._collect_dashboard_counter_rows(labels)
+        threshold = self.get_counter_min_games_threshold()
+        for champion_label, lane, opponent, win_rate, popularity, games in rows:
+            games_int = self.parse_int(games)
+            is_low = games_int < threshold
+            opponent_display = f"{WARNING_ICON} {opponent}" if is_low else opponent
+            tag = "low_games" if is_low else "normal_games"
+            self.dashboard_counter_tree.insert(
+                "",
+                "end",
+                values=(champion_label, lane, opponent_display, win_rate, popularity, games),
+                tags=(tag,)
+            )
+
+    def update_dashboard_synergy_view(self, _event=None):
+        if not hasattr(self, "dashboard_synergy_tree"):
+            return
+        for item in self.dashboard_synergy_tree.get_children():
+            self.dashboard_synergy_tree.delete(item)
+
+        if not hasattr(self, "dashboard_synergy_select"):
+            return
+
+        selections = self.dashboard_synergy_select.curselection()
+        if not selections:
+            return
+        labels = [self.dashboard_synergy_select.get(idx) for idx in selections]
+        rows = self._collect_dashboard_synergy_rows(labels)
+        threshold = self.get_synergy_min_games_threshold()
+        for champion_label, lane, partner, win_rate, pick_rate, games in rows:
+            games_int = self.parse_int(games)
+            is_low = games_int < threshold
+            partner_display = f"{WARNING_ICON} {partner}" if is_low else partner
+            tag = "low_games" if is_low else "normal_games"
+            self.dashboard_synergy_tree.insert(
+                "",
+                "end",
+                values=(champion_label, lane, partner_display, win_rate, pick_rate, games),
+                tags=(tag,)
+            )
+
+    def _collect_dashboard_counter_rows(self, labels):
+        rows = []
+        for label in labels:
+            key = self.counter_listbox_map.get(label)
+            dataset = self.counter_cache.get(key) if key else None
+            if not dataset:
+                continue
+            for lane in LANES:
+                lane_entries = dataset.get(lane, {})
+                if not lane_entries:
+                    continue
+                sorted_entries = sorted(
+                    lane_entries.items(),
+                    key=lambda item: self.parse_float(item[1].get("win_rate_diff")),
+                )
+                for opponent, details in sorted_entries[:DASHBOARD_ROWS_PER_LANE]:
+                    rows.append((
+                        label,
+                        lane.capitalize(),
+                        opponent,
+                        details.get("win_rate", "0.00"),
+                        details.get("popularity", "0.00"),
+                        details.get("games", "0")
+                    ))
+        return rows
+
+    def _collect_dashboard_synergy_rows(self, labels):
+        rows = []
+        for label in labels:
+            key = self.synergy_listbox_map.get(label)
+            dataset = self.synergy_cache.get(key) if key else None
+            if not dataset:
+                continue
+            for lane in LANES:
+                lane_entries = dataset.get(lane, {})
+                if not lane_entries:
+                    continue
+                sorted_entries = sorted(
+                    lane_entries.items(),
+                    key=lambda item: self.parse_float(item[1].get("win_rate")),
+                    reverse=True
+                )
+                for partner, details in sorted_entries[:DASHBOARD_ROWS_PER_LANE]:
+                    rows.append((
+                        label,
+                        lane.capitalize(),
+                        partner,
+                        details.get("win_rate", "0.00"),
+                        details.get("pick_rate", "0.00"),
+                        details.get("games", "0")
+                    ))
+        return rows
+
     def start_search(self, auto_trigger=False):
         champion_name = self.name_entry.get()
         selected_lane = self.lane_combobox.get().lower()
@@ -688,6 +863,7 @@ class ChampionScraperApp:
         self.all_data = self.clone_dataset(dataset)
         self.apply_counter_filter()
         self.update_GUI()
+        self.refresh_dashboard_counter_source()
         return True
 
     def start_synergy_search(self, auto_trigger=False):
@@ -747,6 +923,7 @@ class ChampionScraperApp:
         self.synergy_data = self.clone_dataset(dataset)
         self.apply_synergy_filter()
         self.update_synergy_GUI()
+        self.refresh_dashboard_synergy_source()
         return True
 
     def get_counter_min_games_threshold(self):
@@ -868,6 +1045,7 @@ class ChampionScraperApp:
         self.update_synergy_GUI()
         self.update_lane_visibility()
         self.update_synergy_visibility()
+        self.refresh_dashboard_sources()
 
     def update_GUI(self):
         threshold = self.get_counter_min_games_threshold()
@@ -936,7 +1114,8 @@ class ChampionScraperApp:
         self.update_synergy_GUI()
 
     def resolve_champion_name(self, query: str):
-        variants = alias_variants(query)
+        allow_initials = not contains_hangul_syllable(query or "")
+        variants = alias_variants(query, include_initials=allow_initials)
         variants.add(query.lower().strip())
 
         for variant in variants:

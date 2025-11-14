@@ -294,9 +294,9 @@ class ChampionScraperApp:
 
     def start_search(self):
         champion_name = self.name_entry.get()
-        lane = self.lane_combobox.get().lower()
+        selected_lane = self.lane_combobox.get().lower()
 
-        if lane not in LANES:
+        if selected_lane not in LANES:
             messagebox.showerror("Error", "Please select a lane.")
             return
 
@@ -305,40 +305,34 @@ class ChampionScraperApp:
             messagebox.showerror("Error", f"Champion name '{champion_name}' not found.")
             return
 
-        # Clean input fields
-        self.name_entry.delete(0, tk.END)
-
-        # Extract data from json file
-        data_filename = f"{full_name}_{lane}.json".replace(" ", "_")
-        filename = resolve_resource_path("data", data_filename)
-        try:
-            with open(filename, 'r', encoding="utf-8") as file:
-                data = json.load(file)
-        except FileNotFoundError:
-            messagebox.showerror("Error", f"Counter data file '{data_filename}' not found.\n경로: {filename}")
-            return
-        except json.JSONDecodeError as e:
-            messagebox.showerror("Error", f"Counter 데이터 파일을 읽을 수 없습니다: {data_filename}\n에러: {e}")
-            return
-        except OSError as e:
-            messagebox.showerror("Error", f"Counter 데이터 파일을 여는 중 오류가 발생했습니다: {filename}\n에러: {e}")
-            return
-
-        counters_data = data.get("counters")
-        if counters_data is None:
-            counters_data = data
-
-        key = (full_name, lane)
         display_name = self.display_lookup.get(full_name, full_name.title())
-        label = f"{display_name} ({lane})"
+        dataset, resolved_lane, used_fallback = self._load_lane_dataset(
+            full_name,
+            selected_lane,
+            "Counter",
+            "counters",
+            self.sanitize_counter_entry
+        )
 
-        sanitized_dataset = {ln: {} for ln in LANES}
-        for lane_name in sanitized_dataset:
-            lane_data = counters_data.get(lane_name, {})
-            for name, new_data in lane_data.items():
-                sanitized_dataset[lane_name][name] = self.sanitize_counter_entry(new_data)
+        if dataset is None or resolved_lane is None:
+            messagebox.showerror(
+                "Error",
+                f"{display_name} 챔피언의 Counter 데이터를 불러올 수 없습니다."
+            )
+            return
 
-        self.counter_cache[key] = sanitized_dataset
+        if used_fallback:
+            messagebox.showinfo(
+                "Info",
+                f"{selected_lane} 라인 데이터가 없어 {resolved_lane} 라인 Counter 데이터를 불러왔습니다."
+            )
+        else:
+            self.name_entry.delete(0, tk.END)
+
+        key = (full_name, resolved_lane)
+        label = f"{display_name} ({resolved_lane})"
+
+        self.counter_cache[key] = dataset
         if label not in self.counter_listbox_map:
             self.champion_listbox.insert(tk.END, label)
         self.counter_listbox_map[label] = key
@@ -348,15 +342,15 @@ class ChampionScraperApp:
             self.champion_listbox.selection_clear(0, tk.END)
             self.champion_listbox.selection_set(idx)
 
-        self.all_data = self.clone_dataset(sanitized_dataset)
+        self.all_data = self.clone_dataset(dataset)
         self.apply_counter_filter()
         self.update_GUI()
 
     def start_synergy_search(self):
         champion_name = self.ally_name_entry.get()
-        lane = self.ally_lane_combobox.get().lower()
+        selected_lane = self.ally_lane_combobox.get().lower()
 
-        if lane not in LANES:
+        if selected_lane not in LANES:
             messagebox.showerror("Error", "Please select a lane for synergy.")
             return
 
@@ -365,38 +359,34 @@ class ChampionScraperApp:
             messagebox.showerror("Error", f"Champion name '{champion_name}' not found.")
             return
 
-        self.ally_name_entry.delete(0, tk.END)
-
-        data_filename = f"{full_name}_{lane}.json".replace(" ", "_")
-        filename = resolve_resource_path("data", data_filename)
-        try:
-            with open(filename, 'r', encoding="utf-8") as file:
-                data = json.load(file)
-        except FileNotFoundError:
-            messagebox.showerror("Error", f"Synergy 데이터 파일 '{data_filename}'을 찾을 수 없습니다.\n경로: {filename}")
-            return
-        except json.JSONDecodeError as e:
-            messagebox.showerror("Error", f"Synergy 데이터 파일을 읽을 수 없습니다: {data_filename}\n에러: {e}")
-            return
-        except OSError as e:
-            messagebox.showerror("Error", f"Synergy 데이터 파일을 여는 중 오류가 발생했습니다: {filename}\n에러: {e}")
-            return
-
-        synergy_payload = data.get("synergy")
-        if not isinstance(synergy_payload, dict):
-            messagebox.showinfo("Info", f"No synergy data available for {full_name}_{lane}.")
-            return
-
         display_name = self.display_lookup.get(full_name, full_name.title())
-        label = f"{display_name} ({lane})"
-        sanitized_dataset = {ln: {} for ln in LANES}
-        for lane_name in sanitized_dataset:
-            lane_synergy = synergy_payload.get(lane_name, {})
-            for name, new_data in lane_synergy.items():
-                sanitized_dataset[lane_name][name] = self.sanitize_synergy_entry(new_data)
+        dataset, resolved_lane, used_fallback = self._load_lane_dataset(
+            full_name,
+            selected_lane,
+            "Synergy",
+            "synergy",
+            self.sanitize_synergy_entry
+        )
 
-        key = (full_name, lane)
-        self.synergy_cache[key] = sanitized_dataset
+        if dataset is None or resolved_lane is None:
+            messagebox.showinfo(
+                "Info",
+                f"{display_name} 챔피언의 Synergy 데이터를 불러올 수 없습니다."
+            )
+            return
+
+        if used_fallback:
+            messagebox.showinfo(
+                "Info",
+                f"{selected_lane} 라인 데이터가 없어 {resolved_lane} 라인 Synergy 데이터를 불러왔습니다."
+            )
+        else:
+            self.ally_name_entry.delete(0, tk.END)
+
+        label = f"{display_name} ({resolved_lane})"
+
+        key = (full_name, resolved_lane)
+        self.synergy_cache[key] = dataset
         if label not in self.synergy_listbox_map:
             self.synergy_listbox.insert(tk.END, label)
         self.synergy_listbox_map[label] = key
@@ -406,9 +396,84 @@ class ChampionScraperApp:
             self.synergy_listbox.selection_clear(0, tk.END)
             self.synergy_listbox.selection_set(idx)
 
-        self.synergy_data = self.clone_dataset(sanitized_dataset)
+        self.synergy_data = self.clone_dataset(dataset)
         self.apply_synergy_filter()
         self.update_synergy_GUI()
+
+    def _load_lane_dataset(self, full_name, preferred_lane, data_label, data_key, sanitize_entry):
+        lanes_to_try = [preferred_lane] + [lane for lane in LANES if lane != preferred_lane]
+
+        for lane_candidate in lanes_to_try:
+            data_filename = f"{full_name}_{lane_candidate}.json".replace(" ", "_")
+            filename = resolve_resource_path("data", data_filename)
+            try:
+                with open(filename, "r", encoding="utf-8") as file:
+                    raw_data = json.load(file)
+            except FileNotFoundError:
+                continue
+            except json.JSONDecodeError as e:
+                messagebox.showerror(
+                    "Error",
+                    f"{data_label} 데이터 파일 '{data_filename}'을 읽을 수 없습니다.\n에러: {e}"
+                )
+                return None, None, False
+            except OSError as e:
+                messagebox.showerror(
+                    "Error",
+                    f"{data_label} 데이터 파일 '{data_filename}'을 여는 중 오류가 발생했습니다.\n경로: {filename}\n에러: {e}"
+                )
+                return None, None, False
+
+            payload = raw_data.get(data_key)
+            if payload is None and data_key == "counters":
+                payload = raw_data
+            if not isinstance(payload, dict):
+                continue
+
+            sanitized_dataset = {ln: {} for ln in LANES}
+            for lane_name in LANES:
+                lane_payload = payload.get(lane_name, {})
+                if not isinstance(lane_payload, dict):
+                    continue
+                for name, entry in lane_payload.items():
+                    if not isinstance(entry, dict):
+                        continue
+                    sanitized_dataset[lane_name][name] = sanitize_entry(entry)
+
+            fallback_attempt = lane_candidate != preferred_lane
+            reference_lane = lane_candidate if fallback_attempt else preferred_lane
+            resolved_lane = self._resolve_lane_choice(sanitized_dataset, reference_lane)
+
+            if fallback_attempt and (not resolved_lane or resolved_lane == preferred_lane):
+                lane_data = sanitized_dataset.get(lane_candidate, {})
+                if lane_data:
+                    resolved_lane = lane_candidate
+
+            if resolved_lane:
+                return sanitized_dataset, resolved_lane, resolved_lane != preferred_lane
+
+        return None, None, False
+
+    def _resolve_lane_choice(self, dataset, preferred_lane):
+        preferred_data = dataset.get(preferred_lane, {})
+        if preferred_data:
+            return preferred_lane
+
+        best_lane = None
+        best_games = -1
+        for lane_name in LANES:
+            entries = dataset.get(lane_name, {})
+            if not entries:
+                continue
+            total_games = sum(
+                self.parse_int(details.get("games"))
+                for details in entries.values()
+            )
+            if total_games > best_games:
+                best_games = total_games
+                best_lane = lane_name
+
+        return best_lane
 
     def reset_data(self):
         self.all_data = {lane: {} for lane in LANES}

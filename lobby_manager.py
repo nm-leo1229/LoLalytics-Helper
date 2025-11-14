@@ -374,6 +374,11 @@ class ChampionScraperApp:
         self.main_tab = tk.Frame(self.notebook)
         self.main_tab.grid_rowconfigure(6, weight=1)
         self.main_tab.grid_columnconfigure(5, weight=1)
+        tk.Button(
+            self.main_tab,
+            text="Reset Main",
+            command=self.reset_main_tab
+        ).grid(row=0, column=3, sticky="e", padx=5, pady=5)
         self.notebook.add(self.main_tab, text="Main")
         self.all_data = {lane: {} for lane in LANES}
         self.synergy_data = {lane: {} for lane in LANES}
@@ -551,39 +556,6 @@ class ChampionScraperApp:
         self.synergy_lane_filter_frame = tk.LabelFrame(self.synergy_section, text="Synergy Lanes")
         self.synergy_lane_filter_frame.grid(row=3, column=0, columnspan=4, sticky="ew", padx=5, pady=(0, 10))
 
-        self.highlight_frame = tk.LabelFrame(self.main_tab, text="Top Bot Lane Duos")
-        self.highlight_frame.grid(row=4, column=0, columnspan=4, sticky="ew", padx=5, pady=(0, 10))
-
-        controls_row = tk.Frame(self.highlight_frame)
-        controls_row.pack(fill="x", padx=5, pady=(5, 0))
-        tk.Label(controls_row, text="Pick Rate ≥").pack(side="left")
-        self.highlight_pick_entry = tk.Entry(controls_row, width=6)
-        self.highlight_pick_entry.pack(side="left", padx=(2, 10))
-        self.highlight_pick_entry.insert(0, str(HIGHLIGHT_PICK_RATE))
-        tk.Label(controls_row, text="Games ≥").pack(side="left")
-        self.highlight_games_entry = tk.Entry(controls_row, width=8)
-        self.highlight_games_entry.pack(side="left", padx=(2, 10))
-        self.highlight_games_entry.insert(0, str(HIGHLIGHT_MIN_GAMES))
-        self.highlight_refresh_button = tk.Button(controls_row, text="Refresh", command=self.populate_synergy_highlights)
-        self.highlight_refresh_button.pack(side="right")
-
-        self.highlight_tree = ttk.Treeview(
-            self.highlight_frame,
-            columns=("Duo", "Win Rate", "Pick Rate", "Games"),
-            show="headings",
-            height=5
-        )
-        self.highlight_tree.heading("Duo", text="Duo")
-        self.highlight_tree.heading("Win Rate", text="Win Rate")
-        self.highlight_tree.heading("Pick Rate", text="Pick Rate")
-        self.highlight_tree.heading("Games", text="Games")
-        self.highlight_tree.column("Duo", width=220, anchor="w")
-        self.highlight_tree.column("Win Rate", width=80, anchor="center")
-        self.highlight_tree.column("Pick Rate", width=80, anchor="center")
-        self.highlight_tree.column("Games", width=90, anchor="center")
-        self.highlight_tree.pack(fill="x", expand=True, padx=5, pady=5)
-        self.populate_synergy_highlights()
-
         self.synergy_lane_vars = {}
         for idx, lane in enumerate(LANES):
             var = tk.BooleanVar(value=True)
@@ -613,6 +585,7 @@ class ChampionScraperApp:
 
         self.update_synergy_visibility()
         self.build_dashboard_tab()
+        self.build_highlights_tab()
 
     def build_dashboard_tab(self):
         if hasattr(self, "dashboard_tab"):
@@ -626,6 +599,12 @@ class ChampionScraperApp:
         container.pack(fill="both", expand=True, padx=10, pady=10)
         container.columnconfigure(0, weight=1)
         container.columnconfigure(1, weight=1)
+
+        tk.Button(
+            self.dashboard_tab,
+            text="Reset Dashboard",
+            command=self.reset_dashboard_tab
+        ).pack(anchor="ne", padx=10, pady=(5, 0))
 
         left_column = self._create_banpick_column(container, "아군 (Blue Side)", "allies")
         left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
@@ -657,6 +636,50 @@ class ChampionScraperApp:
         scroll.pack(side="right", fill="y")
         self.recommend_tree.configure(yscrollcommand=scroll.set)
         self.recommend_tree.pack(fill="both", expand=True)
+
+    def build_highlights_tab(self):
+        if hasattr(self, "highlight_tab"):
+            return
+        self.highlight_tab = tk.Frame(self.notebook)
+        self.notebook.add(self.highlight_tab, text="Highlights")
+
+        self.highlight_frame = tk.LabelFrame(self.highlight_tab, text="Top Bot Lane Duos")
+        self.highlight_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        tk.Button(
+            self.highlight_frame,
+            text="Reset Highlights",
+            command=self.reset_highlights_tab
+        ).pack(anchor="ne", padx=5, pady=(5, 0))
+
+        controls_row = tk.Frame(self.highlight_frame)
+        controls_row.pack(fill="x", padx=5, pady=(5, 0))
+        tk.Label(controls_row, text="Pick Rate ≥").pack(side="left")
+        self.highlight_pick_entry = tk.Entry(controls_row, width=6)
+        self.highlight_pick_entry.pack(side="left", padx=(2, 10))
+        self.highlight_pick_entry.insert(0, str(HIGHLIGHT_PICK_RATE))
+        tk.Label(controls_row, text="Games ≥").pack(side="left")
+        self.highlight_games_entry = tk.Entry(controls_row, width=8)
+        self.highlight_games_entry.pack(side="left", padx=(2, 10))
+        self.highlight_games_entry.insert(0, str(HIGHLIGHT_MIN_GAMES))
+        self.highlight_refresh_button = tk.Button(controls_row, text="Refresh", command=self.populate_synergy_highlights)
+        self.highlight_refresh_button.pack(side="right")
+
+        self.highlight_tree = ttk.Treeview(
+            self.highlight_frame,
+            columns=("Duo", "Win Rate", "Pick Rate", "Games"),
+            show="headings",
+            height=12
+        )
+        self.highlight_tree.heading("Duo", text="Duo")
+        self.highlight_tree.heading("Win Rate", text="Win Rate")
+        self.highlight_tree.heading("Pick Rate", text="Pick Rate")
+        self.highlight_tree.heading("Games", text="Games")
+        self.highlight_tree.column("Duo", width=260, anchor="w")
+        self.highlight_tree.column("Win Rate", width=80, anchor="center")
+        self.highlight_tree.column("Pick Rate", width=80, anchor="center")
+        self.highlight_tree.column("Games", width=100, anchor="center")
+        self.highlight_tree.pack(fill="both", expand=True, padx=5, pady=5)
+        self.populate_synergy_highlights()
 
     def _create_banpick_column(self, parent, title, side_key):
         column = tk.LabelFrame(parent, text=title)
@@ -1251,6 +1274,7 @@ class ChampionScraperApp:
         self.update_lane_visibility()
         self.update_synergy_visibility()
         self.reset_banpick_slots()
+        self.reset_highlight_tree()
 
     def update_GUI(self):
         threshold = self.get_counter_min_games_threshold()
@@ -1475,6 +1499,27 @@ class ChampionScraperApp:
                 slot["counter_dataset"] = None
         self.active_slot_var.set("")
         self.update_banpick_recommendations()
+
+    def reset_main_tab(self):
+        self.reset_data()
+
+    def reset_dashboard_tab(self):
+        self.reset_banpick_slots()
+        self.recommend_min_games_entry.delete(0, tk.END)
+        self.recommend_min_games_entry.insert(0, str(BANPICK_MIN_GAMES_DEFAULT))
+        self.update_banpick_recommendations()
+
+    def reset_highlights_tab(self):
+        self.highlight_pick_entry.delete(0, tk.END)
+        self.highlight_pick_entry.insert(0, str(HIGHLIGHT_PICK_RATE))
+        self.highlight_games_entry.delete(0, tk.END)
+        self.highlight_games_entry.insert(0, str(HIGHLIGHT_MIN_GAMES))
+        self.populate_synergy_highlights()
+
+    def reset_highlight_tree(self):
+        if hasattr(self, "highlight_tree"):
+            for item in self.highlight_tree.get_children():
+                self.highlight_tree.delete(item)
 
     def format_display_name(self, slug: str) -> str:
         key = slug.lower().replace("_", "")

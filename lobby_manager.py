@@ -538,7 +538,7 @@ class ChampionScraperApp:
         self.synergy_pick_rate_entry.insert(0, "2")
 
         self.synergy_filter_button = tk.Button(self.synergy_section, text="Filter", command=self.filter_synergy)
-        self.synergy_filter_button.grid(row=1, column=1, columnspan=2, sticky="ne", pady=(0, 25))
+        self.synergy_filter_button.grid(row=1, column=1, columnspan=2, sticky="ne", pady=25)
 
         self.synergy_reliability_frame = tk.LabelFrame(self.synergy_section, text="데이터 신뢰도")
         self.synergy_reliability_frame.grid(row=2, column=0, columnspan=4, sticky="ew", padx=5, pady=(0, 5))

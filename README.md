@@ -36,8 +36,5 @@
    You can input the enemy team's champions as they are selected. The script will recommend optimal champions for your team to pick based on win rate and counter-pick data.
 
 ### TODO
-1. **아군 픽 또는 상대픽을 입력하면 사기 바텀 + 서포터 조합을 픽에 따라 추천하도록 개선**
-   - 상대 정글 혹은 바텀이 싫어하는 바텀나 서폿을 기반으로 추천 혹은 아군 정글이나 바텀 픽과의 시너지가 좋은 바텀이나 서폿을 추천
-
-2. **scraper.py 수집 시간 최적화**
+1. **scraper.py 수집 시간 최적화**
    - 시너지 정보는 bottom lane, support lane, jungle lane 인 경우에만 수집

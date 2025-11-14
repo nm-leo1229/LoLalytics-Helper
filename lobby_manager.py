@@ -5,6 +5,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from collections import defaultdict
 
 CHAMPION_NAMES = [
     "jinx"
@@ -51,7 +52,48 @@ SYNERGY_LOW_GAMES_DEFAULT = 1500
 LOW_SAMPLE_COLOR = "#888888"
 NORMAL_SAMPLE_COLOR = "#111111"
 WARNING_ICON = "⚠"
-DASHBOARD_ROWS_PER_LANE = 3
+BANPICK_DEFAULT_LANES = ['jungle', 'bottom', 'support', 'middle', 'top']
+BANPICK_MIN_GAMES_DEFAULT = 900
+LANE_WEIGHT_DEEP = 1.0
+LANE_WEIGHT_SHALLOW = 0.8
+LANE_WEIGHT_DEFAULT = 0.5
+LANE_WEIGHT_MAP = {
+    'bottom': {
+        'bottom': LANE_WEIGHT_DEEP,
+        'support': LANE_WEIGHT_DEEP,
+        'jungle': LANE_WEIGHT_SHALLOW,
+        'middle': LANE_WEIGHT_DEFAULT,
+        'top': LANE_WEIGHT_DEFAULT
+    },
+    'support': {
+        'support': LANE_WEIGHT_DEEP,
+        'bottom': LANE_WEIGHT_DEEP,
+        'jungle': LANE_WEIGHT_SHALLOW,
+        'middle': LANE_WEIGHT_SHALLOW,
+        'top': LANE_WEIGHT_SHALLOW
+    },
+    'jungle': {
+        'jungle': LANE_WEIGHT_DEEP,
+        'middle': LANE_WEIGHT_DEEP,
+        'top': LANE_WEIGHT_DEEP,
+        'bottom': LANE_WEIGHT_SHALLOW,
+        'support': LANE_WEIGHT_SHALLOW
+    },
+    'middle': {
+        'middle': LANE_WEIGHT_DEEP,
+        'jungle': LANE_WEIGHT_DEEP,
+        'top': LANE_WEIGHT_SHALLOW,
+        'bottom': LANE_WEIGHT_DEFAULT,
+        'support': LANE_WEIGHT_SHALLOW
+    },
+    'top': {
+        'top': LANE_WEIGHT_DEEP,
+        'jungle': LANE_WEIGHT_DEEP,
+        'middle': LANE_WEIGHT_SHALLOW,
+        'bottom': LANE_WEIGHT_DEFAULT,
+        'support': LANE_WEIGHT_SHALLOW
+    }
+}
 
 CHOSEONG_LIST = [
     "ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ", "ㅅ",
@@ -571,18 +613,111 @@ class ChampionScraperApp:
 
         self.update_synergy_visibility()
         self.build_dashboard_tab()
-        self.refresh_dashboard_sources()
 
     def build_dashboard_tab(self):
         if hasattr(self, "dashboard_tab"):
             return
         self.dashboard_tab = tk.Frame(self.notebook)
         self.notebook.add(self.dashboard_tab, text="Dashboard")
-        tk.Label(
-            self.dashboard_tab,
-            text="Dashboard 탭은 사용자 정의를 위해 비워져 있습니다.",
-            font=("Segoe UI", 11, "bold")
-        ).pack(expand=True, fill="both", pady=80)
+        self.banpick_slots = {"allies": [], "enemies": []}
+        self.active_slot_var = tk.StringVar(value="")
+        self.active_slot_var.trace_add("write", lambda *_: self.update_banpick_recommendations())
+        container = tk.Frame(self.dashboard_tab)
+        container.pack(fill="both", expand=True, padx=10, pady=10)
+        container.columnconfigure(0, weight=1)
+        container.columnconfigure(1, weight=1)
+
+        left_column = self._create_banpick_column(container, "아군 (Blue Side)", "allies")
+        left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        right_column = self._create_banpick_column(container, "상대 (Red Side)", "enemies")
+        right_column.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+
+        recommend_frame = tk.LabelFrame(self.dashboard_tab, text="추천 챔피언")
+        recommend_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+        filter_frame = tk.Frame(recommend_frame)
+        filter_frame.pack(fill="x", padx=5, pady=(5, 0))
+        tk.Label(filter_frame, text="Min Games").pack(side="left")
+        self.recommend_min_games_entry = tk.Entry(filter_frame, width=6)
+        self.recommend_min_games_entry.insert(0, str(BANPICK_MIN_GAMES_DEFAULT))
+        self.recommend_min_games_entry.pack(side="left", padx=(4, 0))
+        self.recommend_min_games_entry.bind("<KeyRelease>", lambda _e: self.update_banpick_recommendations())
+        self.recommend_min_games_entry.bind("<FocusOut>", lambda _e: self.update_banpick_recommendations())
+
+        columns = ("Champion", "Score", "Synergy", "Counter")
+        self.recommend_tree = ttk.Treeview(recommend_frame, columns=columns, show="headings", height=8)
+        for col in columns:
+            self.recommend_tree.heading(col, text=col)
+            self.recommend_tree.column(col, anchor="center")
+        self.recommend_tree.column("Champion", anchor="w", width=180)
+        self.recommend_tree.column("Score", width=80)
+        self.recommend_tree.column("Synergy", width=80)
+        self.recommend_tree.column("Counter", width=80)
+        scroll = tk.Scrollbar(recommend_frame, orient="vertical", command=self.recommend_tree.yview)
+        scroll.pack(side="right", fill="y")
+        self.recommend_tree.configure(yscrollcommand=scroll.set)
+        self.recommend_tree.pack(fill="both", expand=True)
+
+    def _create_banpick_column(self, parent, title, side_key):
+        column = tk.LabelFrame(parent, text=title)
+        for idx in range(5):
+            slot_frame = tk.Frame(column, bd=1, relief="groove", padx=6, pady=6)
+            slot_frame.pack(fill="x", pady=4)
+
+            tk.Label(slot_frame, text=f"Slot {idx + 1}", font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w")
+            active_check = tk.Checkbutton(
+                slot_frame,
+                text="내 차례",
+                variable=self.active_slot_var,
+                onvalue=f"{side_key}:{idx}",
+                offvalue=""
+            )
+            active_check.grid(row=0, column=3, sticky="e")
+
+            entry = tk.Entry(slot_frame, width=18)
+            entry.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(4, 2))
+
+            lane_box = ttk.Combobox(slot_frame, values=LANES, state="readonly", width=12)
+            lane_box.grid(row=1, column=2, padx=(6, 0), pady=(4, 2))
+            if idx < len(BANPICK_DEFAULT_LANES):
+                lane_box.set(BANPICK_DEFAULT_LANES[idx])
+            else:
+                lane_box.set("Select Lane")
+
+            search_button = tk.Button(slot_frame, text="검색", width=6)
+            search_button.grid(row=1, column=3, padx=(6, 0))
+
+            result_var = tk.StringVar(value="검색 결과 없음")
+            result_label = tk.Label(slot_frame, textvariable=result_var, anchor="w")
+            result_label.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(6, 0))
+
+            slot = {
+                "side": side_key,
+                "index": idx,
+                "entry": entry,
+                "lane": lane_box,
+                "button": search_button,
+                "result_var": result_var,
+                "active_check": active_check,
+                "display_name": None,
+                "canonical_name": None,
+                "selected_lane": None,
+                "synergy_dataset": None,
+                "counter_dataset": None
+            }
+
+            search_button.configure(command=lambda s=slot: self.perform_banpick_search(s))
+            entry.bind("<Return>", lambda event, s=slot: self.perform_banpick_search(s))
+
+            slot["autocomplete"] = AutocompletePopup(
+                entry,
+                self.get_autocomplete_candidates,
+                on_select=lambda _value, s=slot: self.perform_banpick_search(s, auto_trigger=True)
+            )
+
+            self.banpick_slots[side_key].append(slot)
+
+        return column
 
     def on_counter_input_changed(self, _event=None):
         if not self.counter_auto_load_var.get():
@@ -679,154 +814,204 @@ class ChampionScraperApp:
             if self.synergy_auto_load_var.get():
                 self.schedule_synergy_auto_load(delay=0)
 
+    def perform_banpick_search(self, slot, auto_trigger=False):
+        if not slot:
+            return
+        entry_widget = slot.get("entry")
+        lane_box = slot.get("lane")
+        result_var = slot.get("result_var")
+        if not entry_widget or not lane_box or not result_var:
+            return
+
+        champion_name = entry_widget.get().strip()
+        if not champion_name:
+            if not auto_trigger:
+                messagebox.showerror("Error", "챔피언 이름을 입력하세요.")
+            return
+
+        lane = lane_box.get().lower()
+        if lane not in LANES:
+            if not auto_trigger:
+                messagebox.showerror("Error", "라인을 선택하세요.")
+            return
+
+        full_name = self.resolve_champion_name(champion_name)
+        if not full_name:
+            if not auto_trigger:
+                messagebox.showerror("Error", f"Champion name '{champion_name}' not found.")
+            return
+
+        display_name = self.display_lookup.get(full_name, full_name.title())
+
+        synergy_dataset = None
+        counter_dataset = None
+
+        synergy_dataset, _, _ = self._load_lane_dataset(
+            full_name,
+            lane,
+            "Synergy",
+            "synergy",
+            self.sanitize_synergy_entry,
+            suppress_errors=True
+        )
+        counter_dataset, _, _ = self._load_lane_dataset(
+            full_name,
+            lane,
+            "Counter",
+            "counters",
+            self.sanitize_counter_entry,
+            suppress_errors=True
+        )
+
+        slot["display_name"] = display_name
+        slot["canonical_name"] = full_name
+        slot["selected_lane"] = lane
+        slot["synergy_dataset"] = synergy_dataset
+        slot["counter_dataset"] = counter_dataset
+        result_var.set(f"{display_name} ({lane})")
+
+        if not auto_trigger:
+            entry_widget.delete(0, tk.END)
+
+        self.update_banpick_recommendations()
+
+    def update_banpick_recommendations(self):
+        tree = getattr(self, "recommend_tree", None)
+        if not tree:
+            return
+        for item in tree.get_children():
+            tree.delete(item)
+
+        active_key = self.active_slot_var.get()
+        if not active_key:
+            return
+        try:
+            side_key, idx_str = active_key.split(":")
+            idx = int(idx_str)
+        except ValueError:
+            return
+
+        side_slots = self.banpick_slots.get(side_key)
+        if not side_slots or not (0 <= idx < len(side_slots)):
+            return
+        target_slot = side_slots[idx]
+        target_lane = target_slot.get("lane").get().lower()
+        if target_lane not in LANES:
+            return
+
+        scores = defaultdict(lambda: {
+            "synergy_sum": 0.0,
+            "synergy_weight": 0.0,
+            "counter_sum": 0.0,
+            "counter_weight": 0.0,
+            "synergy_sources": [],
+            "counter_sources": []
+        })
+        selected_lowers = set()
+        for slot_list in self.banpick_slots.values():
+            for s in slot_list:
+                name = s.get("display_name")
+                canon = s.get("canonical_name")
+                if name:
+                    selected_lowers.add(name.lower())
+                if canon:
+                    selected_lowers.add(canon.lower())
+
+        min_games = self.parse_int(self.recommend_min_games_entry.get()) if hasattr(self, "recommend_min_games_entry") else BANPICK_MIN_GAMES_DEFAULT
+        if min_games < 0:
+            min_games = 0
+
+        # Synergy contributions from same side
+        for friend in self.banpick_slots.get(side_key, []):
+            dataset = friend.get("synergy_dataset")
+            if not dataset:
+                continue
+            source_lane = friend.get("selected_lane")
+            lane_entries = dataset.get(target_lane, {})
+            for champ_name, details in lane_entries.items():
+                if self.parse_int(details.get("games")) < min_games:
+                    continue
+                value = self.parse_float(details.get("win_rate"))
+                weight = self.get_lane_weight(target_lane, source_lane)
+                if weight <= 0:
+                    continue
+                scores[champ_name]["synergy_sum"] += value * weight
+                scores[champ_name]["synergy_weight"] += weight
+                source_name = friend.get("display_name") or friend.get("canonical_name") or "Unknown"
+                scores[champ_name]["synergy_sources"].append(f"{source_name}({value:.2f})")
+
+        # Counter contributions from opposing side
+        opponent_side = "enemies" if side_key == "allies" else "allies"
+        for enemy in self.banpick_slots.get(opponent_side, []):
+            dataset = enemy.get("counter_dataset")
+            if not dataset:
+                continue
+            source_lane = enemy.get("selected_lane")
+            lane_entries = dataset.get(target_lane, {})
+            for champ_name, details in lane_entries.items():
+                if self.parse_int(details.get("games")) < min_games:
+                    continue
+                win_rate_value = self.parse_float(details.get("win_rate"))
+                value = 100.0 - win_rate_value
+                weight = self.get_lane_weight(target_lane, source_lane)
+                if weight <= 0:
+                    continue
+                scores[champ_name]["counter_sum"] += value * weight
+                scores[champ_name]["counter_weight"] += weight
+                source_name = enemy.get("display_name") or enemy.get("canonical_name") or "Unknown"
+                scores[champ_name]["counter_sources"].append(f"{source_name}({win_rate_value:.2f})")
+
+        recommendations = []
+
+        for champ_name, components in scores.items():
+            if champ_name.lower() in selected_lowers:
+                continue
+            synergy_avg = (
+                components["synergy_sum"] / components["synergy_weight"]
+                if components["synergy_weight"] > 0 else 0.0
+            )
+            counter_avg = (
+                components["counter_sum"] / components["counter_weight"]
+                if components["counter_weight"] > 0 else 0.0
+            )
+            total = synergy_avg + counter_avg
+            if total == 0:
+                continue
+            recommendations.append((
+                champ_name,
+                total,
+                synergy_avg,
+                counter_avg,
+                components["synergy_sources"],
+                components["counter_sources"]
+            ))
+
+        recommendations.sort(key=lambda item: item[1], reverse=True)
+        for champ_name, total, synergy_score, counter_score, synergy_sources, counter_sources in recommendations[:20]:
+            synergy_label = " / ".join(synergy_sources) if synergy_sources else "-"
+            counter_label = " / ".join(counter_sources) if counter_sources else "-"
+            tree.insert(
+                "",
+                "end",
+                values=(
+                    champ_name,
+                    f"{total:.2f}",
+                    synergy_label,
+                    counter_label
+                )
+            )
+
+    def get_lane_weight(self, target_lane, source_lane):
+        if not target_lane or not source_lane:
+            return LANE_WEIGHT_DEFAULT
+        mapping = LANE_WEIGHT_MAP.get(target_lane, {})
+        return mapping.get(source_lane, LANE_WEIGHT_DEFAULT)
+
     def on_counter_threshold_change(self, _event=None):
         self.update_GUI()
-        self.update_dashboard_counter_view()
 
     def on_synergy_threshold_change(self, _event=None):
         self.update_synergy_GUI()
-        self.update_dashboard_synergy_view()
-
-    def refresh_dashboard_sources(self):
-        self.refresh_dashboard_counter_source()
-        self.refresh_dashboard_synergy_source()
-
-    def refresh_dashboard_counter_source(self):
-        if not hasattr(self, "dashboard_counter_select"):
-            return
-        selected_labels = {
-            self.dashboard_counter_select.get(idx)
-            for idx in self.dashboard_counter_select.curselection()
-        }
-        self.dashboard_counter_select.delete(0, tk.END)
-        for label in self.champion_listbox.get(0, tk.END):
-            current_index = self.dashboard_counter_select.size()
-            self.dashboard_counter_select.insert(tk.END, label)
-            if label in selected_labels:
-                self.dashboard_counter_select.selection_set(current_index)
-        self.update_dashboard_counter_view()
-
-    def refresh_dashboard_synergy_source(self):
-        if not hasattr(self, "dashboard_synergy_select"):
-            return
-        selected_labels = {
-            self.dashboard_synergy_select.get(idx)
-            for idx in self.dashboard_synergy_select.curselection()
-        }
-        self.dashboard_synergy_select.delete(0, tk.END)
-        for label in self.synergy_listbox.get(0, tk.END):
-            current_index = self.dashboard_synergy_select.size()
-            self.dashboard_synergy_select.insert(tk.END, label)
-            if label in selected_labels:
-                self.dashboard_synergy_select.selection_set(current_index)
-        self.update_dashboard_synergy_view()
-
-    def update_dashboard_counter_view(self, _event=None):
-        if not hasattr(self, "dashboard_counter_tree"):
-            return
-        for item in self.dashboard_counter_tree.get_children():
-            self.dashboard_counter_tree.delete(item)
-
-        if not hasattr(self, "dashboard_counter_select"):
-            return
-
-        selections = self.dashboard_counter_select.curselection()
-        if not selections:
-            return
-        labels = [self.dashboard_counter_select.get(idx) for idx in selections]
-        rows = self._collect_dashboard_counter_rows(labels)
-        threshold = self.get_counter_min_games_threshold()
-        for champion_label, lane, opponent, win_rate, popularity, games in rows:
-            games_int = self.parse_int(games)
-            is_low = games_int < threshold
-            opponent_display = f"{WARNING_ICON} {opponent}" if is_low else opponent
-            tag = "low_games" if is_low else "normal_games"
-            self.dashboard_counter_tree.insert(
-                "",
-                "end",
-                values=(champion_label, lane, opponent_display, win_rate, popularity, games),
-                tags=(tag,)
-            )
-
-    def update_dashboard_synergy_view(self, _event=None):
-        if not hasattr(self, "dashboard_synergy_tree"):
-            return
-        for item in self.dashboard_synergy_tree.get_children():
-            self.dashboard_synergy_tree.delete(item)
-
-        if not hasattr(self, "dashboard_synergy_select"):
-            return
-
-        selections = self.dashboard_synergy_select.curselection()
-        if not selections:
-            return
-        labels = [self.dashboard_synergy_select.get(idx) for idx in selections]
-        rows = self._collect_dashboard_synergy_rows(labels)
-        threshold = self.get_synergy_min_games_threshold()
-        for champion_label, lane, partner, win_rate, pick_rate, games in rows:
-            games_int = self.parse_int(games)
-            is_low = games_int < threshold
-            partner_display = f"{WARNING_ICON} {partner}" if is_low else partner
-            tag = "low_games" if is_low else "normal_games"
-            self.dashboard_synergy_tree.insert(
-                "",
-                "end",
-                values=(champion_label, lane, partner_display, win_rate, pick_rate, games),
-                tags=(tag,)
-            )
-
-    def _collect_dashboard_counter_rows(self, labels):
-        rows = []
-        for label in labels:
-            key = self.counter_listbox_map.get(label)
-            dataset = self.counter_cache.get(key) if key else None
-            if not dataset:
-                continue
-            for lane in LANES:
-                lane_entries = dataset.get(lane, {})
-                if not lane_entries:
-                    continue
-                sorted_entries = sorted(
-                    lane_entries.items(),
-                    key=lambda item: self.parse_float(item[1].get("win_rate_diff")),
-                )
-                for opponent, details in sorted_entries[:DASHBOARD_ROWS_PER_LANE]:
-                    rows.append((
-                        label,
-                        lane.capitalize(),
-                        opponent,
-                        details.get("win_rate", "0.00"),
-                        details.get("popularity", "0.00"),
-                        details.get("games", "0")
-                    ))
-        return rows
-
-    def _collect_dashboard_synergy_rows(self, labels):
-        rows = []
-        for label in labels:
-            key = self.synergy_listbox_map.get(label)
-            dataset = self.synergy_cache.get(key) if key else None
-            if not dataset:
-                continue
-            for lane in LANES:
-                lane_entries = dataset.get(lane, {})
-                if not lane_entries:
-                    continue
-                sorted_entries = sorted(
-                    lane_entries.items(),
-                    key=lambda item: self.parse_float(item[1].get("win_rate")),
-                    reverse=True
-                )
-                for partner, details in sorted_entries[:DASHBOARD_ROWS_PER_LANE]:
-                    rows.append((
-                        label,
-                        lane.capitalize(),
-                        partner,
-                        details.get("win_rate", "0.00"),
-                        details.get("pick_rate", "0.00"),
-                        details.get("games", "0")
-                    ))
-        return rows
 
     def start_search(self, auto_trigger=False):
         champion_name = self.name_entry.get()
@@ -885,7 +1070,6 @@ class ChampionScraperApp:
         self.all_data = self.clone_dataset(dataset)
         self.apply_counter_filter()
         self.update_GUI()
-        self.refresh_dashboard_counter_source()
         return True
 
     def start_synergy_search(self, auto_trigger=False):
@@ -945,7 +1129,6 @@ class ChampionScraperApp:
         self.synergy_data = self.clone_dataset(dataset)
         self.apply_synergy_filter()
         self.update_synergy_GUI()
-        self.refresh_dashboard_synergy_source()
         return True
 
     def get_counter_min_games_threshold(self):
@@ -1067,7 +1250,7 @@ class ChampionScraperApp:
         self.update_synergy_GUI()
         self.update_lane_visibility()
         self.update_synergy_visibility()
-        self.refresh_dashboard_sources()
+        self.reset_banpick_slots()
 
     def update_GUI(self):
         threshold = self.get_counter_min_games_threshold()
@@ -1267,6 +1450,31 @@ class ChampionScraperApp:
 
         highlights.sort(key=lambda item: (item["win"], item["pick"]), reverse=True)
         return highlights[:HIGHLIGHT_LIMIT]
+
+    def reset_banpick_slots(self):
+        if not hasattr(self, "banpick_slots"):
+            return
+        for side_key, slots in self.banpick_slots.items():
+            for idx, slot in enumerate(slots):
+                entry = slot.get("entry")
+                lane_box = slot.get("lane")
+                result_var = slot.get("result_var")
+                if entry:
+                    entry.delete(0, tk.END)
+                if lane_box:
+                    if idx < len(BANPICK_DEFAULT_LANES):
+                        lane_box.set(BANPICK_DEFAULT_LANES[idx])
+                    else:
+                        lane_box.set("Select Lane")
+                if result_var:
+                    result_var.set("검색 결과 없음")
+                slot["display_name"] = None
+                slot["canonical_name"] = None
+                slot["selected_lane"] = None
+                slot["synergy_dataset"] = None
+                slot["counter_dataset"] = None
+        self.active_slot_var.set("")
+        self.update_banpick_recommendations()
 
     def format_display_name(self, slug: str) -> str:
         key = slug.lower().replace("_", "")

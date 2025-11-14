@@ -135,23 +135,38 @@ class ChampionScraperApp:
         self.counter_listbox_map = {}
         self.synergy_listbox_map = {}
         self.synergy_highlights = []
+        self.counter_typing_after_id = None
+        self.synergy_typing_after_id = None
 
         # Counter controls
         self.counter_section = tk.LabelFrame(root, text="Counter")
         self.counter_section.grid(row=1, column=0, columnspan=4, sticky="ew", padx=5, pady=(10, 0))
         self.counter_section.grid_columnconfigure(0, weight=1)
         self.counter_section.grid_columnconfigure(1, weight=1)
+        self.counter_section.grid_columnconfigure(2, weight=0)
+        self.counter_section.grid_columnconfigure(3, weight=0)
 
         self.name_entry = tk.Entry(self.counter_section, width=20)
         self.name_entry.grid(row=0, column=0, sticky="ew")
+        self.name_entry.bind("<KeyRelease>", self.on_counter_input_changed)
 
         self.lane_combobox = ttk.Combobox(self.counter_section, values=LANES, state="readonly", width=10)
         self.lane_combobox.grid(row=0, column=1, sticky="ew")
         self.lane_combobox.set("Select Lane")
+        self.lane_combobox.bind("<<ComboboxSelected>>", self.on_counter_lane_selected)
 
         self.search_button = tk.Button(self.counter_section, text="Load Counter", command=self.start_search)
         self.search_button.grid(row=0, column=2, sticky="ew")
         self.root.bind('<Return>', lambda _: self.start_search())
+
+        self.counter_auto_load_var = tk.BooleanVar(value=True)
+        self.counter_auto_check = tk.Checkbutton(
+            self.counter_section,
+            text="Auto Load",
+            variable=self.counter_auto_load_var,
+            command=self.on_counter_auto_toggle
+        )
+        self.counter_auto_check.grid(row=0, column=3, sticky="w", padx=(5, 0))
 
         tk.Label(self.counter_section, text="Loaded Counters:").grid(row=1, column=0, columnspan=2, sticky="wn")
         self.champion_listbox = tk.Listbox(self.counter_section, height=7)
@@ -205,16 +220,29 @@ class ChampionScraperApp:
         self.synergy_section.grid(row=3, column=0, columnspan=4, sticky="ew", padx=5, pady=(10, 0))
         self.synergy_section.grid_columnconfigure(0, weight=1)
         self.synergy_section.grid_columnconfigure(1, weight=1)
+        self.synergy_section.grid_columnconfigure(2, weight=0)
+        self.synergy_section.grid_columnconfigure(3, weight=0)
 
         self.ally_name_entry = tk.Entry(self.synergy_section, width=20)
         self.ally_name_entry.grid(row=0, column=0, sticky="ew")
+        self.ally_name_entry.bind("<KeyRelease>", self.on_synergy_input_changed)
 
         self.ally_lane_combobox = ttk.Combobox(self.synergy_section, values=LANES, state="readonly", width=10)
         self.ally_lane_combobox.grid(row=0, column=1, sticky="ew")
         self.ally_lane_combobox.set("Select Lane")
+        self.ally_lane_combobox.bind("<<ComboboxSelected>>", self.on_synergy_lane_selected)
 
         self.ally_search_button = tk.Button(self.synergy_section, text="Load Synergy", command=self.start_synergy_search)
         self.ally_search_button.grid(row=0, column=2, sticky="ew", padx=(5, 0))
+
+        self.synergy_auto_load_var = tk.BooleanVar(value=True)
+        self.synergy_auto_check = tk.Checkbutton(
+            self.synergy_section,
+            text="Auto Load",
+            variable=self.synergy_auto_load_var,
+            command=self.on_synergy_auto_toggle
+        )
+        self.synergy_auto_check.grid(row=0, column=3, sticky="w")
 
         tk.Label(self.synergy_section, text="Loaded Synergy:").grid(row=1, column=0, columnspan=2, sticky="wn", pady=5)
         self.synergy_listbox = tk.Listbox(self.synergy_section, height=7)
@@ -292,18 +320,104 @@ class ChampionScraperApp:
 
         self.update_synergy_visibility()
 
-    def start_search(self):
+    def on_counter_input_changed(self, _event=None):
+        if not self.counter_auto_load_var.get():
+            return
+        self.schedule_counter_auto_load()
+
+    def on_counter_lane_selected(self, _event=None):
+        if self.counter_auto_load_var.get():
+            self.schedule_counter_auto_load(delay=0)
+
+    def on_counter_auto_toggle(self):
+        if self.counter_auto_load_var.get():
+            self.schedule_counter_auto_load(delay=0)
+        elif self.counter_typing_after_id is not None:
+            self.root.after_cancel(self.counter_typing_after_id)
+            self.counter_typing_after_id = None
+
+    def schedule_counter_auto_load(self, delay=400):
+        if self.counter_typing_after_id is not None:
+            self.root.after_cancel(self.counter_typing_after_id)
+            self.counter_typing_after_id = None
+
+        if not self.counter_auto_load_var.get():
+            return
+
+        self.counter_typing_after_id = self.root.after(delay, self._try_auto_counter_load)
+
+    def _try_auto_counter_load(self):
+        self.counter_typing_after_id = None
+
+        if not self.counter_auto_load_var.get():
+            return
+
+        champion_name = self.name_entry.get().strip()
+        if not champion_name:
+            return
+
+        selected_lane = self.lane_combobox.get().lower()
+        if selected_lane not in LANES:
+            return
+
+        self.start_search(auto_trigger=True)
+
+    def on_synergy_input_changed(self, _event=None):
+        if not self.synergy_auto_load_var.get():
+            return
+        self.schedule_synergy_auto_load()
+
+    def on_synergy_lane_selected(self, _event=None):
+        if self.synergy_auto_load_var.get():
+            self.schedule_synergy_auto_load(delay=0)
+
+    def on_synergy_auto_toggle(self):
+        if self.synergy_auto_load_var.get():
+            self.schedule_synergy_auto_load(delay=0)
+        elif self.synergy_typing_after_id is not None:
+            self.root.after_cancel(self.synergy_typing_after_id)
+            self.synergy_typing_after_id = None
+
+    def schedule_synergy_auto_load(self, delay=400):
+        if self.synergy_typing_after_id is not None:
+            self.root.after_cancel(self.synergy_typing_after_id)
+            self.synergy_typing_after_id = None
+
+        if not self.synergy_auto_load_var.get():
+            return
+
+        self.synergy_typing_after_id = self.root.after(delay, self._try_auto_synergy_load)
+
+    def _try_auto_synergy_load(self):
+        self.synergy_typing_after_id = None
+
+        if not self.synergy_auto_load_var.get():
+            return
+
+        champion_name = self.ally_name_entry.get().strip()
+        if not champion_name:
+            return
+
+        selected_lane = self.ally_lane_combobox.get().lower()
+        if selected_lane not in LANES:
+            return
+
+        self.start_synergy_search(auto_trigger=True)
+
+    def start_search(self, auto_trigger=False):
         champion_name = self.name_entry.get()
         selected_lane = self.lane_combobox.get().lower()
 
         if selected_lane not in LANES:
-            messagebox.showerror("Error", "Please select a lane.")
-            return
+            if not auto_trigger:
+                messagebox.showerror("Error", "Please select a lane.")
+            return False
 
         full_name = self.resolve_champion_name(champion_name)
         if not full_name:
-            messagebox.showerror("Error", f"Champion name '{champion_name}' not found.")
-            return
+            if not auto_trigger:
+                messagebox.showerror("Error", f"Champion name '{champion_name}' not found.")
+            return False
 
         display_name = self.display_lookup.get(full_name, full_name.title())
         dataset, resolved_lane, used_fallback = self._load_lane_dataset(
@@ -311,22 +425,24 @@ class ChampionScraperApp:
             selected_lane,
             "Counter",
             "counters",
-            self.sanitize_counter_entry
+            self.sanitize_counter_entry,
+            suppress_errors=auto_trigger
         )
 
         if dataset is None or resolved_lane is None:
-            messagebox.showerror(
-                "Error",
-                f"{display_name} 챔피언의 Counter 데이터를 불러올 수 없습니다."
-            )
-            return
+            if not auto_trigger:
+                messagebox.showerror(
+                    "Error",
+                    f"{display_name} 챔피언의 Counter 데이터를 불러올 수 없습니다."
+                )
+            return False
 
-        if used_fallback:
+        if used_fallback and not auto_trigger:
             messagebox.showinfo(
                 "Info",
                 f"{selected_lane} 라인 데이터가 없어 {resolved_lane} 라인 Counter 데이터를 불러왔습니다."
             )
-        else:
+        elif not used_fallback and not auto_trigger:
             self.name_entry.delete(0, tk.END)
 
         key = (full_name, resolved_lane)
@@ -345,19 +461,22 @@ class ChampionScraperApp:
         self.all_data = self.clone_dataset(dataset)
         self.apply_counter_filter()
         self.update_GUI()
+        return True
 
-    def start_synergy_search(self):
+    def start_synergy_search(self, auto_trigger=False):
         champion_name = self.ally_name_entry.get()
         selected_lane = self.ally_lane_combobox.get().lower()
 
         if selected_lane not in LANES:
-            messagebox.showerror("Error", "Please select a lane for synergy.")
-            return
+            if not auto_trigger:
+                messagebox.showerror("Error", "Please select a lane for synergy.")
+            return False
 
         full_name = self.resolve_champion_name(champion_name)
         if not full_name:
-            messagebox.showerror("Error", f"Champion name '{champion_name}' not found.")
-            return
+            if not auto_trigger:
+                messagebox.showerror("Error", f"Champion name '{champion_name}' not found.")
+            return False
 
         display_name = self.display_lookup.get(full_name, full_name.title())
         dataset, resolved_lane, used_fallback = self._load_lane_dataset(
@@ -365,22 +484,24 @@ class ChampionScraperApp:
             selected_lane,
             "Synergy",
             "synergy",
-            self.sanitize_synergy_entry
+            self.sanitize_synergy_entry,
+            suppress_errors=auto_trigger
         )
 
         if dataset is None or resolved_lane is None:
-            messagebox.showinfo(
-                "Info",
-                f"{display_name} 챔피언의 Synergy 데이터를 불러올 수 없습니다."
-            )
-            return
+            if not auto_trigger:
+                messagebox.showinfo(
+                    "Info",
+                    f"{display_name} 챔피언의 Synergy 데이터를 불러올 수 없습니다."
+                )
+            return False
 
-        if used_fallback:
+        if used_fallback and not auto_trigger:
             messagebox.showinfo(
                 "Info",
                 f"{selected_lane} 라인 데이터가 없어 {resolved_lane} 라인 Synergy 데이터를 불러왔습니다."
             )
-        else:
+        elif not used_fallback and not auto_trigger:
             self.ally_name_entry.delete(0, tk.END)
 
         label = f"{display_name} ({resolved_lane})"
@@ -399,9 +520,11 @@ class ChampionScraperApp:
         self.synergy_data = self.clone_dataset(dataset)
         self.apply_synergy_filter()
         self.update_synergy_GUI()
+        return True
 
-    def _load_lane_dataset(self, full_name, preferred_lane, data_label, data_key, sanitize_entry):
+    def _load_lane_dataset(self, full_name, preferred_lane, data_label, data_key, sanitize_entry, suppress_errors=False):
         lanes_to_try = [preferred_lane] + [lane for lane in LANES if lane != preferred_lane]
+        best_candidate = None
 
         for lane_candidate in lanes_to_try:
             data_filename = f"{full_name}_{lane_candidate}.json".replace(" ", "_")
@@ -412,16 +535,18 @@ class ChampionScraperApp:
             except FileNotFoundError:
                 continue
             except json.JSONDecodeError as e:
-                messagebox.showerror(
-                    "Error",
-                    f"{data_label} 데이터 파일 '{data_filename}'을 읽을 수 없습니다.\n에러: {e}"
-                )
+                if not suppress_errors:
+                    messagebox.showerror(
+                        "Error",
+                        f"{data_label} 데이터 파일 '{data_filename}'을 읽을 수 없습니다.\n에러: {e}"
+                    )
                 return None, None, False
             except OSError as e:
-                messagebox.showerror(
-                    "Error",
-                    f"{data_label} 데이터 파일 '{data_filename}'을 여는 중 오류가 발생했습니다.\n경로: {filename}\n에러: {e}"
-                )
+                if not suppress_errors:
+                    messagebox.showerror(
+                        "Error",
+                        f"{data_label} 데이터 파일 '{data_filename}'을 여는 중 오류가 발생했습니다.\n경로: {filename}\n에러: {e}"
+                    )
                 return None, None, False
 
             payload = raw_data.get(data_key)
@@ -440,40 +565,29 @@ class ChampionScraperApp:
                         continue
                     sanitized_dataset[lane_name][name] = sanitize_entry(entry)
 
-            fallback_attempt = lane_candidate != preferred_lane
-            reference_lane = lane_candidate if fallback_attempt else preferred_lane
-            resolved_lane = self._resolve_lane_choice(sanitized_dataset, reference_lane)
-
-            if fallback_attempt and (not resolved_lane or resolved_lane == preferred_lane):
-                lane_data = sanitized_dataset.get(lane_candidate, {})
-                if lane_data:
-                    resolved_lane = lane_candidate
-
-            if resolved_lane:
-                return sanitized_dataset, resolved_lane, resolved_lane != preferred_lane
-
-        return None, None, False
-
-    def _resolve_lane_choice(self, dataset, preferred_lane):
-        preferred_data = dataset.get(preferred_lane, {})
-        if preferred_data:
-            return preferred_lane
-
-        best_lane = None
-        best_games = -1
-        for lane_name in LANES:
-            entries = dataset.get(lane_name, {})
-            if not entries:
+            has_entries = any(sanitized_dataset[lane] for lane in LANES)
+            if not has_entries:
                 continue
+
+            if lane_candidate == preferred_lane:
+                return sanitized_dataset, lane_candidate, False
+
             total_games = sum(
                 self.parse_int(details.get("games"))
-                for details in entries.values()
+                for lane_data in sanitized_dataset.values()
+                for details in lane_data.values()
             )
-            if total_games > best_games:
-                best_games = total_games
-                best_lane = lane_name
+            if best_candidate is None or total_games > best_candidate["games"]:
+                best_candidate = {
+                    "dataset": sanitized_dataset,
+                    "lane": lane_candidate,
+                    "games": total_games
+                }
 
-        return best_lane
+        if best_candidate:
+            return best_candidate["dataset"], best_candidate["lane"], best_candidate["lane"] != preferred_lane
+
+        return None, None, False
 
     def reset_data(self):
         self.all_data = {lane: {} for lane in LANES}

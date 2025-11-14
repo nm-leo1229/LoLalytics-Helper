@@ -212,13 +212,35 @@ class AutocompletePopup:
 
     def _filter_matches(self, query):
         lowered = query.lower()
-        results = []
+        prefix_matches = []
+        word_matches = []
+        substring_matches = []
+
+        def add_unique(bucket, value):
+            if value not in bucket:
+                bucket.append(value)
+
         for value in self.values_provider():
-            if lowered in value.lower():
-                results.append(value)
-            if len(results) >= self.max_results:
+            candidate = value.lower()
+            if candidate.startswith(lowered):
+                add_unique(prefix_matches, value)
+                continue
+
+            words = re.split(r"[\s\-/]+", candidate)
+            if any(word.startswith(lowered) for word in words if word):
+                add_unique(word_matches, value)
+                continue
+
+            if len(lowered) >= 2 and lowered in candidate:
+                add_unique(substring_matches, value)
+
+            if len(prefix_matches) + len(word_matches) >= self.max_results:
                 break
-        return results
+
+        combined = prefix_matches + word_matches
+        if len(combined) < self.max_results:
+            combined.extend(substring_matches)
+        return combined[:self.max_results]
 
     def _ensure_popup(self):
         if self.popup and self.popup.winfo_exists():

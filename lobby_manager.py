@@ -97,15 +97,21 @@ def load_alias_tables():
     canonical_lookup = {}
     alias_lookup = {}
     display_lookup = {}
+    autocomplete_values = set()
 
     for canonical_name, aliases in alias_data.items():
         normalized = canonical_name.lower()
         canonical_lookup[normalized] = canonical_name
 
+        canonical_title = canonical_name.title()
+        autocomplete_values.add(canonical_title)
+
         display_value = canonical_name.title()
         if isinstance(aliases, list) and aliases:
             display_value = next((alias for alias in aliases if alias and alias[0].isascii()), display_value)
             for alias in aliases:
+                if alias:
+                    autocomplete_values.add(alias.strip())
                 for variant in alias_variants(alias):
                     alias_lookup.setdefault(variant, canonical_name)
 
@@ -119,8 +125,168 @@ def load_alias_tables():
         canonical_lookup.setdefault(normalized, name)
         alias_lookup.setdefault(normalized, name)
         display_lookup.setdefault(name, name.title())
+        autocomplete_values.add(name.title())
 
-    return canonical_lookup, alias_lookup, display_lookup
+    autocomplete_list = sorted(value for value in autocomplete_values if value)
+    return canonical_lookup, alias_lookup, display_lookup, autocomplete_list
+
+
+class AutocompletePopup:
+    def __init__(self, entry_widget, values_provider, on_select=None, max_results=8):
+        self.entry = entry_widget
+        self.values_provider = values_provider
+        self.on_select = on_select
+        self.max_results = max_results
+        self.popup = None
+        self.listbox = None
+        self.hide_job = None
+
+        self.entry.bind("<KeyRelease>", self._on_key_release, add="+")
+        self.entry.bind("<Down>", self._on_entry_down, add="+")
+        self.entry.bind("<Up>", self._on_entry_up, add="+")
+        self.entry.bind("<Return>", self._on_entry_return, add="+")
+        self.entry.bind("<FocusOut>", self._on_focus_out, add="+")
+        self.entry.bind("<Destroy>", self._on_destroy, add="+")
+        self.entry.bind("<Escape>", self._on_escape, add="+")
+
+    def _on_key_release(self, event):
+        if event.keysym in {"Return", "Escape", "Up", "Down"}:
+            return
+        self.show_suggestions()
+
+    def _on_focus_out(self, _event):
+        self.entry.after(150, self.hide_popup)
+
+    def _on_destroy(self, _event):
+        self.hide_popup()
+
+    def _on_escape(self, _event):
+        self.hide_popup()
+
+    def _on_entry_down(self, _event):
+        if not self._is_popup_visible():
+            self.show_suggestions()
+        if not self._is_popup_visible():
+            return
+        self._move_selection(1)
+        return "break"
+
+    def _on_entry_up(self, _event):
+        if not self._is_popup_visible():
+            self.show_suggestions()
+        if not self._is_popup_visible():
+            return
+        self._move_selection(-1)
+        return "break"
+
+    def _on_entry_return(self, _event):
+        if not self._is_popup_visible():
+            return
+        if self._apply_selection():
+            return "break"
+
+    def show_suggestions(self):
+        query = self.entry.get().strip()
+        if not query:
+            self.hide_popup()
+            return
+
+        matches = self._filter_matches(query)
+        if not matches:
+            self.hide_popup()
+            return
+
+        self._ensure_popup()
+        self._update_listbox(matches)
+        self._place_popup()
+
+    def _filter_matches(self, query):
+        lowered = query.lower()
+        results = []
+        for value in self.values_provider():
+            if lowered in value.lower():
+                results.append(value)
+            if len(results) >= self.max_results:
+                break
+        return results
+
+    def _ensure_popup(self):
+        if self.popup and self.popup.winfo_exists():
+            return
+
+        self.popup = tk.Toplevel(self.entry)
+        self.popup.wm_overrideredirect(True)
+        self.popup.attributes("-topmost", True)
+
+        self.listbox = tk.Listbox(self.popup, selectmode=tk.SINGLE)
+        self.listbox.pack(fill="both", expand=True)
+        self.listbox.bind("<ButtonRelease-1>", self._on_listbox_click)
+        self.listbox.bind("<Return>", self._on_listbox_return)
+        self.listbox.bind("<Escape>", lambda _: self.hide_popup())
+
+    def _update_listbox(self, matches):
+        self.listbox.delete(0, tk.END)
+        for match in matches:
+            self.listbox.insert(tk.END, match)
+        self.listbox.select_set(0)
+        self.listbox.activate(0)
+
+    def _place_popup(self):
+        if not self.popup:
+            return
+        self.popup.update_idletasks()
+        x = self.entry.winfo_rootx()
+        y = self.entry.winfo_rooty() + self.entry.winfo_height()
+        width = self.entry.winfo_width()
+        height = min(self.listbox.size(), self.max_results) * 24 or 24
+        self.popup.geometry(f"{width}x{height}+{x}+{y}")
+        self.popup.deiconify()
+
+    def _on_listbox_click(self, _event):
+        self._apply_selection()
+
+    def _on_listbox_return(self, _event):
+        self._apply_selection()
+        return "break"
+
+    def _apply_selection(self):
+        if not self.listbox:
+            return False
+        selection = self.listbox.curselection()
+        if not selection:
+            return False
+        value = self.listbox.get(selection[0])
+        self.entry.delete(0, tk.END)
+        self.entry.insert(0, value)
+        self.entry.icursor(tk.END)
+        self.entry.focus_set()
+        self.hide_popup()
+        if self.on_select:
+            self.on_select(value)
+        return True
+
+    def _move_selection(self, offset):
+        if not self.listbox:
+            return
+        size = self.listbox.size()
+        if size == 0:
+            return
+        selection = self.listbox.curselection()
+        index = selection[0] if selection else -1
+        index = (index + offset) % size
+        self.listbox.selection_clear(0, tk.END)
+        self.listbox.selection_set(index)
+        self.listbox.activate(index)
+        self.listbox.see(index)
+
+    def _is_popup_visible(self):
+        return bool(self.popup and self.popup.winfo_exists())
+
+    def hide_popup(self):
+        if self.popup and self.popup.winfo_exists():
+            self.popup.destroy()
+        self.popup = None
+        self.listbox = None
 
 
 class ChampionScraperApp:
@@ -129,7 +295,12 @@ class ChampionScraperApp:
         self.root.title("Champion Ban/Pick Helper")
         self.all_data = {lane: {} for lane in LANES}
         self.synergy_data = {lane: {} for lane in LANES}
-        self.canonical_lookup, self.alias_lookup, self.display_lookup = load_alias_tables()
+        (
+            self.canonical_lookup,
+            self.alias_lookup,
+            self.display_lookup,
+            self.autocomplete_candidates
+        ) = load_alias_tables()
         self.counter_cache = {}
         self.synergy_cache = {}
         self.counter_listbox_map = {}
@@ -167,6 +338,11 @@ class ChampionScraperApp:
             command=self.on_counter_auto_toggle
         )
         self.counter_auto_check.grid(row=0, column=3, sticky="w", padx=(5, 0))
+        self.counter_autocomplete = AutocompletePopup(
+            self.name_entry,
+            self.get_autocomplete_candidates,
+            on_select=lambda _value: self.on_autocomplete_selection("counter")
+        )
 
         tk.Label(self.counter_section, text="Loaded Counters:").grid(row=1, column=0, columnspan=2, sticky="wn")
         self.champion_listbox = tk.Listbox(self.counter_section, height=7)
@@ -243,6 +419,11 @@ class ChampionScraperApp:
             command=self.on_synergy_auto_toggle
         )
         self.synergy_auto_check.grid(row=0, column=3, sticky="w")
+        self.synergy_autocomplete = AutocompletePopup(
+            self.ally_name_entry,
+            self.get_autocomplete_candidates,
+            on_select=lambda _value: self.on_autocomplete_selection("synergy")
+        )
 
         tk.Label(self.synergy_section, text="Loaded Synergy:").grid(row=1, column=0, columnspan=2, sticky="wn", pady=5)
         self.synergy_listbox = tk.Listbox(self.synergy_section, height=7)
@@ -403,6 +584,17 @@ class ChampionScraperApp:
             return
 
         self.start_synergy_search(auto_trigger=True)
+
+    def get_autocomplete_candidates(self):
+        return self.autocomplete_candidates
+
+    def on_autocomplete_selection(self, context):
+        if context == "counter":
+            if self.counter_auto_load_var.get():
+                self.schedule_counter_auto_load(delay=0)
+        elif context == "synergy":
+            if self.synergy_auto_load_var.get():
+                self.schedule_synergy_auto_load(delay=0)
 
     def start_search(self, auto_trigger=False):
         champion_name = self.name_entry.get()

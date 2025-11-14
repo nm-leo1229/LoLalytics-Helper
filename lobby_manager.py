@@ -46,6 +46,11 @@ HIGHLIGHT_WIN_RATE = 54.0
 HIGHLIGHT_PICK_RATE = 2.0
 HIGHLIGHT_MIN_GAMES = 900
 HIGHLIGHT_LIMIT = 20
+COUNTER_LOW_GAMES_DEFAULT = 1500
+SYNERGY_LOW_GAMES_DEFAULT = 1500
+LOW_SAMPLE_COLOR = "#888888"
+NORMAL_SAMPLE_COLOR = "#111111"
+WARNING_ICON = "⚠"
 
 CHOSEONG_LIST = [
     "ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ", "ㅅ",
@@ -357,8 +362,21 @@ class ChampionScraperApp:
         self.filter_button = tk.Button(self.counter_section, text="Filter", command=self.filter_by_popularity)
         self.filter_button.grid(row=1, column=1, columnspan=2, sticky="ne", pady=25)
 
+        self.counter_reliability_frame = tk.LabelFrame(self.counter_section, text="데이터 신뢰도")
+        self.counter_reliability_frame.grid(row=2, column=0, columnspan=4, sticky="ew", padx=5, pady=(0, 5))
+        tk.Label(self.counter_reliability_frame, text="최소 게임 수").grid(row=0, column=0, sticky="w")
+        self.counter_min_games_entry = tk.Entry(self.counter_reliability_frame, width=10)
+        self.counter_min_games_entry.grid(row=0, column=1, padx=(5, 10), sticky="w")
+        self.counter_min_games_entry.insert(0, str(COUNTER_LOW_GAMES_DEFAULT))
+        self.counter_min_games_entry.bind("<KeyRelease>", lambda _event: self.update_GUI())
+        self.counter_min_games_entry.bind("<FocusOut>", lambda _event: self.update_GUI())
+        tk.Label(
+            self.counter_reliability_frame,
+            text=f"{WARNING_ICON} 회색 = 데이터 부족"
+        ).grid(row=0, column=2, sticky="w")
+
         self.lane_filter_frame = tk.LabelFrame(self.counter_section, text="Lane Filters")
-        self.lane_filter_frame.grid(row=2, column=0, columnspan=4, sticky="ew", padx=5, pady=(0, 10))
+        self.lane_filter_frame.grid(row=3, column=0, columnspan=4, sticky="ew", padx=5, pady=(0, 10))
 
         self.lane_vars = {}
         for idx, lane in enumerate(LANES):
@@ -386,6 +404,8 @@ class ChampionScraperApp:
             tree.heading("Name", text="Name")
             tree.heading("Popularity", text="Popularity")
             tree.heading("Win Rate", text="Win Rate")
+            tree.tag_configure("low_games", foreground=LOW_SAMPLE_COLOR)
+            tree.tag_configure("normal_games", foreground=NORMAL_SAMPLE_COLOR)
             self.treeviews[lane] = tree
             self.lane_frames[lane] = frame
 
@@ -437,6 +457,19 @@ class ChampionScraperApp:
 
         self.synergy_filter_button = tk.Button(self.synergy_section, text="Filter", command=self.filter_synergy)
         self.synergy_filter_button.grid(row=1, column=1, columnspan=2, sticky="ne", pady=(0, 25))
+
+        self.synergy_reliability_frame = tk.LabelFrame(self.synergy_section, text="데이터 신뢰도")
+        self.synergy_reliability_frame.grid(row=2, column=0, columnspan=4, sticky="ew", padx=5, pady=(0, 5))
+        tk.Label(self.synergy_reliability_frame, text="최소 게임 수").grid(row=0, column=0, sticky="w")
+        self.synergy_min_games_entry = tk.Entry(self.synergy_reliability_frame, width=10)
+        self.synergy_min_games_entry.grid(row=0, column=1, padx=(5, 10), sticky="w")
+        self.synergy_min_games_entry.insert(0, str(SYNERGY_LOW_GAMES_DEFAULT))
+        self.synergy_min_games_entry.bind("<KeyRelease>", lambda _event: self.update_synergy_GUI())
+        self.synergy_min_games_entry.bind("<FocusOut>", lambda _event: self.update_synergy_GUI())
+        tk.Label(
+            self.synergy_reliability_frame,
+            text=f"{WARNING_ICON} 회색 = 데이터 부족"
+        ).grid(row=0, column=2, sticky="w")
 
         self.synergy_lane_filter_frame = tk.LabelFrame(self.synergy_section, text="Synergy Lanes")
         self.synergy_lane_filter_frame.grid(row=3, column=0, columnspan=4, sticky="ew", padx=5, pady=(0, 10))
@@ -496,6 +529,8 @@ class ChampionScraperApp:
             tree.heading("Name", text="Name")
             tree.heading("Pick Rate", text="Pick Rate")
             tree.heading("Win Rate", text="Win Rate")
+            tree.tag_configure("low_games", foreground=LOW_SAMPLE_COLOR)
+            tree.tag_configure("normal_games", foreground=NORMAL_SAMPLE_COLOR)
             self.synergy_treeviews[lane] = tree
             self.synergy_frames[lane] = frame
 
@@ -714,6 +749,31 @@ class ChampionScraperApp:
         self.update_synergy_GUI()
         return True
 
+    def get_counter_min_games_threshold(self):
+        return self._parse_threshold_value(
+            getattr(self, "counter_min_games_entry", None),
+            COUNTER_LOW_GAMES_DEFAULT
+        )
+
+    def get_synergy_min_games_threshold(self):
+        return self._parse_threshold_value(
+            getattr(self, "synergy_min_games_entry", None),
+            SYNERGY_LOW_GAMES_DEFAULT
+        )
+
+    @staticmethod
+    def _parse_threshold_value(entry_widget, default_value):
+        if not entry_widget:
+            return default_value
+        value = entry_widget.get().strip()
+        if not value:
+            return default_value
+        try:
+            parsed = int(value)
+        except ValueError:
+            return default_value
+        return parsed if parsed >= 0 else default_value
+
     def _load_lane_dataset(self, full_name, preferred_lane, data_label, data_key, sanitize_entry, suppress_errors=False):
         lanes_to_try = [preferred_lane] + [lane for lane in LANES if lane != preferred_lane]
         best_candidate = None
@@ -810,19 +870,25 @@ class ChampionScraperApp:
         self.update_synergy_visibility()
 
     def update_GUI(self):
+        threshold = self.get_counter_min_games_threshold()
         for lane, data_dict in self.all_data.items():
             tree = self.treeviews[lane]
             for item in tree.get_children():
                 tree.delete(item)
             
             for name, details in sorted(data_dict.items(), key=lambda item: float(item[1].get('win_rate_diff', 0.0)), reverse=False):
+                games = self.parse_int(details.get("games"))
+                is_low = games < threshold
+                display_name = f"{WARNING_ICON} {name}" if is_low else name
+                tag = "low_games" if is_low else "normal_games"
                 tree.insert("", "end", values=(
-                    name,
+                    display_name,
                     details["popularity"],
                     details.get("win_rate", "0.00")
-                ))
+                ), tags=(tag,))
 
     def update_synergy_GUI(self):
+        threshold = self.get_synergy_min_games_threshold()
         for lane, data_dict in self.synergy_data.items():
             tree = self.synergy_treeviews[lane]
             for item in tree.get_children():
@@ -835,11 +901,15 @@ class ChampionScraperApp:
             )
 
             for name, details in sorted_entries:
+                games = self.parse_int(details.get("games"))
+                is_low = games < threshold
+                display_name = f"{WARNING_ICON} {name}" if is_low else name
+                tag = "low_games" if is_low else "normal_games"
                 tree.insert("", "end", values=(
-                    name,
+                    display_name,
                     details.get("pick_rate", "0.00"),
                     details.get("win_rate", "0.00")
-                ))
+                ), tags=(tag,))
 
     def update_lane_visibility(self):
         visible_lanes = [lane for lane in LANES if self.lane_vars.get(lane).get()]

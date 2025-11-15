@@ -46,7 +46,7 @@ DATA_DIR = Path(resolve_resource_path("data"))
 HIGHLIGHT_WIN_RATE = 54.0
 HIGHLIGHT_PICK_RATE = 2.0
 HIGHLIGHT_MIN_GAMES = 900
-HIGHLIGHT_LIMIT = 20
+HIGHLIGHT_LIMIT = 50
 COUNTER_LOW_GAMES_DEFAULT = 1500
 SYNERGY_LOW_GAMES_DEFAULT = 1500
 LOW_SAMPLE_COLOR = "#888888"
@@ -371,6 +371,8 @@ class ChampionScraperApp:
         self.root.grid_columnconfigure(0, weight=1)
         self.notebook = ttk.Notebook(root)
         self.notebook.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self.dashboard_tab = tk.Frame(self.notebook)
+        self.notebook.add(self.dashboard_tab, text="Champion Picker")
         self.main_tab = tk.Frame(self.notebook)
         self.main_tab.grid_rowconfigure(6, weight=1)
         self.main_tab.grid_columnconfigure(5, weight=1)
@@ -379,7 +381,7 @@ class ChampionScraperApp:
             text="Reset Main",
             command=self.reset_main_tab
         ).grid(row=0, column=3, sticky="e", padx=5, pady=5)
-        self.notebook.add(self.main_tab, text="Main")
+        self.notebook.add(self.main_tab, text="Counter & Synergy")
         self.all_data = {lane: {} for lane in LANES}
         self.synergy_data = {lane: {} for lane in LANES}
         (
@@ -588,10 +590,6 @@ class ChampionScraperApp:
         self.build_highlights_tab()
 
     def build_dashboard_tab(self):
-        if hasattr(self, "dashboard_tab"):
-            return
-        self.dashboard_tab = tk.Frame(self.notebook)
-        self.notebook.add(self.dashboard_tab, text="Dashboard")
         self.banpick_slots = {"allies": [], "enemies": []}
         self.active_slot_var = tk.StringVar(value="")
         self.active_slot_var.trace_add("write", lambda *_: self.update_banpick_recommendations())
@@ -606,9 +604,9 @@ class ChampionScraperApp:
             command=self.reset_dashboard_tab
         ).pack(anchor="ne", padx=10, pady=(5, 0))
 
-        left_column = self._create_banpick_column(container, "아군 (Blue Side)", "allies")
+        left_column = self._create_banpick_column(container, "(Blue Side)", "allies")
         left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
-        right_column = self._create_banpick_column(container, "상대 (Red Side)", "enemies")
+        right_column = self._create_banpick_column(container, "(Red Side)", "enemies")
         right_column.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
 
         recommend_frame = tk.LabelFrame(self.dashboard_tab, text="추천 챔피언")
@@ -641,7 +639,7 @@ class ChampionScraperApp:
         if hasattr(self, "highlight_tab"):
             return
         self.highlight_tab = tk.Frame(self.notebook)
-        self.notebook.add(self.highlight_tab, text="Highlights")
+        self.notebook.add(self.highlight_tab, text="OP Duos")
 
         self.highlight_frame = tk.LabelFrame(self.highlight_tab, text="Top Bot Lane Duos")
         self.highlight_frame.pack(fill="both", expand=True, padx=10, pady=10)

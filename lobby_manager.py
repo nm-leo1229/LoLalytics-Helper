@@ -54,6 +54,7 @@ NORMAL_SAMPLE_COLOR = "#111111"
 WARNING_ICON = "⚠"
 BANPICK_DEFAULT_LANES = ['jungle', 'bottom', 'support', 'middle', 'top']
 BANPICK_MIN_GAMES_DEFAULT = 900
+BANPICK_PICK_RATE_OVERRIDE = 1.5
 LANE_WEIGHT_DEEP = 1.0
 LANE_WEIGHT_SHALLOW = 0.8
 LANE_WEIGHT_DEFAULT = 0.5
@@ -397,6 +398,7 @@ class ChampionScraperApp:
         self.synergy_highlights = []
         self.counter_typing_after_id = None
         self.synergy_typing_after_id = None
+        self._lane_swap_guard = False
 
         # Counter controls
         self.counter_section = tk.LabelFrame(self.main_tab, text="Counter")
@@ -621,6 +623,13 @@ class ChampionScraperApp:
         self.recommend_min_games_entry.bind("<KeyRelease>", lambda _e: self.update_banpick_recommendations())
         self.recommend_min_games_entry.bind("<FocusOut>", lambda _e: self.update_banpick_recommendations())
 
+        tk.Label(filter_frame, text="Pick Rate ≥").pack(side="left", padx=(10, 0))
+        self.recommend_pick_rate_entry = tk.Entry(filter_frame, width=6)
+        self.recommend_pick_rate_entry.insert(0, str(BANPICK_PICK_RATE_OVERRIDE))
+        self.recommend_pick_rate_entry.pack(side="left", padx=(4, 0))
+        self.recommend_pick_rate_entry.bind("<KeyRelease>", lambda _e: self.update_banpick_recommendations())
+        self.recommend_pick_rate_entry.bind("<FocusOut>", lambda _e: self.update_banpick_recommendations())
+
         columns = ("Champion", "Score", "Synergy", "Counter")
         self.recommend_tree = ttk.Treeview(recommend_frame, columns=columns, show="headings", height=8)
         for col in columns:
@@ -724,11 +733,14 @@ class ChampionScraperApp:
                 "canonical_name": None,
                 "selected_lane": None,
                 "synergy_dataset": None,
-                "counter_dataset": None
+                "counter_dataset": None,
+                "last_lane_value": None,
+                "last_lane": None
             }
 
             search_button.configure(command=lambda s=slot: self.perform_banpick_search(s))
             entry.bind("<Return>", lambda event, s=slot: self.perform_banpick_search(s))
+            lane_box.bind("<<ComboboxSelected>>", lambda _event, s=slot: self.on_banpick_lane_changed(s))
 
             slot["autocomplete"] = AutocompletePopup(
                 entry,
@@ -736,9 +748,79 @@ class ChampionScraperApp:
                 on_select=lambda _value, s=slot: self.perform_banpick_search(s, auto_trigger=True)
             )
 
+            self._update_slot_lane_cache(slot)
             self.banpick_slots[side_key].append(slot)
 
         return column
+
+    def _update_slot_lane_cache(self, slot, lane_value=None):
+        if not slot:
+            return
+        lane_text = lane_value
+        if lane_text is None:
+            lane_widget = slot.get("lane")
+            if lane_widget:
+                lane_text = lane_widget.get()
+        slot["last_lane_value"] = lane_text
+        if isinstance(lane_text, str):
+            lowered = lane_text.lower()
+            slot["last_lane"] = lowered if lowered in LANES else None
+        else:
+            slot["last_lane"] = None
+
+    def on_banpick_lane_changed(self, slot):
+        if not slot or self._lane_swap_guard:
+            return
+        lane_box = slot.get("lane")
+        if not lane_box:
+            return
+        new_value = lane_box.get()
+        previous_value = slot.get("last_lane_value")
+        if previous_value == new_value:
+            return
+
+        self._update_slot_lane_cache(slot, new_value)
+        new_lane = slot.get("last_lane")
+        if not new_lane:
+            self.update_banpick_recommendations()
+            return
+
+        side_key = slot.get("side")
+        if not side_key or side_key not in self.banpick_slots:
+            self.update_banpick_recommendations()
+            return
+
+        swap_target = None
+        for other in self.banpick_slots.get(side_key, []):
+            if other is slot:
+                continue
+            other_box = other.get("lane")
+            if not other_box:
+                continue
+            other_value = other_box.get()
+            other_lane = other_value.lower() if isinstance(other_value, str) else ""
+            if other_lane == new_lane:
+                swap_target = other
+                break
+
+        if swap_target and previous_value is not None:
+            swap_box = swap_target.get("lane")
+            if swap_box:
+                self._lane_swap_guard = True
+                try:
+                    swap_box.set(previous_value)
+                finally:
+                    self._lane_swap_guard = False
+                self._update_slot_lane_cache(swap_target, previous_value)
+            current_active = self.active_slot_var.get()
+            slot_key = f"{side_key}:{slot.get('index')}"
+            target_key = f"{side_key}:{swap_target.get('index')}"
+            if current_active == target_key:
+                self.active_slot_var.set(slot_key)
+            elif current_active == slot_key:
+                self.active_slot_var.set(target_key)
+
+        self.update_banpick_recommendations()
 
     def on_counter_input_changed(self, _event=None):
         if not self.counter_auto_load_var.get():
@@ -920,14 +1002,43 @@ class ChampionScraperApp:
         if target_lane not in LANES:
             return
 
-        scores = defaultdict(lambda: {
-            "synergy_sum": 0.0,
-            "synergy_weight": 0.0,
-            "counter_sum": 0.0,
-            "counter_weight": 0.0,
-            "synergy_sources": [],
-            "counter_sources": []
-        })
+        scores = {}
+        pick_rate_override = (
+            self.parse_float(self.recommend_pick_rate_entry.get())
+            if hasattr(self, "recommend_pick_rate_entry") else BANPICK_PICK_RATE_OVERRIDE
+        )
+        if pick_rate_override < 0:
+            pick_rate_override = 0.0
+
+        def ensure_score_entry(champion):
+            entry = scores.get(champion)
+            if entry is None:
+                entry = {
+                    "synergy_sum": 0.0,
+                    "synergy_count": 0,
+                    "counter_sum": 0.0,
+                    "counter_count": 0,
+                    "synergy_sources": [],
+                    "counter_sources": [],
+                    "has_low_sample": False,
+                    "has_low_pick_gap": False
+                }
+                scores[champion] = entry
+            return entry
+
+        def should_use_entry(details):
+            games = self.parse_int(details.get("games"))
+            pick_rate_value = 0.0
+            if "pick_rate" in details:
+                pick_rate_value = self.parse_float(details.get("pick_rate"))
+            elif "popularity" in details:
+                pick_rate_value = self.parse_float(details.get("popularity"))
+            meets_games_requirement = games >= min_games
+            meets_pick_rate_override = pick_rate_value >= pick_rate_override
+            include_entry = meets_games_requirement or meets_pick_rate_override
+            low_sample = not meets_games_requirement
+            penalized_pick = (not include_entry) and (not meets_pick_rate_override)
+            return include_entry, low_sample, penalized_pick
         selected_lowers = set()
         for slot_list in self.banpick_slots.values():
             for s in slot_list:
@@ -950,16 +1061,26 @@ class ChampionScraperApp:
             source_lane = friend.get("selected_lane")
             lane_entries = dataset.get(target_lane, {})
             for champ_name, details in lane_entries.items():
-                if self.parse_int(details.get("games")) < min_games:
+                include_entry, low_sample, penalized_pick = should_use_entry(details)
+                if penalized_pick:
+                    components = ensure_score_entry(champ_name)
+                    components["has_low_pick_gap"] = True
+                if not include_entry:
                     continue
                 value = self.parse_float(details.get("win_rate"))
                 weight = self.get_lane_weight(target_lane, source_lane)
                 if weight <= 0:
                     continue
-                scores[champ_name]["synergy_sum"] += value * weight
-                scores[champ_name]["synergy_weight"] += weight
+                components = ensure_score_entry(champ_name)
+                components["synergy_sum"] += value * weight
+                components["synergy_count"] += 1
+                if low_sample:
+                    components["has_low_sample"] = True
                 source_name = friend.get("display_name") or friend.get("canonical_name") or "Unknown"
-                scores[champ_name]["synergy_sources"].append(f"{source_name}({value:.2f})")
+                label = f"{source_name}({value:.2f})"
+                if low_sample:
+                    label = f"{WARNING_ICON} {label}"
+                components["synergy_sources"].append(label)
 
         # Counter contributions from opposing side
         opponent_side = "enemies" if side_key == "allies" else "allies"
@@ -970,52 +1091,66 @@ class ChampionScraperApp:
             source_lane = enemy.get("selected_lane")
             lane_entries = dataset.get(target_lane, {})
             for champ_name, details in lane_entries.items():
-                if self.parse_int(details.get("games")) < min_games:
+                include_entry, low_sample, penalized_pick = should_use_entry(details)
+                if penalized_pick:
+                    components = ensure_score_entry(champ_name)
+                    components["has_low_pick_gap"] = True
+                if not include_entry:
                     continue
                 win_rate_value = self.parse_float(details.get("win_rate"))
                 value = 100.0 - win_rate_value
                 weight = self.get_lane_weight(target_lane, source_lane)
                 if weight <= 0:
                     continue
-                scores[champ_name]["counter_sum"] += value * weight
-                scores[champ_name]["counter_weight"] += weight
+                components = ensure_score_entry(champ_name)
+                components["counter_sum"] += value * weight
+                components["counter_count"] += 1
+                if low_sample:
+                    components["has_low_sample"] = True
                 source_name = enemy.get("display_name") or enemy.get("canonical_name") or "Unknown"
-                scores[champ_name]["counter_sources"].append(f"{source_name}({win_rate_value:.2f})")
+                label = f"{source_name}({win_rate_value:.2f})"
+                if low_sample:
+                    label = f"{WARNING_ICON} {label}"
+                components["counter_sources"].append(label)
 
         recommendations = []
 
         for champ_name, components in scores.items():
             if champ_name.lower() in selected_lowers:
                 continue
-            synergy_avg = (
-                components["synergy_sum"] / components["synergy_weight"]
-                if components["synergy_weight"] > 0 else 0.0
+            if components["has_low_pick_gap"]:
+                continue
+            synergy_score = (
+                components["synergy_sum"] / components["synergy_count"]
+                if components["synergy_count"] > 0 else 0.0
             )
-            counter_avg = (
-                components["counter_sum"] / components["counter_weight"]
-                if components["counter_weight"] > 0 else 0.0
+            counter_score = (
+                components["counter_sum"] / components["counter_count"]
+                if components["counter_count"] > 0 else 0.0
             )
-            total = synergy_avg + counter_avg
+            total = synergy_score + counter_score
             if total == 0:
                 continue
             recommendations.append((
                 champ_name,
                 total,
-                synergy_avg,
-                counter_avg,
+                synergy_score,
+                counter_score,
                 components["synergy_sources"],
-                components["counter_sources"]
+                components["counter_sources"],
+                components["has_low_sample"]
             ))
 
         recommendations.sort(key=lambda item: item[1], reverse=True)
-        for champ_name, total, synergy_score, counter_score, synergy_sources, counter_sources in recommendations[:20]:
+        for champ_name, total, synergy_score, counter_score, synergy_sources, counter_sources, has_low_sample in recommendations[:20]:
+            display_name = f"{WARNING_ICON} {champ_name}" if has_low_sample else champ_name
             synergy_label = " / ".join(synergy_sources) if synergy_sources else "-"
             counter_label = " / ".join(counter_sources) if counter_sources else "-"
             tree.insert(
                 "",
                 "end",
                 values=(
-                    champ_name,
+                    display_name,
                     f"{total:.2f}",
                     synergy_label,
                     counter_label
@@ -1488,6 +1623,7 @@ class ChampionScraperApp:
                         lane_box.set(BANPICK_DEFAULT_LANES[idx])
                     else:
                         lane_box.set("Select Lane")
+                self._update_slot_lane_cache(slot)
                 if result_var:
                     result_var.set("검색 결과 없음")
                 slot["display_name"] = None

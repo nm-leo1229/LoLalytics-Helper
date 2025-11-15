@@ -233,9 +233,11 @@ class AutocompletePopup:
         return "break"
 
     def _on_entry_return(self, _event):
-        if not self._is_popup_visible():
+        if self._is_popup_visible():
+            if self._apply_selection():
+                return "break"
             return
-        if self._apply_selection():
+        if self._apply_single_match():
             return "break"
 
     def show_suggestions(self):
@@ -331,6 +333,11 @@ class AutocompletePopup:
         if not selection:
             return False
         value = self.listbox.get(selection[0])
+        return self._apply_value(value)
+
+    def _apply_value(self, value):
+        if not value:
+            return False
         self.entry.delete(0, tk.END)
         self.entry.insert(0, value)
         self.entry.icursor(tk.END)
@@ -339,6 +346,23 @@ class AutocompletePopup:
         if self.on_select:
             self.on_select(value)
         return True
+
+    def _apply_single_match(self):
+        query = self.entry.get().strip()
+        if not query:
+            return False
+        unique = self.get_unique_match(query)
+        if not unique:
+            return False
+        return self._apply_value(unique)
+
+    def get_unique_match(self, query):
+        if not query:
+            return None
+        matches = self._filter_matches(query)
+        if len(matches) == 1:
+            return matches[0]
+        return None
 
     def _move_selection(self, offset):
         if not self.listbox:
@@ -939,6 +963,16 @@ class ChampionScraperApp:
             return
 
         full_name = self.resolve_champion_name(champion_name)
+        if not full_name:
+            autocomplete = slot.get("autocomplete")
+            if autocomplete:
+                unique_match = autocomplete.get_unique_match(champion_name)
+                if unique_match:
+                    entry_widget.delete(0, tk.END)
+                    entry_widget.insert(0, unique_match)
+                    entry_widget.icursor(tk.END)
+                    champion_name = unique_match.strip()
+                    full_name = self.resolve_champion_name(champion_name)
         if not full_name:
             if not auto_trigger:
                 messagebox.showerror("Error", f"Champion name '{champion_name}' not found.")

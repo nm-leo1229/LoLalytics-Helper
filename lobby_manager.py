@@ -7,10 +7,6 @@ import sys
 from pathlib import Path
 from collections import defaultdict
 
-CHAMPION_NAMES = [
-    "jinx"
-]
-
 LANES = ['top', 'jungle', 'middle', 'bottom', 'support']
 
 
@@ -127,6 +123,11 @@ def alias_variants(alias: str, include_initials: bool = True) -> set[str]:
     if alnum_only:
         variants.add(alnum_only)
 
+    hangul_prefix_match = re.match(r"^[가-힣]+", candidate)
+    if hangul_prefix_match:
+        hangul_prefix = hangul_prefix_match.group(0)
+        variants.add(hangul_prefix.lower())
+
     initials = extract_choseong(candidate)
     if include_initials and initials:
         variants.add(initials.lower())
@@ -172,13 +173,6 @@ def load_alias_tables():
             alias_lookup.setdefault(variant, canonical_name)
         alias_lookup.setdefault(normalized, canonical_name)
         display_lookup[canonical_name] = display_value
-
-    for name in CHAMPION_NAMES:
-        normalized = name.lower()
-        canonical_lookup.setdefault(normalized, name)
-        alias_lookup.setdefault(normalized, name)
-        display_lookup.setdefault(name, name.title())
-        autocomplete_values.add(name.title())
 
     autocomplete_list = sorted(value for value in autocomplete_values if value)
     return canonical_lookup, alias_lookup, display_lookup, autocomplete_list
@@ -719,6 +713,8 @@ class ChampionScraperApp:
             slot_frame.pack(fill="x", pady=4)
 
             tk.Label(slot_frame, text=f"Slot {idx + 1}", font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w")
+            clear_button = tk.Button(slot_frame, text="Clear", width=6)
+            clear_button.grid(row=0, column=2, padx=(6, 0), sticky="e")
             active_check = tk.Checkbutton(
                 slot_frame,
                 text="내 차례",
@@ -751,6 +747,7 @@ class ChampionScraperApp:
                 "entry": entry,
                 "lane": lane_box,
                 "button": search_button,
+                "clear_button": clear_button,
                 "result_var": result_var,
                 "active_check": active_check,
                 "display_name": None,
@@ -765,6 +762,7 @@ class ChampionScraperApp:
             search_button.configure(command=lambda s=slot: self.perform_banpick_search(s))
             entry.bind("<Return>", lambda event, s=slot: self.perform_banpick_search(s))
             lane_box.bind("<<ComboboxSelected>>", lambda _event, s=slot: self.on_banpick_lane_changed(s))
+            clear_button.configure(command=lambda s=slot: self.clear_banpick_slot(s))
 
             slot["autocomplete"] = AutocompletePopup(
                 entry,
@@ -845,6 +843,31 @@ class ChampionScraperApp:
                 self.active_slot_var.set(target_key)
 
         self.update_banpick_recommendations()
+
+    def clear_banpick_slot(self, slot, reset_lane=False, suppress_update=False):
+        if not slot:
+            return
+        entry = slot.get("entry")
+        lane_box = slot.get("lane")
+        result_var = slot.get("result_var")
+        if entry:
+            entry.delete(0, tk.END)
+        if reset_lane and lane_box:
+            idx = slot.get("index", 0)
+            if idx < len(BANPICK_DEFAULT_LANES):
+                lane_box.set(BANPICK_DEFAULT_LANES[idx])
+            else:
+                lane_box.set("Select Lane")
+            self._update_slot_lane_cache(slot)
+        if result_var:
+            result_var.set("검색 결과 없음")
+        slot["display_name"] = None
+        slot["canonical_name"] = None
+        slot["selected_lane"] = None
+        slot["synergy_dataset"] = None
+        slot["counter_dataset"] = None
+        if not suppress_update:
+            self.update_banpick_recommendations()
 
     def on_counter_input_changed(self, _event=None):
         if not self.counter_auto_load_var.get():
@@ -1645,26 +1668,9 @@ class ChampionScraperApp:
     def reset_banpick_slots(self):
         if not hasattr(self, "banpick_slots"):
             return
-        for side_key, slots in self.banpick_slots.items():
-            for idx, slot in enumerate(slots):
-                entry = slot.get("entry")
-                lane_box = slot.get("lane")
-                result_var = slot.get("result_var")
-                if entry:
-                    entry.delete(0, tk.END)
-                if lane_box:
-                    if idx < len(BANPICK_DEFAULT_LANES):
-                        lane_box.set(BANPICK_DEFAULT_LANES[idx])
-                    else:
-                        lane_box.set("Select Lane")
-                self._update_slot_lane_cache(slot)
-                if result_var:
-                    result_var.set("검색 결과 없음")
-                slot["display_name"] = None
-                slot["canonical_name"] = None
-                slot["selected_lane"] = None
-                slot["synergy_dataset"] = None
-                slot["counter_dataset"] = None
+        for _side_key, slots in self.banpick_slots.items():
+            for slot in slots:
+                self.clear_banpick_slot(slot, reset_lane=True, suppress_update=True)
         self.active_slot_var.set("")
         self.update_banpick_recommendations()
 

@@ -53,8 +53,10 @@ BANPICK_DEFAULT_LANES = ['jungle', 'bottom', 'support', 'middle', 'top']
 BANPICK_MIN_GAMES_DEFAULT = 900
 BANPICK_PICK_RATE_OVERRIDE = 1.5
 LANE_WEIGHT_DEEP = 1.0
+LANE_WEIGHT_LOW_DEEP = 0.7
 LANE_WEIGHT_SHALLOW = 0.5
 LANE_WEIGHT_DEFAULT = 0.3
+SYNERGY_WEIGHT_PENALTY = -0.3
 LANE_WEIGHT_MAP = {
     'bottom': {
         'bottom': LANE_WEIGHT_DEEP,
@@ -65,7 +67,7 @@ LANE_WEIGHT_MAP = {
     },
     'support': {
         'support': LANE_WEIGHT_DEEP,
-        'bottom': LANE_WEIGHT_DEEP,
+        'bottom': LANE_WEIGHT_LOW_DEEP,
         'jungle': LANE_WEIGHT_SHALLOW,
         'middle': LANE_WEIGHT_SHALLOW,
         'top': LANE_WEIGHT_SHALLOW
@@ -1321,8 +1323,11 @@ class ChampionScraperApp:
                 weight = self.get_lane_weight(target_lane, source_lane)
                 if weight <= 0:
                     continue
+                synergy_weight = max(0.0, weight + SYNERGY_WEIGHT_PENALTY)
+                if synergy_weight <= 0:
+                    continue
                 components = ensure_score_entry(champ_name)
-                components["synergy_sum"] += value * weight
+                components["synergy_sum"] += value * synergy_weight
                 components["synergy_count"] += 1
                 if low_sample:
                     components["has_low_sample"] = True

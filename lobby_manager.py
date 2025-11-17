@@ -38,6 +38,7 @@ def resolve_resource_path(*path_parts: str) -> str:
 
 
 ALIAS_FILE = resolve_resource_path("champion_aliases.json")
+IGNORED_CHAMPIONS_FILE = resolve_resource_path("ignored_champions.json")
 DATA_DIR = Path(resolve_resource_path("data"))
 HIGHLIGHT_WIN_RATE = 54.0
 HIGHLIGHT_PICK_RATE = 2.0
@@ -176,6 +177,25 @@ def load_alias_tables():
 
     autocomplete_list = sorted(value for value in autocomplete_values if value)
     return canonical_lookup, alias_lookup, display_lookup, autocomplete_list
+
+
+def load_ignored_champion_names() -> list[str]:
+    try:
+        with open(IGNORED_CHAMPIONS_FILE, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+    if isinstance(data, list):
+        return [name for name in data if isinstance(name, str)]
+    return []
+
+
+def save_ignored_champion_names(names: list[str]) -> None:
+    try:
+        with open(IGNORED_CHAMPIONS_FILE, "w", encoding="utf-8") as handle:
+            json.dump(sorted(names), handle, ensure_ascii=False, indent=2)
+    except OSError as error:
+        print(f"[WARN] Failed to persist ignored champions: {error}")
 
 
 class AutocompletePopup:
@@ -409,6 +429,8 @@ class ChampionScraperApp:
             self.display_lookup,
             self.autocomplete_candidates
         ) = load_alias_tables()
+        self.ignored_champions = self._initialize_ignored_champions()
+        self.ignore_listbox_map = {}
         self.counter_cache = {}
         self.synergy_cache = {}
         self.counter_listbox_map = {}
@@ -608,6 +630,53 @@ class ChampionScraperApp:
         self.update_synergy_visibility()
         self.build_dashboard_tab()
         self.build_highlights_tab()
+        self.build_ignore_tab()
+
+    def build_ignore_tab(self):
+        if hasattr(self, "ignore_tab"):
+            self.refresh_ignore_listbox()
+            return
+
+        self.ignore_tab = tk.Frame(self.notebook)
+        self.notebook.add(self.ignore_tab, text="Ignore List")
+        self.ignore_tab.grid_rowconfigure(0, weight=1)
+        self.ignore_tab.grid_columnconfigure(0, weight=1)
+
+        self.ignore_section = tk.LabelFrame(self.ignore_tab, text="Ignore List")
+        self.ignore_section.pack(fill="both", expand=True, padx=10, pady=10)
+        self.ignore_section.grid_columnconfigure(0, weight=1)
+        self.ignore_section.grid_rowconfigure(1, weight=1)
+
+        self.ignore_entry = tk.Entry(self.ignore_section, width=25)
+        self.ignore_entry.grid(row=0, column=0, sticky="ew", padx=(5, 5), pady=(5, 2))
+        self.ignore_entry.bind("<Return>", lambda _event: self.add_ignore_champion())
+
+        self.ignore_add_button = tk.Button(self.ignore_section, text="추가", command=self.add_ignore_champion)
+        self.ignore_add_button.grid(row=0, column=1, sticky="ew", padx=(0, 5), pady=(5, 2))
+
+        self.ignore_remove_button = tk.Button(self.ignore_section, text="선택 제거", command=self.remove_selected_ignore)
+        self.ignore_remove_button.grid(row=0, column=2, sticky="ew", padx=(0, 5), pady=(5, 2))
+
+        self.ignore_listbox = tk.Listbox(self.ignore_section, height=5)
+        self.ignore_listbox.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=(5, 0), pady=(0, 5))
+        self.ignore_listbox.bind("<Delete>", lambda _event: self.remove_selected_ignore())
+
+        ignore_scrollbar = tk.Scrollbar(self.ignore_section, orient="vertical", command=self.ignore_listbox.yview)
+        ignore_scrollbar.grid(row=1, column=2, sticky="ns", padx=(0, 5), pady=(0, 5))
+        self.ignore_listbox.configure(yscrollcommand=ignore_scrollbar.set)
+
+        tk.Label(
+            self.ignore_section,
+            text="리스트에 있는 챔피언은 추천/표시에서 제외됩니다.",
+            anchor="w"
+        ).grid(row=2, column=0, columnspan=3, sticky="ew", padx=5, pady=(0, 5))
+
+        self.ignore_autocomplete = AutocompletePopup(
+            self.ignore_entry,
+            self.get_autocomplete_candidates,
+            on_select=lambda _value: None
+        )
+        self.refresh_ignore_listbox()
 
     def build_dashboard_tab(self):
         self.banpick_slots = {"allies": [], "enemies": []}
@@ -661,6 +730,13 @@ class ChampionScraperApp:
         scroll.pack(side="right", fill="y")
         self.recommend_tree.configure(yscrollcommand=scroll.set)
         self.recommend_tree.pack(fill="both", expand=True)
+        action_frame = tk.Frame(recommend_frame)
+        action_frame.pack(fill="x", padx=5, pady=(5, 5))
+        tk.Button(
+            action_frame,
+            text="선택 챔피언 제외",
+            command=self.ignore_selected_recommendations
+        ).pack(side="right")
 
     def build_highlights_tab(self):
         if hasattr(self, "highlight_tab"):
@@ -705,6 +781,123 @@ class ChampionScraperApp:
         self.highlight_tree.column("Games", width=100, anchor="center")
         self.highlight_tree.pack(fill="both", expand=True, padx=5, pady=5)
         self.populate_synergy_highlights()
+
+    def refresh_ignore_listbox(self):
+        if not hasattr(self, "ignore_listbox"):
+            return
+        self.ignore_listbox.delete(0, tk.END)
+        self.ignore_listbox_map.clear()
+        if not self.ignored_champions:
+            return
+        sorted_names = sorted(self.ignored_champions)
+        for idx, normalized in enumerate(sorted_names):
+            canonical = self.canonical_lookup.get(normalized, normalized)
+            display = self.display_lookup.get(canonical, canonical.title())
+            self.ignore_listbox.insert(tk.END, display)
+            self.ignore_listbox_map[idx] = normalized
+
+    def _register_ignore(self, champion_query: str, apply_updates: bool = True):
+        canonical_name = self.resolve_champion_name(champion_query)
+        if not canonical_name:
+            return False, "not_found", champion_query
+        normalized = canonical_name.lower()
+        if normalized in self.ignored_champions:
+            return False, "duplicate", canonical_name
+        self.ignored_champions.add(normalized)
+        if apply_updates:
+            self.persist_ignored_champions()
+            self.refresh_ignore_listbox()
+            self.on_ignore_list_updated()
+        return True, None, canonical_name
+
+    def add_ignore_champion(self):
+        if not hasattr(self, "ignore_entry"):
+            return
+        champion_query = self.ignore_entry.get().strip()
+        if not champion_query:
+            messagebox.showerror("Error", "챔피언 이름을 입력하세요.")
+            return
+        success, reason, canonical = self._register_ignore(champion_query)
+        if success:
+            self.ignore_entry.delete(0, tk.END)
+            return
+        if reason == "duplicate":
+            display = self.display_lookup.get(canonical, canonical.title())
+            messagebox.showinfo("Info", f"{display} 는 이미 제외 리스트에 있습니다.")
+            self.ignore_entry.delete(0, tk.END)
+        elif reason == "not_found":
+            messagebox.showerror("Error", f"'{champion_query}' 챔피언을 찾을 수 없습니다.")
+
+    def remove_selected_ignore(self):
+        if not hasattr(self, "ignore_listbox"):
+            return
+        selection = self.ignore_listbox.curselection()
+        if not selection:
+            return
+        idx = selection[0]
+        normalized = self.ignore_listbox_map.get(idx)
+        if not normalized:
+            return
+        self.ignored_champions.discard(normalized)
+        self.persist_ignored_champions()
+        self.refresh_ignore_listbox()
+        self.on_ignore_list_updated()
+
+    def ignore_selected_recommendations(self):
+        if not hasattr(self, "recommend_tree"):
+            return
+        selection = self.recommend_tree.selection()
+        if not selection:
+            messagebox.showinfo("Ignore List", "추천 리스트에서 제외할 챔피언을 선택하세요.")
+            return
+        added = []
+        duplicates = []
+        missing = []
+        for item_id in selection:
+            values = self.recommend_tree.item(item_id, "values")
+            if not values:
+                continue
+            champ_name = str(values[0]).strip()
+            warning_prefix = f"{WARNING_ICON} "
+            if champ_name.startswith(warning_prefix):
+                champ_name = champ_name[len(warning_prefix):].strip()
+            success, reason, canonical = self._register_ignore(champ_name, apply_updates=False)
+            if success:
+                display = self.display_lookup.get(canonical, canonical.title())
+                added.append(display)
+            elif reason == "duplicate":
+                display = self.display_lookup.get(canonical, canonical.title())
+                duplicates.append(display)
+            elif reason == "not_found":
+                missing.append(champ_name)
+        if added:
+            self.persist_ignored_champions()
+            self.refresh_ignore_listbox()
+            self.on_ignore_list_updated()
+            messagebox.showinfo("Ignore List", f"{', '.join(added)} 제외 리스트에 추가했습니다.")
+        if duplicates:
+            messagebox.showinfo("Ignore List", f"{', '.join(duplicates)} 는 이미 제외 리스트에 있습니다.")
+        if missing:
+            messagebox.showerror("Ignore List", f"{', '.join(missing)} 챔피언을 찾을 수 없습니다.")
+    def persist_ignored_champions(self):
+        canonical_names = []
+        for normalized in self.ignored_champions:
+            canonical = self.canonical_lookup.get(normalized, normalized)
+            canonical_names.append(canonical)
+        save_ignored_champion_names(canonical_names)
+
+    def on_ignore_list_updated(self):
+        for dataset in self.counter_cache.values():
+            self._apply_ignore_filter(dataset)
+        for dataset in self.synergy_cache.values():
+            self._apply_ignore_filter(dataset)
+        self._apply_ignore_filter(self.all_data)
+        self._apply_ignore_filter(self.synergy_data)
+        self.update_GUI()
+        self.update_synergy_GUI()
+        self.update_banpick_recommendations()
+        if hasattr(self, "highlight_tree"):
+            self.populate_synergy_highlights()
 
     def _create_banpick_column(self, parent, title, side_key):
         column = tk.LabelFrame(parent, text=title)
@@ -1175,6 +1368,8 @@ class ChampionScraperApp:
         for champ_name, components in scores.items():
             if champ_name.lower() in selected_lowers:
                 continue
+            if self.is_champion_ignored(champ_name):
+                continue
             if components["has_low_pick_gap"]:
                 continue
             synergy_score = (
@@ -1412,6 +1607,7 @@ class ChampionScraperApp:
                         continue
                     sanitized_dataset[lane_name][name] = sanitize_entry(entry)
 
+            self._apply_ignore_filter(sanitized_dataset)
             has_entries = any(sanitized_dataset[lane] for lane in LANES)
             if not has_entries:
                 continue
@@ -1556,6 +1752,8 @@ class ChampionScraperApp:
         filtered_data = {lane: {} for lane in LANES}
         for lane, champions in self.all_data.items():
             for name, details in champions.items():
+                if self.is_champion_ignored(name):
+                    continue
                 if self.parse_float(details.get("popularity")) >= min_popularity:
                     filtered_data[lane][name] = details
 
@@ -1575,6 +1773,8 @@ class ChampionScraperApp:
         filtered_data = {lane: {} for lane in LANES}
         for lane, champions in self.synergy_data.items():
             for name, details in champions.items():
+                if self.is_champion_ignored(name):
+                    continue
                 if self.parse_float(details.get("pick_rate")) >= min_pick_rate:
                     filtered_data[lane][name] = details
 
@@ -1641,12 +1841,16 @@ class ChampionScraperApp:
             stem = path.stem
             if stem.endswith("_bottom"):
                 stem = stem[:-7]
+            if self.is_champion_ignored(stem):
+                continue
             adc_name = self.format_display_name(stem)
 
             support_entries = payload.get("synergy", {}).get("support", {})
             for entry in support_entries.values():
                 support_name = entry.get("Name") or entry.get("name")
                 if not support_name:
+                    continue
+                if self.is_champion_ignored(support_name):
                     continue
                 win_rate = self.parse_float(str(entry.get("win_rate", "")).replace("%", ""))
                 pick_rate = self.parse_float(str(entry.get("pick_rate", "")).replace("%", ""))
@@ -1799,6 +2003,41 @@ class ChampionScraperApp:
         sanitized["pick_rate"] = f"{self.parse_float(entry.get('pick_rate')):.2f}"
         sanitized["win_rate"] = f"{self.parse_float(entry.get('win_rate')):.2f}"
         return sanitized
+
+    def _initialize_ignored_champions(self) -> set[str]:
+        stored_names = load_ignored_champion_names()
+        normalized = set()
+        for name in stored_names:
+            lowered = name.lower().strip()
+            if not lowered:
+                continue
+            canonical = self.canonical_lookup.get(lowered, name)
+            normalized.add(canonical.lower())
+        return normalized
+
+    def _apply_ignore_filter(self, dataset):
+        if not dataset or not self.ignored_champions:
+            return
+        for lane, champions in dataset.items():
+            if not isinstance(champions, dict):
+                continue
+            for champ_name in list(champions.keys()):
+                if self.is_champion_ignored(champ_name):
+                    champions.pop(champ_name, None)
+
+    def is_champion_ignored(self, name: str) -> bool:
+        if not name or not self.ignored_champions:
+            return False
+        lowered = str(name).strip().lower()
+        if lowered in self.ignored_champions:
+            return True
+        canonical = self.canonical_lookup.get(lowered)
+        if canonical and canonical.lower() in self.ignored_champions:
+            return True
+        resolved = self.resolve_champion_name(name)
+        if resolved and resolved.lower() in self.ignored_champions:
+            return True
+        return False
 
     @staticmethod
     def parse_int(value):

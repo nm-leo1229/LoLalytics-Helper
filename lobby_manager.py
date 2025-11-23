@@ -1162,7 +1162,7 @@ class ChampionScraperApp:
             slot["autocomplete"] = AutocompletePopup(
                 entry,
                 self.get_autocomplete_candidates,
-                on_select=lambda _value, s=slot: self.perform_banpick_search(s, auto_trigger=True)
+                on_select=lambda _value, s=slot: self.perform_banpick_search(s, auto_trigger=False)
             )
 
             self._update_slot_lane_cache(slot)
@@ -1489,9 +1489,12 @@ class ChampionScraperApp:
         synergy_dataset = None
         counter_dataset = None
         
-        # Determine best lane based on games count
-        best_lane = self._find_best_lane_by_counters(full_name)
-        target_lane = best_lane if best_lane else lane
+        # Determine best lane based on games count (only for auto-trigger)
+        target_lane = lane
+        if auto_trigger:
+            best_lane = self._find_best_lane_by_counters(full_name)
+            if best_lane:
+                target_lane = best_lane
 
         # Load datasets and capture the actual lane found
         synergy_dataset, synergy_lane, _ = self._load_lane_dataset(

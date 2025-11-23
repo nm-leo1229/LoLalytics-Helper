@@ -405,11 +405,6 @@ else:
                     continue
                 try:
                     session = response.json()
-                    # 디버깅: 세션 응답 확인
-                    print(f"[DEBUG] Fetched session from {endpoint}")
-                    print(f"[DEBUG] Session Phase: {session.get('phase')}")
-                    print(f"[DEBUG] Actions Count: {len(session.get('actions', []))}")
-                    print(f"[DEBUG] MyTeam Count: {len(session.get('myTeam', []))}")
                     
                     if session.get("phase") or session.get("myTeam") or session.get("theirTeam"):
                         return session
@@ -1024,16 +1019,11 @@ class ChampionScraperApp:
         if slot_canonical and normalized and slot_canonical.lower() == normalized:
             slot["client_last_champion"] = normalized
             return False
-            
-        # 디버깅: 슬롯에 챔피언 입력 시도
-        print(f"[DEBUG] Populating slot {slot.get('side')}:{slot.get('index')} with '{display}' (Canonical: {canonical})")
-        
         widget = slot.get("entry")
         if widget:
             widget.delete(0, tk.END)
             widget.insert(0, display)
         success = self.perform_banpick_search(slot, auto_trigger=True)
-        print(f"[DEBUG] perform_banpick_search result: {success}")
         if success:
             slot["client_last_champion"] = normalized or (canonical.lower() if isinstance(canonical, str) else canonical)
         return success
@@ -1338,16 +1328,12 @@ class ChampionScraperApp:
         if slot_canonical and normalized and slot_canonical.lower() == normalized:
             slot["client_last_champion"] = normalized
             return False
-            
-        # 디버깅: 슬롯에 챔피언 입력 시도
-        print(f"[DEBUG] Populating slot {slot.get('side')}:{slot.get('index')} with '{display}' (Canonical: {canonical})")
         
         widget = slot.get("entry")
         if widget:
             widget.delete(0, tk.END)
             widget.insert(0, display)
         success = self.perform_banpick_search(slot, auto_trigger=True)
-        print(f"[DEBUG] perform_banpick_search result: {success}")
         if success:
             slot["client_last_champion"] = normalized or (canonical.lower() if isinstance(canonical, str) else canonical)
         return success
@@ -1706,10 +1692,8 @@ class ChampionScraperApp:
 
         # Counter contributions from opposing side
         opponent_side = "enemies" if side_key == "allies" else "allies"
-        print(f"[DEBUG] Calculating counters from {opponent_side}")
         for enemy in self.banpick_slots.get(opponent_side, []):
             is_excluded = enemy.get("exclude_var") and enemy["exclude_var"].get()
-            print(f"[DEBUG] Enemy Slot {enemy.get('index')} ({enemy.get('display_name')}): Excluded={is_excluded}")
             if is_excluded:
                 continue
             dataset = enemy.get("counter_dataset")

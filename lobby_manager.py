@@ -4,58 +4,53 @@ import json
 import os
 import re
 import sys
+import subprocess
 from pathlib import Path
 from collections import defaultdict
+from op_duos_tab import OpDuosTab
+from ignore_tab import IgnoreTab
+from counter_synergy_tab import CounterSynergyTab
+from common import (
+    resolve_resource_path,
+    AutocompletePopup,
+    LANES,
+    COUNTER_LOW_GAMES_DEFAULT,
+    SYNERGY_LOW_GAMES_DEFAULT,
+    LOW_SAMPLE_COLOR,
+    NORMAL_SAMPLE_COLOR,
+    WARNING_ICON
+)
 
-LANES = ['top', 'jungle', 'middle', 'bottom', 'support']
-
-
-def resolve_resource_path(*path_parts: str) -> str:
-    relative_path = os.path.join(*path_parts)
-    candidates = []
-
-    if getattr(sys, 'frozen', False):
-        executable_dir = os.path.dirname(sys.executable)
-        candidates.append(os.path.join(executable_dir, relative_path))
-
-        mei_dir = getattr(sys, '_MEIPASS', None)
-        if mei_dir:
-            candidates.append(os.path.join(mei_dir, relative_path))
-
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    candidates.append(os.path.join(script_dir, relative_path))
-    candidates.append(os.path.abspath(relative_path))
-
-    seen = set()
-    for candidate in candidates:
-        if candidate in seen:
-            continue
-        seen.add(candidate)
-        if os.path.exists(candidate):
-            return candidate
-
-    return candidates[0]
-
+try:
+    import requests
+    import urllib3
+    import threading
+    import time
+except ImportError:  # requests는 선택적 의존성
+    requests = None
+    urllib3 = None
+    threading = None
+    time = None
 
 ALIAS_FILE = resolve_resource_path("champion_aliases.json")
 IGNORED_CHAMPIONS_FILE = resolve_resource_path("ignored_champions.json")
 DATA_DIR = Path(resolve_resource_path("data"))
-HIGHLIGHT_WIN_RATE = 54.0
-HIGHLIGHT_PICK_RATE = 2.0
-HIGHLIGHT_MIN_GAMES = 900
-HIGHLIGHT_LIMIT = 50
-COUNTER_LOW_GAMES_DEFAULT = 1500
-SYNERGY_LOW_GAMES_DEFAULT = 1500
-LOW_SAMPLE_COLOR = "#888888"
-NORMAL_SAMPLE_COLOR = "#111111"
-WARNING_ICON = "⚠"
+
+RECOMMEND_LOW_SAMPLE_TAG = "데이터 부족"
+RECOMMEND_HIGH_SAMPLE_TAG = "신뢰도 높음"
+RECOMMEND_FULL_COUNTER_TAG = "올카운터"
+RECOMMEND_OP_SYNERGY_TAG = "OP 시너지"
+RECOMMEND_PRE_PICK_TAG = "선픽 카드"
 BANPICK_DEFAULT_LANES = ['jungle', 'bottom', 'support', 'middle', 'top']
 BANPICK_MIN_GAMES_DEFAULT = 900
 BANPICK_PICK_RATE_OVERRIDE = 1.5
+BANPICK_HIGH_SAMPLE_THRESHOLD = 3000
+BANPICK_PRE_PICK_POPULARITY_THRESHOLD = 1.5
+SYNERGY_OP_THRESHOLD = 55.0
 LANE_WEIGHT_DEEP = 1.0
 LANE_WEIGHT_LOW_DEEP = 0.7
 LANE_WEIGHT_SHALLOW = 0.5
-LANE_WEIGHT_DEFAULT = 0.3
+LANE_WEIGHT_DEFAULT = 0.35
 SYNERGY_WEIGHT_PENALTY = -0.3
 LANE_WEIGHT_MAP = {
     'bottom': {
@@ -200,208 +195,532 @@ def save_ignored_champion_names(names: list[str]) -> None:
         print(f"[WARN] Failed to persist ignored champions: {error}")
 
 
-class AutocompletePopup:
-    def __init__(self, entry_widget, values_provider, on_select=None, max_results=8):
-        self.entry = entry_widget
-        self.values_provider = values_provider
-        self.on_select = on_select
-        self.max_results = max_results
-        self.popup = None
-        self.listbox = None
-        self.hide_job = None
+LOCKFILE_ENV = "LOL_LOCKFILE"
 
-        self.entry.bind("<KeyRelease>", self._on_key_release, add="+")
-        self.entry.bind("<Down>", self._on_entry_down, add="+")
-        self.entry.bind("<Up>", self._on_entry_up, add="+")
-        self.entry.bind("<Return>", self._on_entry_return, add="+")
-        self.entry.bind("<FocusOut>", self._on_focus_out, add="+")
-        self.entry.bind("<Destroy>", self._on_destroy, add="+")
-        self.entry.bind("<Escape>", self._on_escape, add="+")
 
-    def _on_key_release(self, event):
-        if event.keysym in {"Return", "Escape", "Up", "Down"}:
-            return
-        self.show_suggestions()
-
-    def _on_focus_out(self, _event):
-        self.entry.after(150, self.hide_popup)
-
-    def _on_destroy(self, _event):
-        self.hide_popup()
-
-    def _on_escape(self, _event):
-        self.hide_popup()
-
-    def _on_entry_down(self, _event):
-        if not self._is_popup_visible():
-            self.show_suggestions()
-        if not self._is_popup_visible():
-            return
-        self._move_selection(1)
-        return "break"
-
-    def _on_entry_up(self, _event):
-        if not self._is_popup_visible():
-            self.show_suggestions()
-        if not self._is_popup_visible():
-            return
-        self._move_selection(-1)
-        return "break"
-
-    def _on_entry_return(self, _event):
-        if self._is_popup_visible():
-            if self._apply_selection():
-                return "break"
-            return
-        if self._apply_single_match():
-            return "break"
-
-    def show_suggestions(self):
-        query = self.entry.get().strip()
-        if not query:
-            self.hide_popup()
-            return
-
-        matches = self._filter_matches(query)
-        if not matches:
-            self.hide_popup()
-            return
-
-        self._ensure_popup()
-        self._update_listbox(matches)
-        self._place_popup()
-
-    def _filter_matches(self, query):
-        lowered = query.lower()
-        prefix_matches = []
-        word_matches = []
-        substring_matches = []
-
-        def add_unique(bucket, value):
-            if value not in bucket:
-                bucket.append(value)
-
-        for value in self.values_provider():
-            candidate = value.lower()
-            if candidate.startswith(lowered):
-                add_unique(prefix_matches, value)
-                continue
-
-            words = re.split(r"[\s\-/]+", candidate)
-            if any(word.startswith(lowered) for word in words if word):
-                add_unique(word_matches, value)
-                continue
-
-            if len(lowered) >= 2 and lowered in candidate:
-                add_unique(substring_matches, value)
-
-            if len(prefix_matches) + len(word_matches) >= self.max_results:
-                break
-
-        combined = prefix_matches + word_matches
-        if len(combined) < self.max_results:
-            combined.extend(substring_matches)
-        return combined[:self.max_results]
-
-    def _ensure_popup(self):
-        if self.popup and self.popup.winfo_exists():
-            return
-
-        self.popup = tk.Toplevel(self.entry)
-        self.popup.wm_overrideredirect(True)
-        self.popup.attributes("-topmost", True)
-
-        self.listbox = tk.Listbox(self.popup, selectmode=tk.SINGLE)
-        self.listbox.pack(fill="both", expand=True)
-        self.listbox.bind("<ButtonRelease-1>", self._on_listbox_click)
-        self.listbox.bind("<Return>", self._on_listbox_return)
-        self.listbox.bind("<Escape>", lambda _: self.hide_popup())
-
-    def _update_listbox(self, matches):
-        self.listbox.delete(0, tk.END)
-        for match in matches:
-            self.listbox.insert(tk.END, match)
-        self.listbox.select_set(0)
-        self.listbox.activate(0)
-
-    def _place_popup(self):
-        if not self.popup:
-            return
-        self.popup.update_idletasks()
-        x = self.entry.winfo_rootx()
-        y = self.entry.winfo_rooty() + self.entry.winfo_height()
-        width = self.entry.winfo_width()
-        height = min(self.listbox.size(), self.max_results) * 24 or 24
-        self.popup.geometry(f"{width}x{height}+{x}+{y}")
-        self.popup.deiconify()
-
-    def _on_listbox_click(self, _event):
-        self._apply_selection()
-
-    def _on_listbox_return(self, _event):
-        self._apply_selection()
-        return "break"
-
-    def _apply_selection(self):
-        if not self.listbox:
-            return False
-        selection = self.listbox.curselection()
-        if not selection:
-            return False
-        value = self.listbox.get(selection[0])
-        return self._apply_value(value)
-
-    def _apply_value(self, value):
-        if not value:
-            return False
-        self.entry.delete(0, tk.END)
-        self.entry.insert(0, value)
-        self.entry.icursor(tk.END)
-        self.entry.focus_set()
-        self.hide_popup()
-        if self.on_select:
-            self.on_select(value)
-        return True
-
-    def _apply_single_match(self):
-        query = self.entry.get().strip()
-        if not query:
-            return False
-        unique = self.get_unique_match(query)
-        if not unique:
-            return False
-        return self._apply_value(unique)
-
-    def get_unique_match(self, query):
-        if not query:
-            return None
-        matches = self._filter_matches(query)
-        if len(matches) == 1:
-            return matches[0]
+def find_lockfile_from_process() -> str | None:
+    if sys.platform != "win32":
         return None
+    try:
+        # wmic를 사용하여 실행 중인 LeagueClientUx.exe 경로 탐색
+        cmd = 'wmic process where "name=\'LeagueClientUx.exe\'" get ExecutablePath'
+        # 윈도우 창 팝업 방지
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        output = subprocess.check_output(
+            cmd,
+            shell=True,
+            startupinfo=startupinfo,
+            stderr=subprocess.DEVNULL
+        ).decode("utf-8", errors="ignore")
+        
+        for line in output.splitlines():
+            line = line.strip()
+            if line.lower().endswith("leagueclientux.exe"):
+                install_dir = os.path.dirname(line)
+                candidate = os.path.join(install_dir, "lockfile")
+                if os.path.exists(candidate):
+                    return candidate
+    except Exception:
+        return None
+    return None
 
-    def _move_selection(self, offset):
-        if not self.listbox:
-            return
-        size = self.listbox.size()
-        if size == 0:
-            return
-        selection = self.listbox.curselection()
-        index = selection[0] if selection else -1
-        index = (index + offset) % size
-        self.listbox.selection_clear(0, tk.END)
-        self.listbox.selection_set(index)
-        self.listbox.activate(index)
-        self.listbox.see(index)
 
-    def _is_popup_visible(self):
-        return bool(self.popup and self.popup.winfo_exists())
+def build_lockfile_candidates() -> list[str]:
+    candidates = []
+    
+    # 1순위: 환경변수
+    env_path = os.environ.get(LOCKFILE_ENV)
+    if env_path:
+        candidates.append(env_path)
 
-    def hide_popup(self):
-        if self.popup and self.popup.winfo_exists():
-            self.popup.destroy()
-        self.popup = None
-        self.listbox = None
+    # 2순위: 실행 중인 프로세스 기반 (가장 정확함)
+    process_path = find_lockfile_from_process()
+    if process_path:
+        candidates.append(process_path)
+
+    # 3순위: 윈도우 기본 설치 경로
+    windows_defaults = [
+        Path("C:/Riot Games/League of Legends/lockfile"),
+        Path("C:/Program Files/Riot Games/League of Legends/lockfile"),
+        Path("C:/Program Files (x86)/Riot Games/League of Legends/lockfile"),
+        Path("D:/Riot Games/League of Legends/lockfile")
+    ]
+    for default_path in windows_defaults:
+        candidates.append(str(default_path))
+
+    # 4순위: AppData 등 기타 경로 (Riot Client Config는 제외)
+    local_app = os.environ.get("LOCALAPPDATA")
+    program_data = os.environ.get("PROGRAMDATA")
+    home = Path.home()
+
+    riot_relative = [
+        ("Riot Games", "League of Legends", "lockfile"),
+        # ("Riot Games", "Riot Client", "Config", "lockfile")  <-- Riot Client 제외
+    ]
+
+    for base in filter(None, [local_app, program_data]):
+        for parts in riot_relative:
+            candidates.append(str(Path(base, *parts)))
+
+    # macOS / Linux 경로
+    candidates.append(str(home / "Library/Application Support/League of Legends/lockfile"))
+    candidates.append(str(home / ".local/share/League of Legends/lockfile"))
+
+    seen = []
+    unique_candidates = []
+    for path in candidates:
+        if not path:
+            continue
+        normalized = os.path.abspath(path)
+        if normalized in seen:
+            continue
+        seen.append(normalized)
+        unique_candidates.append(normalized)
+    return unique_candidates
+
+
+def locate_lockfile_path() -> str:
+    for path in build_lockfile_candidates():
+        if os.path.exists(path):
+            return path
+    raise FileNotFoundError("lockfile을 찾을 수 없습니다. LOL 클라이언트가 켜져 있는지 확인하세요.")
+
+
+def read_lockfile_metadata(lockfile_path: str) -> dict:
+    try:
+        with open(lockfile_path, "r", encoding="utf-8") as handle:
+            contents = handle.read().strip()
+    except OSError as exc:
+        raise RuntimeError(f"lockfile을 열 수 없습니다: {exc}") from exc
+    parts = contents.split(":")
+    if len(parts) < 5:
+        raise ValueError(f"lockfile 형식이 올바르지 않습니다: {contents}")
+    name, pid, port, password, protocol = parts[:5]
+    return {
+        "name": name,
+        "pid": pid,
+        "port": port,
+        "password": password,
+        "protocol": protocol
+    }
+
+
+class LeagueClientError(Exception):
+    def __init__(self, message: str, temporary: bool = False):
+        super().__init__(message)
+        self.temporary = temporary
+
+
+if requests is None:  # pragma: no cover - optional dependency
+    class LeagueClientWatcher:
+        def __init__(self, *_args, **_kwargs):
+            raise RuntimeError("requests 패키지가 설치되어 있지 않아 LCU 연동 기능을 사용할 수 없습니다.")
+else:
+    class LeagueClientWatcher:
+        LOCKFILE_ENV = "LOL_LOCKFILE"
+        ALIAS_REFRESH_INTERVAL = 60.0
+        DEFAULT_INTERVAL = 2.0
+
+        def __init__(self, poll_interval: float = DEFAULT_INTERVAL):
+            self.poll_interval = poll_interval
+            self._callback = None
+            self._status_callback = None
+            self._thread = None
+            self._stop_event = threading.Event()
+            self._lockfile_path = None
+            self._lockfile_mtime = None
+            self._base_url = None
+            self._auth = None
+            self._champion_cache: dict[int, str] = {}
+            self._last_signature = None
+            self._last_status = ""
+            self._alias_refreshed = 0.0
+            if urllib3 is not None:
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+        def start(self, callback, status_callback=None):
+            self._callback = callback
+            self._status_callback = status_callback
+            if self._thread and self._thread.is_alive():
+                return
+            self._last_signature = None
+            self._last_status = ""
+            self._stop_event.clear()
+            self._thread = threading.Thread(target=self._poll_loop, daemon=True)
+            self._thread.start()
+
+        def stop(self):
+            if self._thread and self._thread.is_alive():
+                self._stop_event.set()
+                self._thread.join(timeout=1.0)
+            self._thread = None
+
+        def is_running(self):
+            return bool(self._thread and self._thread.is_alive())
+
+        def fetch_snapshot(self):
+            try:
+                session = self._fetch_session()
+            except LeagueClientError as exc:
+                return None, str(exc)
+            snapshot = self._session_to_snapshot(session)
+            # phase가 있거나 myTeam/theirTeam 데이터가 있으면 유효한 스냅샷으로 간주
+            if snapshot.get("phase") or snapshot.get("allies") or snapshot.get("enemies"):
+                return snapshot, "픽 정보를 불러왔습니다."
+            return None, "픽 정보를 감지하지 못했습니다."
+
+        def resolve_champion_id(self, champion_id: int) -> str | None:
+            return self._resolve_alias(champion_id)
+
+        def _poll_loop(self):
+            while not self._stop_event.is_set():
+                snapshot, message = self.fetch_snapshot()
+                if snapshot:
+                    signature = (
+                        tuple(entry["championId"] for entry in snapshot.get("allies", [])),
+                        tuple(entry["championId"] for entry in snapshot.get("enemies", []))
+                    )
+                    if signature != self._last_signature:
+                        self._last_signature = signature
+                        if self._callback:
+                            self._callback(snapshot, message)
+                elif message and message != self._last_status:
+                    self._last_status = message
+                    if self._status_callback:
+                        self._status_callback(message)
+                self._stop_event.wait(self.poll_interval)
+
+        def _fetch_session(self):
+            self._ensure_connection()
+            
+            endpoints = [
+                "/lol-champ-select/v1/session",
+                "/lol-champ-select-legacy/v1/session"
+            ]
+            
+            for endpoint in endpoints:
+                response = self._perform_lcu_get(endpoint, timeout=2.5, allow_404=True)
+                if response is None:
+                    continue
+                try:
+                    session = response.json()
+                    # 디버깅: 세션 응답 확인
+                    print(f"[DEBUG] Fetched session from {endpoint}")
+                    print(f"[DEBUG] Session Phase: {session.get('phase')}")
+                    print(f"[DEBUG] Actions Count: {len(session.get('actions', []))}")
+                    print(f"[DEBUG] MyTeam Count: {len(session.get('myTeam', []))}")
+                    
+                    if session.get("phase") or session.get("myTeam") or session.get("theirTeam"):
+                        return session
+                except ValueError:
+                    pass
+            
+            raise LeagueClientError("현재 픽창 단계가 아닙니다.", temporary=True)
+
+        def _fetch_session_from_endpoint(self, path):
+            # This method is deprecated and replaced by loop in _fetch_session, keeping it if needed or can be removed
+            try:
+                response = self._perform_lcu_get(path, timeout=2.5, allow_404=True)
+            except LeagueClientError:
+                raise
+            if response is None:
+                return None
+            try:
+                return response.json()
+            except ValueError:
+                return None
+
+        def _ensure_connection(self):
+            lockfile = self._find_lockfile()
+            if not lockfile:
+                raise LeagueClientError("League Client lockfile을 찾을 수 없습니다.")
+            try:
+                mtime = os.path.getmtime(lockfile)
+            except OSError as exc:
+                raise LeagueClientError(f"lockfile 정보를 읽을 수 없습니다: {exc}", temporary=True)
+            if self._lockfile_mtime == mtime and self._base_url and self._auth:
+                return
+            self._lockfile_mtime = mtime
+            try:
+                with open(lockfile, "r", encoding="utf-8") as handle:
+                    contents = handle.read().strip()
+            except OSError as exc:
+                raise LeagueClientError(f"lockfile 열기에 실패했습니다: {exc}", temporary=True)
+            parts = contents.split(":")
+            if len(parts) < 5:
+                raise LeagueClientError("lockfile 포맷이 올바르지 않습니다.", temporary=True)
+            _name, _pid, port, password, protocol = parts[:5]
+            self._base_url = f"{protocol}://127.0.0.1:{port}"
+            self._auth = ("riot", password)
+
+        def _find_lockfile(self):
+            if self._lockfile_path and os.path.exists(self._lockfile_path):
+                return self._lockfile_path
+            candidates = build_lockfile_candidates()
+            for path in candidates:
+                if os.path.exists(path):
+                    self._lockfile_path = path
+                    return path
+            return None
+
+        def _session_to_snapshot(self, session):
+            return {
+                "phase": session.get("phase"),
+                "timestamp": time.time(),
+                "allies": self._collect_team_entries(session, allies=True),
+                "enemies": self._collect_team_entries(session, allies=False),
+                "timer": session.get("timer")
+            }
+
+        def _collect_team_entries(self, session, allies: bool):
+            team_key = "myTeam" if allies else "theirTeam"
+            members = session.get(team_key, [])
+            actions = self._collect_pick_actions(session, allies)
+            local_player_cell_id = session.get("localPlayerCellId")
+            
+            cell_map = {}
+            for member in members:
+                cell_id = member.get("cellId")
+                if cell_id is None:
+                    continue
+                cell_map[cell_id] = {
+                    "cellId": cell_id,
+                    "championId": member.get("championId"),
+                    "completed": True,  # 이미 완료된 픽으로 가정하되 actions로 덮어씌움
+                    "pickTurn": 0,
+                    "isLocalPlayer": (cell_id == local_player_cell_id)
+                }
+            
+            for action in actions:
+                cell_id = action.get("actorCellId")
+                if cell_id is None:
+                    continue
+                
+                # 아직 맵에 없는 셀(상대의 경우)이면 생성
+                entry = cell_map.setdefault(cell_id, {
+                    "cellId": cell_id,
+                    "championId": 0,
+                    "completed": False,
+                    "pickTurn": 0,
+                    "isLocalPlayer": (cell_id == local_player_cell_id)
+                })
+                
+                # 액션의 챔피언 ID가 있으면 우선 사용 (실시간 픽)
+                action_champ_id = action.get("championId")
+                if action_champ_id:
+                    entry["championId"] = action_champ_id
+                
+                entry["completed"] = action.get("completed", entry.get("completed", False))
+                entry["pickTurn"] = action.get("pickTurn", entry.get("pickTurn", 0))
+            
+            results = []
+            for entry in cell_map.values():
+                champ_id = entry.get("championId")
+                if not champ_id:
+                    continue
+                entry = entry.copy()
+                entry["name"] = self._resolve_alias(champ_id)
+                results.append(entry)
+            results.sort(key=lambda item: (item.get("pickTurn", 0), item.get("cellId", 0)))
+            return results
+
+        def _collect_pick_actions(self, session, allies: bool):
+            collected = []
+            actions_struct = session.get("actions", [])
+            # actions는 [[action1, action2], [action3]] 형태일 수 있음
+            if not isinstance(actions_struct, list):
+                return collected
+                
+            for action_group in actions_struct:
+                if not isinstance(action_group, list):
+                    continue
+                for action in action_group:
+                    if action.get("type") != "pick":
+                        continue
+                    is_ally_action = action.get("isAllyAction")
+                    # 본인/아군 여부 필터링
+                    if is_ally_action is not None and is_ally_action != allies:
+                        continue
+                        
+                    champion_id = action.get("championId")
+                    if not champion_id:
+                        continue
+                    collected.append(action)
+            return collected
+
+        def _resolve_alias(self, champion_id: int):
+            alias = self._champion_cache.get(champion_id)
+            now = time.time()
+            if not alias and (now - self._alias_refreshed) > self.ALIAS_REFRESH_INTERVAL:
+                self._refresh_champion_aliases()
+                alias = self._champion_cache.get(champion_id)
+            return alias or str(champion_id)
+
+        def _refresh_champion_aliases(self):
+            try:
+                self._ensure_connection()
+            except LeagueClientError:
+                return
+            payload = self._fetch_champion_grid_payload()
+            if not payload:
+                return
+            updated = False
+            for champion in payload:
+                champ_id = champion.get("id")
+                alias = champion.get("alias") or champion.get("name")
+                if champ_id and alias:
+                    self._champion_cache[int(champ_id)] = alias
+                    updated = True
+            if updated:
+                self._alias_refreshed = time.time()
+
+        def _fetch_champion_grid_payload(self):
+            endpoints = [
+                "/lol-champ-select/v1/all-grid-champions",
+                "/lol-champ-select-legacy/v1/all-grid-champions"
+            ]
+            for endpoint in endpoints:
+                try:
+                    response = self._perform_lcu_get(endpoint, timeout=3.0, allow_404=True)
+                except LeagueClientError:
+                    return None
+                if response is None:
+                    continue
+                try:
+                    return response.json()
+                except ValueError:
+                    continue
+            return None
+
+        def _perform_lcu_get(self, path, timeout=2.5, allow_404=False):
+            if not self._base_url or not self._auth:
+                raise LeagueClientError("LCU 연결 정보가 없습니다.", temporary=True)
+            url = f"{self._base_url}{path}"
+            try:
+                response = requests.get(url, auth=self._auth, timeout=timeout, verify=False)
+            except requests.RequestException as exc:
+                raise LeagueClientError(f"LCU 연결 실패: {exc}", temporary=True)
+            if response.status_code == 401:
+                self._lockfile_mtime = None
+                raise LeagueClientError("LCU 인증에 실패했습니다. 잠시 후 다시 시도하세요.", temporary=True)
+            if response.status_code == 404 and allow_404:
+                return None
+            response.raise_for_status()
+            return response
+def diagnose_lcu_connection():
+    if requests is None:
+        return False, "requests 패키지가 설치되어 있지 않아 LCU 연결을 점검할 수 없습니다.", {}
+    if urllib3 is not None:
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    report_lines = []
+    details = {}
+    try:
+        lockfile_path = locate_lockfile_path()
+        report_lines.append(f"lockfile 감지: {lockfile_path}")
+        details["lockfile"] = lockfile_path
+    except FileNotFoundError as exc:
+        return False, str(exc), details
+
+    try:
+        metadata = read_lockfile_metadata(lockfile_path)
+    except (RuntimeError, ValueError) as exc:
+        return False, str(exc), details
+
+    port = metadata["port"]
+    password = metadata["password"]
+    protocol = metadata["protocol"]
+    base_url = f"{protocol}://127.0.0.1:{port}"
+    details["base_url"] = base_url
+    auth = ("riot", password)
+    headers = {
+        "Accept": "application/json"
+    }
+    report_lines.append(f"LCU 포트 {port} 연결 정보 확보 (protocol={protocol}).")
+
+    try:
+        summoner_resp = requests.get(
+            f"{base_url}/lol-summoner/v1/current-summoner",
+            auth=auth,
+            headers=headers,
+            timeout=2.0,
+            verify=False
+        )
+        summoner_resp.raise_for_status()
+        summoner_data = summoner_resp.json()
+        display_name = None
+        if isinstance(summoner_data, dict):
+            display_name = (
+                summoner_data.get("displayName")
+                or summoner_data.get("gameName")
+                or summoner_data.get("internalName")
+            )
+        if display_name:
+            report_lines.append(f"소환사 인증 확인: {display_name}")
+            details["summoner"] = display_name
+        else:
+            report_lines.append("소환사 정보를 불러왔지만 이름을 확인하지 못했습니다.")
+    except requests.RequestException as exc:
+        report_lines.append(f"소환사 정보를 불러오지 못했습니다 (계속 진행): {exc}")
+    except ValueError:
+        report_lines.append("소환사 정보 JSON 파싱 실패.")
+
+    session_detected = False
+    for endpoint in ("/lol-champ-select/v1/session", "/lol-champ-select-legacy/v1/session"):
+        try:
+            session_resp = requests.get(
+                f"{base_url}{endpoint}",
+                auth=auth,
+                headers=headers,
+                timeout=1.5,
+                verify=False
+            )
+        except requests.RequestException as exc:
+            report_lines.append(f"{endpoint} 호출 실패: {exc}")
+            continue
+        if session_resp.status_code == 404:
+            report_lines.append(f"{endpoint}: 현재 픽창 단계가 아닙니다 (404).")
+            continue
+        try:
+            session_resp.raise_for_status()
+        except requests.RequestException as exc:
+            report_lines.append(f"{endpoint} 응답 오류: {exc}")
+            continue
+        try:
+            session_payload = session_resp.json()
+        except ValueError:
+            report_lines.append(f"{endpoint} JSON 파싱 실패.")
+            continue
+        phase = session_payload.get("phase")
+        # 커스텀 게임 등에서 phase가 없더라도 팀 정보가 있으면 유효 세션으로 간주
+        has_team_info = bool(session_payload.get("myTeam") or session_payload.get("theirTeam"))
+        
+        if not phase:
+            timer = session_payload.get("timer", {})
+            timer_phase = timer.get("phase")
+            if timer_phase:
+                phase = f"Timer:{timer_phase}"
+            elif has_team_info:
+                phase = "Custom/Active (Phase 없음)"
+            else:
+                # phase도 없고 팀 정보도 없으면 유효하지 않은 세션일 가능성 높음
+                report_lines.append(f"{endpoint}: 세션 데이터가 비어있거나 유효하지 않습니다.")
+                continue
+        
+        report_lines.append(f"픽창 세션 감지 ({phase}) via {endpoint}")
+        details["phase"] = phase
+        session_detected = True
+        break
+
+    if not session_detected:
+        report_lines.append("현재 픽창 단계가 아니므로 자동 챔피언 입력은 대기 중입니다.")
+    else:
+        # 세션이 감지되었지만 phase가 없는 경우(커스텀 등), 챔피언 정보도 확인
+        if details.get("phase") == "Custom/Active (Phase 없음)":
+            report_lines.append("참고: 커스텀 게임은 픽창 단계 정보(Phase)가 없을 수 있습니다.")
+
+    return True, "\n".join(report_lines), details
 
 
 class ChampionScraperApp:
@@ -412,19 +731,15 @@ class ChampionScraperApp:
         self.root.grid_columnconfigure(0, weight=1)
         self.notebook = ttk.Notebook(root)
         self.notebook.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        
         self.dashboard_tab = tk.Frame(self.notebook)
         self.notebook.add(self.dashboard_tab, text="Champion Picker")
-        self.main_tab = tk.Frame(self.notebook)
-        self.main_tab.grid_rowconfigure(6, weight=1)
-        self.main_tab.grid_columnconfigure(5, weight=1)
-        tk.Button(
-            self.main_tab,
-            text="Reset Main",
-            command=self.reset_main_tab
-        ).grid(row=0, column=3, sticky="e", padx=5, pady=5)
-        self.notebook.add(self.main_tab, text="Counter & Synergy")
-        self.all_data = {lane: {} for lane in LANES}
-        self.synergy_data = {lane: {} for lane in LANES}
+        
+        # Tabs will be initialized later in build order or explicitly
+        self.counter_synergy_tab = None
+        self.op_duos_tab = None
+        self.ignore_tab = None
+
         (
             self.canonical_lookup,
             self.alias_lookup,
@@ -432,258 +747,71 @@ class ChampionScraperApp:
             self.autocomplete_candidates
         ) = load_alias_tables()
         self.ignored_champions = self._initialize_ignored_champions()
-        self.ignore_listbox_map = {}
-        self.counter_cache = {}
-        self.synergy_cache = {}
-        self.counter_listbox_map = {}
-        self.synergy_listbox_map = {}
-        self.synergy_highlights = []
-        self.counter_typing_after_id = None
-        self.synergy_typing_after_id = None
+        self.recommend_counter_cache = {}
+        
         self._lane_swap_guard = False
+        self.client_watcher = None
+        self.client_sync_supported = True
+        self.client_sync_error = None
+        self.last_client_snapshot = None
+        try:
+            self.client_watcher = LeagueClientWatcher()
+        except RuntimeError as exc:
+            self.client_sync_supported = False
+            self.client_sync_error = str(exc)
 
-        # Counter controls
-        self.counter_section = tk.LabelFrame(self.main_tab, text="Counter")
-        self.counter_section.grid(row=1, column=0, columnspan=4, sticky="ew", padx=5, pady=(10, 0))
-        self.counter_section.grid_columnconfigure(0, weight=1)
-        self.counter_section.grid_columnconfigure(1, weight=1)
-        self.counter_section.grid_columnconfigure(2, weight=0)
-        self.counter_section.grid_columnconfigure(3, weight=0)
+        initial_lcu_status = "연결 상태 미확인"
+        if requests is None:
+            initial_lcu_status = "requests 미설치로 LCU 점검 불가"
+        self.lcu_status_var = tk.StringVar(value=initial_lcu_status)
+        self.client_sync_var = tk.BooleanVar(value=False)
 
-        self.name_entry = tk.Entry(self.counter_section, width=20)
-        self.name_entry.grid(row=0, column=0, sticky="ew")
-        self.name_entry.bind("<KeyRelease>", self.on_counter_input_changed)
-
-        self.lane_combobox = ttk.Combobox(self.counter_section, values=LANES, state="readonly", width=10)
-        self.lane_combobox.grid(row=0, column=1, sticky="ew")
-        self.lane_combobox.set("Select Lane")
-        self.lane_combobox.bind("<<ComboboxSelected>>", self.on_counter_lane_selected)
-
-        self.search_button = tk.Button(self.counter_section, text="Load Counter", command=self.start_search)
-        self.search_button.grid(row=0, column=2, sticky="ew")
-        self.root.bind('<Return>', lambda _: self.start_search())
-
-        self.counter_auto_load_var = tk.BooleanVar(value=True)
-        self.counter_auto_check = tk.Checkbutton(
-            self.counter_section,
-            text="Auto Load",
-            variable=self.counter_auto_load_var,
-            command=self.on_counter_auto_toggle
-        )
-        self.counter_auto_check.grid(row=0, column=3, sticky="w", padx=(5, 0))
-        self.counter_autocomplete = AutocompletePopup(
-            self.name_entry,
-            self.get_autocomplete_candidates,
-            on_select=lambda _value: self.on_autocomplete_selection("counter")
-        )
-
-        tk.Label(self.counter_section, text="Loaded Counters:").grid(row=1, column=0, columnspan=2, sticky="wn")
-        self.champion_listbox = tk.Listbox(self.counter_section, height=7)
-        self.champion_listbox.grid(row=1, column=0, columnspan=2, sticky="wn", pady=25)
-        self.champion_listbox.bind("<<ListboxSelect>>", self.on_counter_select)
-
-        tk.Label(self.counter_section, text="Filter Data by Popularity:").grid(row=1, column=1, columnspan=2, sticky="wn")
-        self.popularity_entry = tk.Entry(self.counter_section, width=17)
-        self.popularity_entry.grid(row=1, column=1, columnspan=2, sticky="wn", pady=26)
-        self.popularity_entry.insert(0, "1")
-
-        self.filter_button = tk.Button(self.counter_section, text="Filter", command=self.filter_by_popularity)
-        self.filter_button.grid(row=1, column=1, columnspan=2, sticky="ne", pady=25)
-
-        self.counter_reliability_frame = tk.LabelFrame(self.counter_section, text="데이터 신뢰도")
-        self.counter_reliability_frame.grid(row=2, column=0, columnspan=4, sticky="ew", padx=5, pady=(0, 5))
-        tk.Label(self.counter_reliability_frame, text="최소 게임 수").grid(row=0, column=0, sticky="w")
-        self.counter_min_games_entry = tk.Entry(self.counter_reliability_frame, width=10)
-        self.counter_min_games_entry.grid(row=0, column=1, padx=(5, 10), sticky="w")
-        self.counter_min_games_entry.insert(0, str(COUNTER_LOW_GAMES_DEFAULT))
-        self.counter_min_games_entry.bind("<KeyRelease>", self.on_counter_threshold_change)
-        self.counter_min_games_entry.bind("<FocusOut>", self.on_counter_threshold_change)
-        tk.Label(
-            self.counter_reliability_frame,
-            text=f"{WARNING_ICON} 회색 = 데이터 부족"
-        ).grid(row=0, column=2, sticky="w")
-
-        self.lane_filter_frame = tk.LabelFrame(self.counter_section, text="Lane Filters")
-        self.lane_filter_frame.grid(row=3, column=0, columnspan=4, sticky="ew", padx=5, pady=(0, 10))
-
-        self.lane_vars = {}
-        for idx, lane in enumerate(LANES):
-            var = tk.BooleanVar(value=True)
-            self.lane_vars[lane] = var
-            checkbox = tk.Checkbutton(
-                self.lane_filter_frame,
-                text=lane.capitalize(),
-                variable=var,
-                command=self.update_lane_visibility
-            )
-            checkbox.grid(row=0, column=idx, padx=4, sticky="w")
-
-        style = ttk.Style()
-        style.configure('Treeview', rowheight=15)
-
-        # Create Treeview for each lane
-        self.treeviews = {}
-        self.lane_frames = {}
-        for lane in LANES:
-            frame = tk.Frame(self.main_tab)
-            tk.Label(frame, text=f"{lane.capitalize()} Counter:").pack(anchor="w")
-            tree = ttk.Treeview(frame, columns=("Name", "Popularity", "Win Rate"), show='headings')
-            tree.pack(expand=True, fill='both')
-            tree.heading("Name", text="Name")
-            tree.heading("Popularity", text="Popularity")
-            tree.heading("Win Rate", text="Win Rate")
-            tree.tag_configure("low_games", foreground=LOW_SAMPLE_COLOR)
-            tree.tag_configure("normal_games", foreground=NORMAL_SAMPLE_COLOR)
-            self.treeviews[lane] = tree
-            self.lane_frames[lane] = frame
-
-        self.update_lane_visibility()
-
-        # Synergy controls
-        self.synergy_section = tk.LabelFrame(self.main_tab, text="Ally Synergy")
-        self.synergy_section.grid(row=3, column=0, columnspan=4, sticky="ew", padx=5, pady=(10, 0))
-        self.synergy_section.grid_columnconfigure(0, weight=1)
-        self.synergy_section.grid_columnconfigure(1, weight=1)
-        self.synergy_section.grid_columnconfigure(2, weight=0)
-        self.synergy_section.grid_columnconfigure(3, weight=0)
-
-        self.ally_name_entry = tk.Entry(self.synergy_section, width=20)
-        self.ally_name_entry.grid(row=0, column=0, sticky="ew")
-        self.ally_name_entry.bind("<KeyRelease>", self.on_synergy_input_changed)
-
-        self.ally_lane_combobox = ttk.Combobox(self.synergy_section, values=LANES, state="readonly", width=10)
-        self.ally_lane_combobox.grid(row=0, column=1, sticky="ew")
-        self.ally_lane_combobox.set("Select Lane")
-        self.ally_lane_combobox.bind("<<ComboboxSelected>>", self.on_synergy_lane_selected)
-
-        self.ally_search_button = tk.Button(self.synergy_section, text="Load Synergy", command=self.start_synergy_search)
-        self.ally_search_button.grid(row=0, column=2, sticky="ew", padx=(5, 0))
-
-        self.synergy_auto_load_var = tk.BooleanVar(value=True)
-        self.synergy_auto_check = tk.Checkbutton(
-            self.synergy_section,
-            text="Auto Load",
-            variable=self.synergy_auto_load_var,
-            command=self.on_synergy_auto_toggle
-        )
-        self.synergy_auto_check.grid(row=0, column=3, sticky="w")
-        self.synergy_autocomplete = AutocompletePopup(
-            self.ally_name_entry,
-            self.get_autocomplete_candidates,
-            on_select=lambda _value: self.on_autocomplete_selection("synergy")
-        )
-
-        tk.Label(self.synergy_section, text="Loaded Synergy:").grid(row=1, column=0, columnspan=2, sticky="wn", pady=5)
-        self.synergy_listbox = tk.Listbox(self.synergy_section, height=7)
-        self.synergy_listbox.grid(row=1, column=0, columnspan=2, sticky="wn", pady=25)
-        self.synergy_listbox.bind("<<ListboxSelect>>", self.on_synergy_select)
-
-        tk.Label(self.synergy_section, text="Filter Synergy by Pick Rate:").grid(row=1, column=1, columnspan=2, sticky="wn")
-        self.synergy_pick_rate_entry = tk.Entry(self.synergy_section, width=17)
-        self.synergy_pick_rate_entry.grid(row=1, column=1, columnspan=2, sticky="wn", pady=26)
-        self.synergy_pick_rate_entry.insert(0, "2")
-
-        self.synergy_filter_button = tk.Button(self.synergy_section, text="Filter", command=self.filter_synergy)
-        self.synergy_filter_button.grid(row=1, column=1, columnspan=2, sticky="ne", pady=25)
-
-        self.synergy_reliability_frame = tk.LabelFrame(self.synergy_section, text="데이터 신뢰도")
-        self.synergy_reliability_frame.grid(row=2, column=0, columnspan=4, sticky="ew", padx=5, pady=(0, 5))
-        tk.Label(self.synergy_reliability_frame, text="최소 게임 수").grid(row=0, column=0, sticky="w")
-        self.synergy_min_games_entry = tk.Entry(self.synergy_reliability_frame, width=10)
-        self.synergy_min_games_entry.grid(row=0, column=1, padx=(5, 10), sticky="w")
-        self.synergy_min_games_entry.insert(0, str(SYNERGY_LOW_GAMES_DEFAULT))
-        self.synergy_min_games_entry.bind("<KeyRelease>", self.on_synergy_threshold_change)
-        self.synergy_min_games_entry.bind("<FocusOut>", self.on_synergy_threshold_change)
-        tk.Label(
-            self.synergy_reliability_frame,
-            text=f"{WARNING_ICON} 회색 = 데이터 부족"
-        ).grid(row=0, column=2, sticky="w")
-
-        self.synergy_lane_filter_frame = tk.LabelFrame(self.synergy_section, text="Synergy Lanes")
-        self.synergy_lane_filter_frame.grid(row=3, column=0, columnspan=4, sticky="ew", padx=5, pady=(0, 10))
-
-        self.synergy_lane_vars = {}
-        for idx, lane in enumerate(LANES):
-            var = tk.BooleanVar(value=True)
-            self.synergy_lane_vars[lane] = var
-            checkbox = tk.Checkbutton(
-                self.synergy_lane_filter_frame,
-                text=lane.capitalize(),
-                variable=var,
-                command=self.update_synergy_visibility
-            )
-            checkbox.grid(row=0, column=idx, padx=4, sticky="w")
-
-        self.synergy_treeviews = {}
-        self.synergy_frames = {}
-        for lane in LANES:
-            frame = tk.Frame(self.main_tab)
-            tk.Label(frame, text=f"{lane.capitalize()} Synergy:").pack(anchor="w")
-            tree = ttk.Treeview(frame, columns=("Name", "Pick Rate", "Win Rate"), show='headings')
-            tree.pack(expand=True, fill='both')
-            tree.heading("Name", text="Name")
-            tree.heading("Pick Rate", text="Pick Rate")
-            tree.heading("Win Rate", text="Win Rate")
-            tree.tag_configure("low_games", foreground=LOW_SAMPLE_COLOR)
-            tree.tag_configure("normal_games", foreground=NORMAL_SAMPLE_COLOR)
-            self.synergy_treeviews[lane] = tree
-            self.synergy_frames[lane] = frame
-
-        self.update_synergy_visibility()
         self.build_dashboard_tab()
-        self.build_highlights_tab()
-        self.build_ignore_tab()
-
-    def build_ignore_tab(self):
-        if hasattr(self, "ignore_tab"):
-            self.refresh_ignore_listbox()
-            return
-
-        self.ignore_tab = tk.Frame(self.notebook)
-        self.notebook.add(self.ignore_tab, text="Ignore List")
-        self.ignore_tab.grid_rowconfigure(0, weight=1)
-        self.ignore_tab.grid_columnconfigure(0, weight=1)
-
-        self.ignore_section = tk.LabelFrame(self.ignore_tab, text="Ignore List")
-        self.ignore_section.pack(fill="both", expand=True, padx=10, pady=10)
-        self.ignore_section.grid_columnconfigure(0, weight=1)
-        self.ignore_section.grid_rowconfigure(1, weight=1)
-
-        self.ignore_entry = tk.Entry(self.ignore_section, width=25)
-        self.ignore_entry.grid(row=0, column=0, sticky="ew", padx=(5, 5), pady=(5, 2))
-        self.ignore_entry.bind("<Return>", lambda _event: self.add_ignore_champion())
-
-        self.ignore_add_button = tk.Button(self.ignore_section, text="추가", command=self.add_ignore_champion)
-        self.ignore_add_button.grid(row=0, column=1, sticky="ew", padx=(0, 5), pady=(5, 2))
-
-        self.ignore_remove_button = tk.Button(self.ignore_section, text="선택 제거", command=self.remove_selected_ignore)
-        self.ignore_remove_button.grid(row=0, column=2, sticky="ew", padx=(0, 5), pady=(5, 2))
-
-        self.ignore_listbox = tk.Listbox(self.ignore_section, height=5)
-        self.ignore_listbox.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=(5, 0), pady=(0, 5))
-        self.ignore_listbox.bind("<Delete>", lambda _event: self.remove_selected_ignore())
-
-        ignore_scrollbar = tk.Scrollbar(self.ignore_section, orient="vertical", command=self.ignore_listbox.yview)
-        ignore_scrollbar.grid(row=1, column=2, sticky="ns", padx=(0, 5), pady=(0, 5))
-        self.ignore_listbox.configure(yscrollcommand=ignore_scrollbar.set)
-
-        tk.Label(
-            self.ignore_section,
-            text="리스트에 있는 챔피언은 추천/표시에서 제외됩니다.",
-            anchor="w"
-        ).grid(row=2, column=0, columnspan=3, sticky="ew", padx=5, pady=(0, 5))
-
-        self.ignore_autocomplete = AutocompletePopup(
-            self.ignore_entry,
-            self.get_autocomplete_candidates,
-            on_select=lambda _value: None
-        )
-        self.refresh_ignore_listbox()
+        
+        # Initialize other tabs
+        self.counter_synergy_tab = CounterSynergyTab(self.notebook, self)
+        self.op_duos_tab = OpDuosTab(self.notebook, self, DATA_DIR)
+        self.ignore_tab = IgnoreTab(self.notebook, self)
 
     def build_dashboard_tab(self):
         self.banpick_slots = {"allies": [], "enemies": []}
         self.active_slot_var = tk.StringVar(value="")
         self.active_slot_var.trace_add("write", lambda *_: self.update_banpick_recommendations())
+        lcu_frame = tk.LabelFrame(self.dashboard_tab, text="클라이언트 연결 상태")
+        lcu_frame.pack(fill="x", padx=10, pady=(0, 5))
+        tk.Label(
+            lcu_frame,
+            textvariable=self.lcu_status_var,
+            anchor="w"
+        ).pack(side="left", padx=(8, 10))
+        self.lcu_check_button = tk.Button(
+            lcu_frame,
+            text="연결 점검",
+            command=self.on_lcu_check_clicked,
+            state="normal" if requests is not None else "disabled"
+        )
+        self.lcu_check_button.pack(side="left")
+        
+        # 자동 동기화 및 수동 버튼 프레임
+        sync_frame = tk.Frame(lcu_frame)
+        sync_frame.pack(side="left", padx=(10, 0))
+        self.client_sync_checkbox = tk.Checkbutton(
+            sync_frame,
+            text="자동 동기화",
+            variable=self.client_sync_var,
+            command=self.on_client_sync_toggle,
+            state="disabled" # 연결 점검 성공 후 활성화
+        )
+        self.client_sync_checkbox.pack(side="left")
+        
+        self.client_fetch_button = tk.Button(
+            sync_frame,
+            text="지금 불러오기",
+            command=self.manual_client_import,
+            state="disabled" # 연결 점검 성공 후 활성화
+        )
+        self.client_fetch_button.pack(side="left", padx=(5, 0))
+        
         container = tk.Frame(self.dashboard_tab)
         container.pack(fill="both", expand=True, padx=10, pady=10)
         container.columnconfigure(0, weight=1)
@@ -719,12 +847,13 @@ class ChampionScraperApp:
         self.recommend_pick_rate_entry.bind("<KeyRelease>", lambda _e: self.update_banpick_recommendations())
         self.recommend_pick_rate_entry.bind("<FocusOut>", lambda _e: self.update_banpick_recommendations())
 
-        columns = ("Champion", "Score", "Synergy", "Counter")
+        columns = ("Champion", "Tags", "Score", "Synergy", "Counter")
         self.recommend_tree = ttk.Treeview(recommend_frame, columns=columns, show="headings", height=8)
         for col in columns:
             self.recommend_tree.heading(col, text=col)
             self.recommend_tree.column(col, anchor="center")
         self.recommend_tree.column("Champion", anchor="w", width=180)
+        self.recommend_tree.column("Tags", anchor="w", width=160)
         self.recommend_tree.column("Score", width=80)
         self.recommend_tree.column("Synergy", width=80)
         self.recommend_tree.column("Counter", width=80)
@@ -740,147 +869,210 @@ class ChampionScraperApp:
             command=self.ignore_selected_recommendations
         ).pack(side="right")
 
-    def build_highlights_tab(self):
-        if hasattr(self, "highlight_tab"):
+    def manual_client_import(self):
+        if not self.client_sync_supported or not self.client_watcher:
+            if self.client_sync_error:
+                messagebox.showerror("클라이언트 연동", self.client_sync_error)
             return
-        self.highlight_tab = tk.Frame(self.notebook)
-        self.notebook.add(self.highlight_tab, text="OP Duos")
+        snapshot, message = self.client_watcher.fetch_snapshot()
+        if snapshot:
+            changed = self._apply_client_snapshot(snapshot)
+            phase = snapshot.get("phase")
+            
+            # phase가 없으면 타이머나 팀 정보 유무로 대체 표시
+            if not phase:
+                has_team_info = bool(snapshot.get("allies") or snapshot.get("enemies"))
+                timer_phase = snapshot.get("timer", {}).get("phase") if isinstance(snapshot, dict) else None
+                if timer_phase:
+                    phase = f"Timer:{timer_phase}"
+                elif has_team_info:
+                    phase = "Custom/Active"
+                else:
+                    phase = "알 수 없음"
 
-        self.highlight_frame = tk.LabelFrame(self.highlight_tab, text="Top Bot Lane Duos")
-        self.highlight_frame.pack(fill="both", expand=True, padx=10, pady=10)
-        tk.Button(
-            self.highlight_frame,
-            text="Reset Highlights",
-            command=self.reset_highlights_tab
-        ).pack(anchor="ne", padx=5, pady=(5, 0))
-
-        controls_row = tk.Frame(self.highlight_frame)
-        controls_row.pack(fill="x", padx=5, pady=(5, 0))
-        tk.Label(controls_row, text="Pick Rate ≥").pack(side="left")
-        self.highlight_pick_entry = tk.Entry(controls_row, width=6)
-        self.highlight_pick_entry.pack(side="left", padx=(2, 10))
-        self.highlight_pick_entry.insert(0, str(HIGHLIGHT_PICK_RATE))
-        tk.Label(controls_row, text="Games ≥").pack(side="left")
-        self.highlight_games_entry = tk.Entry(controls_row, width=8)
-        self.highlight_games_entry.pack(side="left", padx=(2, 10))
-        self.highlight_games_entry.insert(0, str(HIGHLIGHT_MIN_GAMES))
-        self.highlight_refresh_button = tk.Button(controls_row, text="Refresh", command=self.populate_synergy_highlights)
-        self.highlight_refresh_button.pack(side="right")
-
-        self.highlight_tree = ttk.Treeview(
-            self.highlight_frame,
-            columns=("Duo", "Win Rate", "Pick Rate", "Games"),
-            show="headings",
-            height=12
-        )
-        self.highlight_tree.heading("Duo", text="Duo")
-        self.highlight_tree.heading("Win Rate", text="Win Rate")
-        self.highlight_tree.heading("Pick Rate", text="Pick Rate")
-        self.highlight_tree.heading("Games", text="Games")
-        self.highlight_tree.column("Duo", width=260, anchor="w")
-        self.highlight_tree.column("Win Rate", width=80, anchor="center")
-        self.highlight_tree.column("Pick Rate", width=80, anchor="center")
-        self.highlight_tree.column("Games", width=100, anchor="center")
-        self.highlight_tree.pack(fill="both", expand=True, padx=5, pady=5)
-        self.populate_synergy_highlights()
-
-    def refresh_ignore_listbox(self):
-        if not hasattr(self, "ignore_listbox"):
+            status = f"{phase} - 수동 동기화 완료"
+            self._set_client_status(status)
+            if not changed:
+                info = "픽창 정보를 확인했으나 변경된 내용이 없습니다."
+                if message:
+                    info = f"{message} (변경 없음)"
+                messagebox.showinfo("클라이언트 연동", info)
             return
-        self.ignore_listbox.delete(0, tk.END)
-        self.ignore_listbox_map.clear()
-        if not self.ignored_champions:
-            return
-        sorted_names = sorted(self.ignored_champions)
-        for idx, normalized in enumerate(sorted_names):
-            canonical = self.canonical_lookup.get(normalized, normalized)
-            display = self.display_lookup.get(canonical, canonical.title())
-            self.ignore_listbox.insert(tk.END, display)
-            self.ignore_listbox_map[idx] = normalized
+        info = message or "픽창 정보를 가져올 수 없습니다."
+        messagebox.showinfo("클라이언트 연동", info)
+        self._set_client_status(info)
 
-    def _register_ignore(self, champion_query: str, apply_updates: bool = True):
-        canonical_name = self.resolve_champion_name(champion_query)
-        if not canonical_name:
-            return False, "not_found", champion_query
-        normalized = canonical_name.lower()
-        if normalized in self.ignored_champions:
-            return False, "duplicate", canonical_name
-        self.ignored_champions.add(normalized)
-        if apply_updates:
-            self.persist_ignored_champions()
-            self.refresh_ignore_listbox()
-            self.on_ignore_list_updated()
-        return True, None, canonical_name
+    def on_client_sync_toggle(self):
+        if not self.client_sync_supported or not self.client_watcher:
+            self.client_sync_var.set(False)
+            if self.client_sync_error:
+                messagebox.showerror("클라이언트 연동", self.client_sync_error)
+            return
+        if self.client_sync_var.get():
+            self._start_client_sync()
+        else:
+            self._stop_client_sync()
 
-    def add_ignore_champion(self):
-        if not hasattr(self, "ignore_entry"):
+    def _start_client_sync(self):
+        if not self.client_watcher:
             return
-        champion_query = self.ignore_entry.get().strip()
-        if not champion_query:
-            messagebox.showerror("Error", "챔피언 이름을 입력하세요.")
+        self._set_client_status("클라이언트 감지 중...")
+        self.client_watcher.start(self.handle_client_snapshot, self.handle_client_status)
+
+    def _stop_client_sync(self):
+        if self.client_watcher:
+            self.client_watcher.stop()
+        self._set_client_status("클라이언트 연동 꺼짐")
+
+    def handle_client_snapshot(self, snapshot, _message=None):
+        if not snapshot:
             return
-        success, reason, canonical = self._register_ignore(champion_query)
+        self.root.after(0, lambda: self._apply_snapshot_and_status(snapshot))
+
+    def handle_client_status(self, message):
+        self.root.after(0, lambda: self._set_client_status(message))
+
+    def _apply_snapshot_and_status(self, snapshot):
+        changed = self._apply_client_snapshot(snapshot)
+        phase = snapshot.get("phase")
+        
+        # 자동 동기화 상태에서도 phase가 없을 때 메시지 구체화
+        if not phase:
+            has_team_info = bool(snapshot.get("allies") or snapshot.get("enemies"))
+            timer_phase = snapshot.get("timer", {}).get("phase") if isinstance(snapshot, dict) else None
+            if timer_phase:
+                phase = f"Timer:{timer_phase}"
+            elif has_team_info:
+                phase = "Custom/Active"
+            else:
+                phase = "알 수 없음"
+                
+        status = f"{phase} - 자동 동기화"
+        if not changed:
+            status = f"{phase} - 업데이트 없음"
+        self._set_client_status(status)
+
+    def _apply_client_snapshot(self, snapshot):
+        allies = self._normalize_client_entries(snapshot.get("allies", []))
+        enemies = self._normalize_client_entries(snapshot.get("enemies", []))
+        changed = False
+        changed |= self._populate_side_from_client("allies", allies)
+        changed |= self._populate_side_from_client("enemies", enemies)
+        if changed:
+            self.update_banpick_recommendations()
+        self.last_client_snapshot = snapshot
+        return changed
+
+    def _normalize_client_entries(self, entries):
+        normalized_entries = []
+        for entry in entries:
+            name = entry.get("name")
+            champion_id = entry.get("championId")
+            is_local_player = entry.get("isLocalPlayer", False)
+            
+            canonical = self.resolve_champion_name(name) if name else None
+            if not canonical and isinstance(champion_id, int) and self.client_watcher:
+                alias = self.client_watcher.resolve_champion_id(champion_id)
+                canonical = self.resolve_champion_name(alias) if alias else None
+                name = name or alias
+            display = name or str(champion_id)
+            normalized = None
+            if canonical:
+                normalized = canonical.lower()
+                display = self.display_lookup.get(canonical, canonical.title())
+            elif isinstance(name, str):
+                normalized = name.lower()
+            elif champion_id:
+                normalized = str(champion_id)
+            normalized_entries.append({
+                "display": display,
+                "canonical": canonical or name or str(champion_id),
+                "normalized": normalized,
+                "isLocalPlayer": is_local_player
+            })
+        return normalized_entries
+
+    def _populate_side_from_client(self, side_key, entries):
+        slots = self.banpick_slots.get(side_key, [])
+        if not slots:
+            return False
+        changed = False
+        for idx, slot in enumerate(slots):
+            if idx < len(entries):
+                changed |= self._populate_slot_from_client(slot, entries[idx])
+            else:
+                changed |= self._clear_slot_from_client(slot)
+        return changed
+
+    def _populate_slot_from_client(self, slot, entry):
+        normalized = entry.get("normalized")
+        canonical = entry.get("canonical")
+        display = entry.get("display")
+        is_local_player = entry.get("isLocalPlayer")
+        
+        if not canonical:
+            return False
+            
+        slot_canonical = slot.get("canonical_name")
+        
+        # 내 픽이면서 아직 슬롯이 내 차례가 아니거나 비어있다면 강제 입력
+        if is_local_player:
+            active_check = slot.get("active_check")
+            if active_check and not self.active_slot_var.get():
+                self.active_slot_var.set(f"{slot.get('side')}:{slot.get('index')}")
+        
+        if slot_canonical and normalized and slot_canonical.lower() == normalized:
+            slot["client_last_champion"] = normalized
+            return False
+            
+        # 디버깅: 슬롯에 챔피언 입력 시도
+        print(f"[DEBUG] Populating slot {slot.get('side')}:{slot.get('index')} with '{display}' (Canonical: {canonical})")
+        
+        widget = slot.get("entry")
+        if widget:
+            widget.delete(0, tk.END)
+            widget.insert(0, display)
+        success = self.perform_banpick_search(slot, auto_trigger=True)
+        print(f"[DEBUG] perform_banpick_search result: {success}")
         if success:
-            self.ignore_entry.delete(0, tk.END)
-            return
-        if reason == "duplicate":
-            display = self.display_lookup.get(canonical, canonical.title())
-            messagebox.showinfo("Info", f"{display} 는 이미 제외 리스트에 있습니다.")
-            self.ignore_entry.delete(0, tk.END)
-        elif reason == "not_found":
-            messagebox.showerror("Error", f"'{champion_query}' 챔피언을 찾을 수 없습니다.")
+            slot["client_last_champion"] = normalized or (canonical.lower() if isinstance(canonical, str) else canonical)
+        return success
 
-    def remove_selected_ignore(self):
-        if not hasattr(self, "ignore_listbox"):
+    def _clear_slot_from_client(self, slot):
+        if not slot.get("client_last_champion"):
+            return False
+        self.clear_banpick_slot(slot, reset_lane=False, suppress_update=True)
+        slot["client_last_champion"] = None
+        return True
+
+    def _set_client_status(self, message):
+        if hasattr(self, "client_status_var"):
+            self.client_status_var.set(message)
+
+    def on_lcu_check_clicked(self):
+        if requests is None:
+            messagebox.showerror("클라이언트 연결 점검", "requests 패키지가 설치되어 있지 않아 점검을 수행할 수 없습니다.")
             return
-        selection = self.ignore_listbox.curselection()
-        if not selection:
-            return
-        idx = selection[0]
-        normalized = self.ignore_listbox_map.get(idx)
-        if not normalized:
-            return
-        self.ignored_champions.discard(normalized)
-        self.persist_ignored_champions()
-        self.refresh_ignore_listbox()
-        self.on_ignore_list_updated()
+        success, report, _details = diagnose_lcu_connection()
+        if report:
+            status_line = report.splitlines()[-1]
+        else:
+            status_line = "연결 성공" if success else "연결 실패"
+        self.lcu_status_var.set(status_line)
+        if success:
+            self.client_sync_checkbox.config(state="normal")
+            self.client_fetch_button.config(state="normal")
+            messagebox.showinfo("클라이언트 연결 점검", report)
+        else:
+            self.client_sync_checkbox.config(state="disabled")
+            self.client_fetch_button.config(state="disabled")
+            messagebox.showerror("클라이언트 연결 점검", report)
 
     def ignore_selected_recommendations(self):
-        if not hasattr(self, "recommend_tree"):
-            return
-        selection = self.recommend_tree.selection()
-        if not selection:
-            messagebox.showinfo("Ignore List", "추천 리스트에서 제외할 챔피언을 선택하세요.")
-            return
-        added = []
-        duplicates = []
-        missing = []
-        for item_id in selection:
-            values = self.recommend_tree.item(item_id, "values")
-            if not values:
-                continue
-            champ_name = str(values[0]).strip()
-            warning_prefix = f"{WARNING_ICON} "
-            if champ_name.startswith(warning_prefix):
-                champ_name = champ_name[len(warning_prefix):].strip()
-            success, reason, canonical = self._register_ignore(champ_name, apply_updates=False)
-            if success:
-                display = self.display_lookup.get(canonical, canonical.title())
-                added.append(display)
-            elif reason == "duplicate":
-                display = self.display_lookup.get(canonical, canonical.title())
-                duplicates.append(display)
-            elif reason == "not_found":
-                missing.append(champ_name)
-        if added:
-            self.persist_ignored_champions()
-            self.refresh_ignore_listbox()
-            self.on_ignore_list_updated()
-            messagebox.showinfo("Ignore List", f"{', '.join(added)} 제외 리스트에 추가했습니다.")
-        if duplicates:
-            messagebox.showinfo("Ignore List", f"{', '.join(duplicates)} 는 이미 제외 리스트에 있습니다.")
-        if missing:
-            messagebox.showerror("Ignore List", f"{', '.join(missing)} 챔피언을 찾을 수 없습니다.")
+        if self.ignore_tab:
+            selection = self.recommend_tree.selection()
+            self.ignore_tab.ignore_selected_recommendations(selection)
+
     def persist_ignored_champions(self):
         canonical_names = []
         for normalized in self.ignored_champions:
@@ -889,17 +1081,25 @@ class ChampionScraperApp:
         save_ignored_champion_names(canonical_names)
 
     def on_ignore_list_updated(self):
-        for dataset in self.counter_cache.values():
-            self._apply_ignore_filter(dataset)
-        for dataset in self.synergy_cache.values():
-            self._apply_ignore_filter(dataset)
-        self._apply_ignore_filter(self.all_data)
-        self._apply_ignore_filter(self.synergy_data)
-        self.update_GUI()
-        self.update_synergy_GUI()
+        # Update caches if necessary (not directly exposed now, managed by tabs)
+        # But wait, counter_synergy_tab has caches.
+        if self.counter_synergy_tab:
+            for dataset in self.counter_synergy_tab.counter_cache.values():
+                self._apply_ignore_filter(dataset)
+            for dataset in self.counter_synergy_tab.synergy_cache.values():
+                self._apply_ignore_filter(dataset)
+            self._apply_ignore_filter(self.counter_synergy_tab.all_data)
+            self._apply_ignore_filter(self.counter_synergy_tab.synergy_data)
+            self.counter_synergy_tab.update_GUI()
+            self.counter_synergy_tab.update_synergy_GUI()
+
+        self.recommend_counter_cache.clear()
+        
         self.update_banpick_recommendations()
-        if hasattr(self, "highlight_tree"):
-            self.populate_synergy_highlights()
+        if self.op_duos_tab:
+            self.op_duos_tab.populate_synergy_highlights()
+        if self.ignore_tab:
+            self.ignore_tab.refresh_ignore_listbox()
 
     def _create_banpick_column(self, parent, title, side_key):
         column = tk.LabelFrame(parent, text=title)
@@ -969,6 +1169,186 @@ class ChampionScraperApp:
             self.banpick_slots[side_key].append(slot)
 
         return column
+
+    def manual_client_import(self):
+        if not self.client_sync_supported or not self.client_watcher:
+            if self.client_sync_error:
+                messagebox.showerror("클라이언트 연동", self.client_sync_error)
+            return
+        snapshot, message = self.client_watcher.fetch_snapshot()
+        if snapshot:
+            changed = self._apply_client_snapshot(snapshot)
+            phase = snapshot.get("phase")
+            
+            # phase가 없으면 타이머나 팀 정보 유무로 대체 표시
+            if not phase:
+                has_team_info = bool(snapshot.get("allies") or snapshot.get("enemies"))
+                timer_phase = snapshot.get("timer", {}).get("phase") if isinstance(snapshot, dict) else None
+                if timer_phase:
+                    phase = f"Timer:{timer_phase}"
+                elif has_team_info:
+                    phase = "Custom/Active"
+                else:
+                    phase = "알 수 없음"
+
+            status = f"{phase} - 수동 동기화 완료"
+            self._set_client_status(status)
+            if not changed:
+                info = "픽창 정보를 확인했으나 변경된 내용이 없습니다."
+                if message:
+                    info = f"{message} (변경 없음)"
+                messagebox.showinfo("클라이언트 연동", info)
+            return
+        info = message or "픽창 정보를 가져올 수 없습니다."
+        messagebox.showinfo("클라이언트 연동", info)
+        self._set_client_status(info)
+
+    def on_client_sync_toggle(self):
+        if not self.client_sync_supported or not self.client_watcher:
+            self.client_sync_var.set(False)
+            if self.client_sync_error:
+                messagebox.showerror("클라이언트 연동", self.client_sync_error)
+            return
+        if self.client_sync_var.get():
+            self._start_client_sync()
+        else:
+            self._stop_client_sync()
+
+    def _start_client_sync(self):
+        if not self.client_watcher:
+            return
+        self._set_client_status("클라이언트 감지 중...")
+        self.client_watcher.start(self.handle_client_snapshot, self.handle_client_status)
+
+    def _stop_client_sync(self):
+        if self.client_watcher:
+            self.client_watcher.stop()
+        self._set_client_status("클라이언트 연동 꺼짐")
+
+    def handle_client_snapshot(self, snapshot, _message=None):
+        if not snapshot:
+            return
+        self.root.after(0, lambda: self._apply_snapshot_and_status(snapshot))
+
+    def handle_client_status(self, message):
+        self.root.after(0, lambda: self._set_client_status(message))
+
+    def _apply_snapshot_and_status(self, snapshot):
+        changed = self._apply_client_snapshot(snapshot)
+        phase = snapshot.get("phase")
+        
+        # 자동 동기화 상태에서도 phase가 없을 때 메시지 구체화
+        if not phase:
+            has_team_info = bool(snapshot.get("allies") or snapshot.get("enemies"))
+            timer_phase = snapshot.get("timer", {}).get("phase") if isinstance(snapshot, dict) else None
+            if timer_phase:
+                phase = f"Timer:{timer_phase}"
+            elif has_team_info:
+                phase = "Custom/Active"
+            else:
+                phase = "알 수 없음"
+                
+        status = f"{phase} - 자동 동기화"
+        if not changed:
+            status = f"{phase} - 업데이트 없음"
+        self._set_client_status(status)
+
+    def _apply_client_snapshot(self, snapshot):
+        allies = self._normalize_client_entries(snapshot.get("allies", []))
+        enemies = self._normalize_client_entries(snapshot.get("enemies", []))
+        changed = False
+        changed |= self._populate_side_from_client("allies", allies)
+        changed |= self._populate_side_from_client("enemies", enemies)
+        if changed:
+            self.update_banpick_recommendations()
+        self.last_client_snapshot = snapshot
+        return changed
+
+    def _normalize_client_entries(self, entries):
+        normalized_entries = []
+        for entry in entries:
+            name = entry.get("name")
+            champion_id = entry.get("championId")
+            is_local_player = entry.get("isLocalPlayer", False)
+            
+            canonical = self.resolve_champion_name(name) if name else None
+            if not canonical and isinstance(champion_id, int) and self.client_watcher:
+                alias = self.client_watcher.resolve_champion_id(champion_id)
+                canonical = self.resolve_champion_name(alias) if alias else None
+                name = name or alias
+            display = name or str(champion_id)
+            normalized = None
+            if canonical:
+                normalized = canonical.lower()
+                display = self.display_lookup.get(canonical, canonical.title())
+            elif isinstance(name, str):
+                normalized = name.lower()
+            elif champion_id:
+                normalized = str(champion_id)
+            normalized_entries.append({
+                "display": display,
+                "canonical": canonical or name or str(champion_id),
+                "normalized": normalized,
+                "isLocalPlayer": is_local_player
+            })
+        return normalized_entries
+
+    def _populate_side_from_client(self, side_key, entries):
+        slots = self.banpick_slots.get(side_key, [])
+        if not slots:
+            return False
+        changed = False
+        for idx, slot in enumerate(slots):
+            if idx < len(entries):
+                changed |= self._populate_slot_from_client(slot, entries[idx])
+            else:
+                changed |= self._clear_slot_from_client(slot)
+        return changed
+
+    def _populate_slot_from_client(self, slot, entry):
+        normalized = entry.get("normalized")
+        canonical = entry.get("canonical")
+        display = entry.get("display")
+        is_local_player = entry.get("isLocalPlayer")
+        
+        if not canonical:
+            return False
+            
+        slot_canonical = slot.get("canonical_name")
+        
+        # 내 픽이면서 아직 슬롯이 내 차례가 아니거나 비어있다면 강제 입력
+        if is_local_player:
+            active_check = slot.get("active_check")
+            if active_check and not self.active_slot_var.get():
+                self.active_slot_var.set(f"{slot.get('side')}:{slot.get('index')}")
+        
+        if slot_canonical and normalized and slot_canonical.lower() == normalized:
+            slot["client_last_champion"] = normalized
+            return False
+            
+        # 디버깅: 슬롯에 챔피언 입력 시도
+        print(f"[DEBUG] Populating slot {slot.get('side')}:{slot.get('index')} with '{display}' (Canonical: {canonical})")
+        
+        widget = slot.get("entry")
+        if widget:
+            widget.delete(0, tk.END)
+            widget.insert(0, display)
+        success = self.perform_banpick_search(slot, auto_trigger=True)
+        print(f"[DEBUG] perform_banpick_search result: {success}")
+        if success:
+            slot["client_last_champion"] = normalized or (canonical.lower() if isinstance(canonical, str) else canonical)
+        return success
+
+    def _clear_slot_from_client(self, slot):
+        if not slot.get("client_last_champion"):
+            return False
+        self.clear_banpick_slot(slot, reset_lane=False, suppress_update=True)
+        slot["client_last_champion"] = None
+        return True
+
+    def _set_client_status(self, message):
+        if hasattr(self, "client_status_var"):
+            self.client_status_var.set(message)
 
     def _update_slot_lane_cache(self, slot, lane_value=None):
         if not slot:
@@ -1064,121 +1444,29 @@ class ChampionScraperApp:
         if not suppress_update:
             self.update_banpick_recommendations()
 
-    def on_counter_input_changed(self, _event=None):
-        if not self.counter_auto_load_var.get():
-            return
-        self.schedule_counter_auto_load()
-
-    def on_counter_lane_selected(self, _event=None):
-        if self.counter_auto_load_var.get():
-            self.schedule_counter_auto_load(delay=0)
-
-    def on_counter_auto_toggle(self):
-        if self.counter_auto_load_var.get():
-            self.schedule_counter_auto_load(delay=0)
-        elif self.counter_typing_after_id is not None:
-            self.root.after_cancel(self.counter_typing_after_id)
-            self.counter_typing_after_id = None
-
-    def schedule_counter_auto_load(self, delay=400):
-        if self.counter_typing_after_id is not None:
-            self.root.after_cancel(self.counter_typing_after_id)
-            self.counter_typing_after_id = None
-
-        if not self.counter_auto_load_var.get():
-            return
-
-        self.counter_typing_after_id = self.root.after(delay, self._try_auto_counter_load)
-
-    def _try_auto_counter_load(self):
-        self.counter_typing_after_id = None
-
-        if not self.counter_auto_load_var.get():
-            return
-
-        champion_name = self.name_entry.get().strip()
-        if not champion_name:
-            return
-
-        selected_lane = self.lane_combobox.get().lower()
-        if selected_lane not in LANES:
-            return
-
-        self.start_search(auto_trigger=True)
-
-    def on_synergy_input_changed(self, _event=None):
-        if not self.synergy_auto_load_var.get():
-            return
-        self.schedule_synergy_auto_load()
-
-    def on_synergy_lane_selected(self, _event=None):
-        if self.synergy_auto_load_var.get():
-            self.schedule_synergy_auto_load(delay=0)
-
-    def on_synergy_auto_toggle(self):
-        if self.synergy_auto_load_var.get():
-            self.schedule_synergy_auto_load(delay=0)
-        elif self.synergy_typing_after_id is not None:
-            self.root.after_cancel(self.synergy_typing_after_id)
-            self.synergy_typing_after_id = None
-
-    def schedule_synergy_auto_load(self, delay=400):
-        if self.synergy_typing_after_id is not None:
-            self.root.after_cancel(self.synergy_typing_after_id)
-            self.synergy_typing_after_id = None
-
-        if not self.synergy_auto_load_var.get():
-            return
-
-        self.synergy_typing_after_id = self.root.after(delay, self._try_auto_synergy_load)
-
-    def _try_auto_synergy_load(self):
-        self.synergy_typing_after_id = None
-
-        if not self.synergy_auto_load_var.get():
-            return
-
-        champion_name = self.ally_name_entry.get().strip()
-        if not champion_name:
-            return
-
-        selected_lane = self.ally_lane_combobox.get().lower()
-        if selected_lane not in LANES:
-            return
-
-        self.start_synergy_search(auto_trigger=True)
-
     def get_autocomplete_candidates(self):
         return self.autocomplete_candidates
 
-    def on_autocomplete_selection(self, context):
-        if context == "counter":
-            if self.counter_auto_load_var.get():
-                self.schedule_counter_auto_load(delay=0)
-        elif context == "synergy":
-            if self.synergy_auto_load_var.get():
-                self.schedule_synergy_auto_load(delay=0)
-
     def perform_banpick_search(self, slot, auto_trigger=False):
         if not slot:
-            return
+            return False
         entry_widget = slot.get("entry")
         lane_box = slot.get("lane")
         result_var = slot.get("result_var")
         if not entry_widget or not lane_box or not result_var:
-            return
+            return False
 
         champion_name = entry_widget.get().strip()
         if not champion_name:
             if not auto_trigger:
                 messagebox.showerror("Error", "챔피언 이름을 입력하세요.")
-            return
+            return False
 
         lane = lane_box.get().lower()
         if lane not in LANES:
             if not auto_trigger:
                 messagebox.showerror("Error", "라인을 선택하세요.")
-            return
+            return False
 
         full_name = self.resolve_champion_name(champion_name)
         if not full_name:
@@ -1194,41 +1482,88 @@ class ChampionScraperApp:
         if not full_name:
             if not auto_trigger:
                 messagebox.showerror("Error", f"Champion name '{champion_name}' not found.")
-            return
+            return False
 
         display_name = self.display_lookup.get(full_name, full_name.title())
 
         synergy_dataset = None
         counter_dataset = None
+        
+        # Determine best lane based on games count
+        best_lane = self._find_best_lane_by_counters(full_name)
+        target_lane = best_lane if best_lane else lane
 
-        synergy_dataset, _, _ = self._load_lane_dataset(
+        # Load datasets and capture the actual lane found
+        synergy_dataset, synergy_lane, _ = self._load_lane_dataset(
             full_name,
-            lane,
+            target_lane,
             "Synergy",
             "synergy",
             self.sanitize_synergy_entry,
             suppress_errors=True
         )
-        counter_dataset, _, _ = self._load_lane_dataset(
+        counter_dataset, counter_lane, _ = self._load_lane_dataset(
             full_name,
-            lane,
+            target_lane,
             "Counter",
             "counters",
             self.sanitize_counter_entry,
             suppress_errors=True
         )
 
+        # Determine the final lane to use (prefer synergy lane if available, otherwise counter lane, or fallback to requested lane)
+        final_lane = synergy_lane or counter_lane or lane
+
+        # Lane Swap Logic
+        current_lane_val = lane_box.get()
+        current_lane = current_lane_val.lower() if current_lane_val else ""
+
+        if final_lane != current_lane and final_lane in LANES:
+            side_key = slot.get("side")
+            swap_target = None
+            if side_key:
+                for other in self.banpick_slots.get(side_key, []):
+                    if other is slot:
+                        continue
+                    other_val = other.get("lane").get()
+                    other_l = other_val.lower() if other_val else ""
+                    if other_l == final_lane:
+                        swap_target = other
+                        break
+            
+            # Update current slot
+            lane_box.set(final_lane)
+            self._update_slot_lane_cache(slot, final_lane)
+            
+            # Update swap target if found
+            if swap_target:
+                target_box = swap_target.get("lane")
+                if target_box:
+                    target_box.set(current_lane_val)
+                    self._update_slot_lane_cache(swap_target, current_lane_val)
+                
+                # Swap active slot check if applicable
+                current_active = self.active_slot_var.get()
+                slot_key = f"{side_key}:{slot.get('index')}"
+                target_key = f"{side_key}:{swap_target.get('index')}"
+                
+                if current_active == slot_key:
+                    self.active_slot_var.set(target_key)
+                elif current_active == target_key:
+                    self.active_slot_var.set(slot_key)
+
         slot["display_name"] = display_name
         slot["canonical_name"] = full_name
-        slot["selected_lane"] = lane
+        slot["selected_lane"] = final_lane
         slot["synergy_dataset"] = synergy_dataset
         slot["counter_dataset"] = counter_dataset
-        result_var.set(f"{display_name} ({lane})")
+        result_var.set(f"{display_name} ({final_lane})")
 
         if not auto_trigger:
             entry_widget.delete(0, tk.END)
 
         self.update_banpick_recommendations()
+        return True
 
     def update_banpick_recommendations(self):
         tree = getattr(self, "recommend_tree", None)
@@ -1273,10 +1608,18 @@ class ChampionScraperApp:
                     "synergy_sources": [],
                     "counter_sources": [],
                     "has_low_sample": False,
-                    "has_low_pick_gap": False
+                    "has_low_pick_gap": False,
+                    "tags": [],
+                    "all_high_sample": True,
+                    "all_counter_under_50": True,
+                    "has_op_synergy": False
                 }
                 scores[champion] = entry
             return entry
+
+        def append_tag(components, label):
+            if label and label not in components["tags"]:
+                components["tags"].append(label)
 
         def should_use_entry(details):
             games = self.parse_int(details.get("games"))
@@ -1290,7 +1633,8 @@ class ChampionScraperApp:
             include_entry = meets_games_requirement or meets_pick_rate_override
             low_sample = not meets_games_requirement
             penalized_pick = (not include_entry) and (not meets_pick_rate_override)
-            return include_entry, low_sample, penalized_pick
+            high_sample = games >= BANPICK_HIGH_SAMPLE_THRESHOLD
+            return include_entry, low_sample, penalized_pick, high_sample
         selected_lowers = set()
         for slot_list in self.banpick_slots.values():
             for s in slot_list:
@@ -1313,7 +1657,7 @@ class ChampionScraperApp:
             source_lane = friend.get("selected_lane")
             lane_entries = dataset.get(target_lane, {})
             for champ_name, details in lane_entries.items():
-                include_entry, low_sample, penalized_pick = should_use_entry(details)
+                include_entry, low_sample, penalized_pick, high_sample = should_use_entry(details)
                 if penalized_pick:
                     components = ensure_score_entry(champ_name)
                     components["has_low_pick_gap"] = True
@@ -1331,6 +1675,11 @@ class ChampionScraperApp:
                 components["synergy_count"] += 1
                 if low_sample:
                     components["has_low_sample"] = True
+                    append_tag(components, RECOMMEND_LOW_SAMPLE_TAG)
+                if not high_sample:
+                    components["all_high_sample"] = False
+                if value >= SYNERGY_OP_THRESHOLD:
+                    components["has_op_synergy"] = True
                 source_name = friend.get("display_name") or friend.get("canonical_name") or "Unknown"
                 label = f"{source_name}({value:.2f})"
                 if low_sample:
@@ -1346,7 +1695,7 @@ class ChampionScraperApp:
             source_lane = enemy.get("selected_lane")
             lane_entries = dataset.get(target_lane, {})
             for champ_name, details in lane_entries.items():
-                include_entry, low_sample, penalized_pick = should_use_entry(details)
+                include_entry, low_sample, penalized_pick, high_sample = should_use_entry(details)
                 if penalized_pick:
                     components = ensure_score_entry(champ_name)
                     components["has_low_pick_gap"] = True
@@ -1362,6 +1711,11 @@ class ChampionScraperApp:
                 components["counter_count"] += 1
                 if low_sample:
                     components["has_low_sample"] = True
+                    append_tag(components, RECOMMEND_LOW_SAMPLE_TAG)
+                if not high_sample:
+                    components["all_high_sample"] = False
+                if win_rate_value >= 50.0:
+                    components["all_counter_under_50"] = False
                 source_name = enemy.get("display_name") or enemy.get("canonical_name") or "Unknown"
                 label = f"{source_name}({win_rate_value:.2f})"
                 if low_sample:
@@ -1388,6 +1742,14 @@ class ChampionScraperApp:
             total = synergy_score + counter_score
             if total == 0:
                 continue
+            if components["counter_count"] > 0 and components["all_counter_under_50"]:
+                append_tag(components, RECOMMEND_FULL_COUNTER_TAG)
+            if components["all_high_sample"] and (components["synergy_count"] > 0 or components["counter_count"] > 0):
+                append_tag(components, RECOMMEND_HIGH_SAMPLE_TAG)
+            if components["has_op_synergy"]:
+                append_tag(components, RECOMMEND_OP_SYNERGY_TAG)
+            if self._qualifies_for_pre_pick_tag(champ_name, target_lane):
+                append_tag(components, RECOMMEND_PRE_PICK_TAG)
             recommendations.append((
                 champ_name,
                 total,
@@ -1395,24 +1757,81 @@ class ChampionScraperApp:
                 counter_score,
                 components["synergy_sources"],
                 components["counter_sources"],
-                components["has_low_sample"]
+                components["has_low_sample"],
+                list(components["tags"])
             ))
 
         recommendations.sort(key=lambda item: item[1], reverse=True)
-        for champ_name, total, synergy_score, counter_score, synergy_sources, counter_sources, has_low_sample in recommendations[:20]:
+        for champ_name, total, synergy_score, counter_score, synergy_sources, counter_sources, has_low_sample, tags in recommendations[:20]:
             display_name = f"{WARNING_ICON} {champ_name}" if has_low_sample else champ_name
             synergy_label = " / ".join(synergy_sources) if synergy_sources else "-"
             counter_label = " / ".join(counter_sources) if counter_sources else "-"
+            tag_label = ", ".join(tags) if tags else "-"
             tree.insert(
                 "",
                 "end",
                 values=(
                     display_name,
+                    tag_label,
                     f"{total:.2f}",
                     synergy_label,
                     counter_label
                 )
             )
+
+    def _resolve_canonical_for_dataset(self, champion_name: str | None) -> str | None:
+        if not champion_name:
+            return None
+        stripped = str(champion_name).strip()
+        if not stripped:
+            return None
+        lowered = stripped.lower()
+        canonical = self.canonical_lookup.get(lowered)
+        if canonical:
+            return canonical
+        resolved = self.resolve_champion_name(stripped)
+        if resolved:
+            return resolved
+        return stripped
+
+    def _get_recommend_counter_dataset(self, canonical_name: str, lane: str):
+        if not canonical_name or lane not in LANES:
+            return None
+        cache_key = (canonical_name, lane)
+        if cache_key in self.recommend_counter_cache:
+            return self.recommend_counter_cache[cache_key]
+        dataset, _resolved_lane, _ = self._load_lane_dataset(
+            canonical_name,
+            lane,
+            "Counter",
+            "counters",
+            self.sanitize_counter_entry,
+            suppress_errors=True,
+            apply_ignore_filter=False
+        )
+        self.recommend_counter_cache[cache_key] = dataset
+        return dataset
+
+    def _qualifies_for_pre_pick_tag(self, champion_name: str, lane: str) -> bool:
+        if lane not in LANES:
+            return False
+        canonical = self._resolve_canonical_for_dataset(champion_name)
+        if not canonical:
+            return False
+        dataset = self._get_recommend_counter_dataset(canonical, lane)
+        if not dataset:
+            return False
+        lane_entries = dataset.get(lane, {})
+        if not lane_entries:
+            return False
+        for details in lane_entries.values():
+            popularity = self.parse_float(details.get("popularity"))
+            if popularity <= BANPICK_PRE_PICK_POPULARITY_THRESHOLD:
+                continue
+            win_rate = self.parse_float(details.get("win_rate"))
+            if win_rate < 50.0:
+                return False
+        return True
 
     def get_lane_weight(self, target_lane, source_lane):
         if not target_lane or not source_lane:
@@ -1420,144 +1839,7 @@ class ChampionScraperApp:
         mapping = LANE_WEIGHT_MAP.get(target_lane, {})
         return mapping.get(source_lane, LANE_WEIGHT_DEFAULT)
 
-    def on_counter_threshold_change(self, _event=None):
-        self.update_GUI()
-
-    def on_synergy_threshold_change(self, _event=None):
-        self.update_synergy_GUI()
-
-    def start_search(self, auto_trigger=False):
-        champion_name = self.name_entry.get()
-        selected_lane = self.lane_combobox.get().lower()
-
-        if selected_lane not in LANES:
-            if not auto_trigger:
-                messagebox.showerror("Error", "Please select a lane.")
-            return False
-
-        full_name = self.resolve_champion_name(champion_name)
-        if not full_name:
-            if not auto_trigger:
-                messagebox.showerror("Error", f"Champion name '{champion_name}' not found.")
-            return False
-
-        display_name = self.display_lookup.get(full_name, full_name.title())
-        dataset, resolved_lane, used_fallback = self._load_lane_dataset(
-            full_name,
-            selected_lane,
-            "Counter",
-            "counters",
-            self.sanitize_counter_entry,
-            suppress_errors=auto_trigger
-        )
-
-        if dataset is None or resolved_lane is None:
-            if not auto_trigger:
-                messagebox.showerror(
-                    "Error",
-                    f"{display_name} 챔피언의 Counter 데이터를 불러올 수 없습니다."
-                )
-            return False
-
-        if used_fallback and not auto_trigger:
-            messagebox.showinfo(
-                "Info",
-                f"{selected_lane} 라인 데이터가 없어 {resolved_lane} 라인 Counter 데이터를 불러왔습니다."
-            )
-        elif not used_fallback and not auto_trigger:
-            self.name_entry.delete(0, tk.END)
-
-        key = (full_name, resolved_lane)
-        label = f"{display_name} ({resolved_lane})"
-
-        self.counter_cache[key] = dataset
-        if label not in self.counter_listbox_map:
-            self.champion_listbox.insert(tk.END, label)
-        self.counter_listbox_map[label] = key
-        labels = self.champion_listbox.get(0, tk.END)
-        if label in labels:
-            idx = labels.index(label)
-            self.champion_listbox.selection_clear(0, tk.END)
-            self.champion_listbox.selection_set(idx)
-
-        self.all_data = self.clone_dataset(dataset)
-        self.apply_counter_filter()
-        self.update_GUI()
-        return True
-
-    def start_synergy_search(self, auto_trigger=False):
-        champion_name = self.ally_name_entry.get()
-        selected_lane = self.ally_lane_combobox.get().lower()
-
-        if selected_lane not in LANES:
-            if not auto_trigger:
-                messagebox.showerror("Error", "Please select a lane for synergy.")
-            return False
-
-        full_name = self.resolve_champion_name(champion_name)
-        if not full_name:
-            if not auto_trigger:
-                messagebox.showerror("Error", f"Champion name '{champion_name}' not found.")
-            return False
-
-        display_name = self.display_lookup.get(full_name, full_name.title())
-        dataset, resolved_lane, used_fallback = self._load_lane_dataset(
-            full_name,
-            selected_lane,
-            "Synergy",
-            "synergy",
-            self.sanitize_synergy_entry,
-            suppress_errors=auto_trigger
-        )
-
-        if dataset is None or resolved_lane is None:
-            if not auto_trigger:
-                messagebox.showinfo(
-                    "Info",
-                    f"{display_name} 챔피언의 Synergy 데이터를 불러올 수 없습니다."
-                )
-            return False
-
-        if used_fallback and not auto_trigger:
-            messagebox.showinfo(
-                "Info",
-                f"{selected_lane} 라인 데이터가 없어 {resolved_lane} 라인 Synergy 데이터를 불러왔습니다."
-            )
-        elif not used_fallback and not auto_trigger:
-            self.ally_name_entry.delete(0, tk.END)
-
-        label = f"{display_name} ({resolved_lane})"
-
-        key = (full_name, resolved_lane)
-        self.synergy_cache[key] = dataset
-        if label not in self.synergy_listbox_map:
-            self.synergy_listbox.insert(tk.END, label)
-        self.synergy_listbox_map[label] = key
-        labels = self.synergy_listbox.get(0, tk.END)
-        if label in labels:
-            idx = labels.index(label)
-            self.synergy_listbox.selection_clear(0, tk.END)
-            self.synergy_listbox.selection_set(idx)
-
-        self.synergy_data = self.clone_dataset(dataset)
-        self.apply_synergy_filter()
-        self.update_synergy_GUI()
-        return True
-
-    def get_counter_min_games_threshold(self):
-        return self._parse_threshold_value(
-            getattr(self, "counter_min_games_entry", None),
-            COUNTER_LOW_GAMES_DEFAULT
-        )
-
-    def get_synergy_min_games_threshold(self):
-        return self._parse_threshold_value(
-            getattr(self, "synergy_min_games_entry", None),
-            SYNERGY_LOW_GAMES_DEFAULT
-        )
-
-    @staticmethod
-    def _parse_threshold_value(entry_widget, default_value):
+    def _parse_threshold_value(self, entry_widget, default_value):
         if not entry_widget:
             return default_value
         value = entry_widget.get().strip()
@@ -1569,7 +1851,50 @@ class ChampionScraperApp:
             return default_value
         return parsed if parsed >= 0 else default_value
 
-    def _load_lane_dataset(self, full_name, preferred_lane, data_label, data_key, sanitize_entry, suppress_errors=False):
+    def _find_best_lane_by_counters(self, full_name):
+        best_lane = None
+        max_games = -1
+
+        for lane in LANES:
+            data_filename = f"{full_name}_{lane}.json".replace(" ", "_")
+            filename = resolve_resource_path("data", data_filename)
+            if not os.path.exists(filename):
+                continue
+            
+            try:
+                with open(filename, "r", encoding="utf-8") as file:
+                    raw_data = json.load(file)
+            except (OSError, json.JSONDecodeError):
+                continue
+
+            counters_data = raw_data.get("counters")
+            if not isinstance(counters_data, dict):
+                continue
+
+            total_games = 0
+            for sub_lane_data in counters_data.values():
+                if not isinstance(sub_lane_data, dict):
+                    continue
+                for entry in sub_lane_data.values():
+                    if isinstance(entry, dict):
+                        total_games += self.parse_int(entry.get("games"))
+            
+            if total_games > max_games:
+                max_games = total_games
+                best_lane = lane
+        
+        return best_lane
+
+    def _load_lane_dataset(
+        self,
+        full_name,
+        preferred_lane,
+        data_label,
+        data_key,
+        sanitize_entry,
+        suppress_errors=False,
+        apply_ignore_filter=True
+    ):
         lanes_to_try = [preferred_lane] + [lane for lane in LANES if lane != preferred_lane]
         best_candidate = None
 
@@ -1612,7 +1937,8 @@ class ChampionScraperApp:
                         continue
                     sanitized_dataset[lane_name][name] = sanitize_entry(entry)
 
-            self._apply_ignore_filter(sanitized_dataset)
+            if apply_ignore_filter:
+                self._apply_ignore_filter(sanitized_dataset)
             has_entries = any(sanitized_dataset[lane] for lane in LANES)
             if not has_entries:
                 continue
@@ -1637,101 +1963,32 @@ class ChampionScraperApp:
 
         return None, None, False
 
-    def reset_data(self):
-        self.all_data = {lane: {} for lane in LANES}
-        self.synergy_data = {lane: {} for lane in LANES}
-        self.counter_cache.clear()
-        self.synergy_cache.clear()
-        self.counter_listbox_map.clear()
-        self.synergy_listbox_map.clear()
-        self.champion_listbox.delete(0, tk.END)
-        self.synergy_listbox.delete(0, tk.END)
+    def reset_main_tab(self):
+        # Delegate to CounterSynergyTab if needed, but it was already removed from here.
+        if self.counter_synergy_tab:
+            self.counter_synergy_tab.reset_main_tab()
 
-        for tree in self.treeviews.values():
-            for item in tree.get_children():
-                tree.delete(item)
-
-        for tree in self.synergy_treeviews.values():
-            for item in tree.get_children():
-                tree.delete(item)
-
-        for var in self.lane_vars.values():
-            var.set(True)
-        for var in self.synergy_lane_vars.values():
-            var.set(True)
-
-        self.update_GUI()
-        self.update_synergy_GUI()
-        self.update_lane_visibility()
-        self.update_synergy_visibility()
+    def reset_dashboard_tab(self):
         self.reset_banpick_slots()
-        self.reset_highlight_tree()
+        self.recommend_min_games_entry.delete(0, tk.END)
+        self.recommend_min_games_entry.insert(0, str(BANPICK_MIN_GAMES_DEFAULT))
+        self.update_banpick_recommendations()
 
-    def update_GUI(self):
-        threshold = self.get_counter_min_games_threshold()
-        for lane, data_dict in self.all_data.items():
-            tree = self.treeviews[lane]
-            for item in tree.get_children():
-                tree.delete(item)
-            
-            for name, details in sorted(data_dict.items(), key=lambda item: float(item[1].get('win_rate_diff', 0.0)), reverse=False):
-                games = self.parse_int(details.get("games"))
-                is_low = games < threshold
-                display_name = f"{WARNING_ICON} {name}" if is_low else name
-                tag = "low_games" if is_low else "normal_games"
-                tree.insert("", "end", values=(
-                    display_name,
-                    details["popularity"],
-                    details.get("win_rate", "0.00")
-                ), tags=(tag,))
+    def reset_banpick_slots(self):
+        if not hasattr(self, "banpick_slots"):
+            return
+        for _side_key, slots in self.banpick_slots.items():
+            for slot in slots:
+                self.clear_banpick_slot(slot, reset_lane=True, suppress_update=True)
+        self.active_slot_var.set("")
+        self.update_banpick_recommendations()
 
-    def update_synergy_GUI(self):
-        threshold = self.get_synergy_min_games_threshold()
-        for lane, data_dict in self.synergy_data.items():
-            tree = self.synergy_treeviews[lane]
-            for item in tree.get_children():
-                tree.delete(item)
-
-            sorted_entries = sorted(
-                data_dict.items(),
-                key=lambda item: self.parse_float(item[1].get("win_rate")),
-                reverse=True
-            )
-
-            for name, details in sorted_entries:
-                games = self.parse_int(details.get("games"))
-                is_low = games < threshold
-                display_name = f"{WARNING_ICON} {name}" if is_low else name
-                tag = "low_games" if is_low else "normal_games"
-                tree.insert("", "end", values=(
-                    display_name,
-                    details.get("pick_rate", "0.00"),
-                    details.get("win_rate", "0.00")
-                ), tags=(tag,))
-
-    def update_lane_visibility(self):
-        visible_lanes = [lane for lane in LANES if self.lane_vars.get(lane).get()]
-        for index, lane in enumerate(visible_lanes):
-            frame = self.lane_frames[lane]
-            frame.grid(row=index + 1, column=4, sticky="nsew", padx=(5, 0), pady=(0, 10))
-
-        for lane in LANES:
-            if lane not in visible_lanes:
-                self.lane_frames[lane].grid_remove()
-
-        self.update_GUI()
-
-    def update_synergy_visibility(self):
-        visible_lanes = [lane for lane in LANES if self.synergy_lane_vars.get(lane).get()]
-        for index, lane in enumerate(visible_lanes):
-            frame = self.synergy_frames[lane]
-            frame.grid(row=index + 1, column=5, sticky="nsew", padx=(5, 0), pady=(0, 10))
-
-        for lane in LANES:
-            if lane not in visible_lanes:
-                self.synergy_frames[lane].grid_remove()
-
-        self.update_synergy_GUI()
+    def format_display_name(self, slug: str) -> str:
+        key = slug.lower().replace("_", "")
+        display = self.display_lookup.get(key)
+        if display:
+            return display
+        return slug.replace("_", " ").title()
 
     def resolve_champion_name(self, query: str):
         allow_initials = not contains_hangul_syllable(query or "")
@@ -1747,253 +2004,7 @@ class ChampionScraperApp:
             if lowered_query and lowered_query in normalized:
                 return canonical
         return None
-    def apply_counter_filter(self):
-        try:
-            min_popularity = float(self.popularity_entry.get())
-        except ValueError:
-            messagebox.showerror("Invalid Input", "Please enter a valid number for popularity.")
-            return
-
-        filtered_data = {lane: {} for lane in LANES}
-        for lane, champions in self.all_data.items():
-            for name, details in champions.items():
-                if self.is_champion_ignored(name):
-                    continue
-                if self.parse_float(details.get("popularity")) >= min_popularity:
-                    filtered_data[lane][name] = details
-
-        self.all_data = filtered_data
     
-    def filter_by_popularity(self):
-        self.apply_counter_filter()
-        self.update_GUI()
-
-    def apply_synergy_filter(self):
-        try:
-            min_pick_rate = float(self.synergy_pick_rate_entry.get())
-        except ValueError:
-            messagebox.showerror("Invalid Input", "Please enter a valid number for synergy pick rate.")
-            return
-
-        filtered_data = {lane: {} for lane in LANES}
-        for lane, champions in self.synergy_data.items():
-            for name, details in champions.items():
-                if self.is_champion_ignored(name):
-                    continue
-                if self.parse_float(details.get("pick_rate")) >= min_pick_rate:
-                    filtered_data[lane][name] = details
-
-        self.synergy_data = filtered_data
-    
-    def filter_synergy(self):
-        self.apply_synergy_filter()
-        self.update_synergy_GUI()
-
-    @staticmethod
-    def clone_dataset(dataset):
-        if not dataset:
-            return {lane: {} for lane in LANES}
-        return {
-            lane: {name: details.copy() for name, details in lane_data.items()}
-            for lane, lane_data in dataset.items()
-        }
-
-    def populate_synergy_highlights(self):
-        try:
-            pick_rate_threshold = float(self.highlight_pick_entry.get())
-        except ValueError:
-            pick_rate_threshold = HIGHLIGHT_PICK_RATE
-            self.highlight_pick_entry.delete(0, tk.END)
-            self.highlight_pick_entry.insert(0, str(pick_rate_threshold))
-
-        try:
-            games_threshold = int(self.highlight_games_entry.get())
-        except ValueError:
-            games_threshold = HIGHLIGHT_MIN_GAMES
-            self.highlight_games_entry.delete(0, tk.END)
-            self.highlight_games_entry.insert(0, str(games_threshold))
-
-        self.synergy_highlights = self.load_synergy_highlights(
-            pick_rate_threshold,
-            games_threshold
-        )
-        for item in self.highlight_tree.get_children():
-            self.highlight_tree.delete(item)
-        for entry in self.synergy_highlights:
-            self.highlight_tree.insert(
-                "",
-                "end",
-                values=(
-                    entry["duo"],
-                    f"{entry['win']:.2f}",
-                    f"{entry['pick']:.2f}",
-                    f"{entry['games']:,}"
-                )
-            )
-
-    def load_synergy_highlights(self, pick_threshold, games_threshold):
-        highlights = []
-        if not DATA_DIR.exists():
-            return highlights
-
-        for path in DATA_DIR.glob("*_bottom.json"):
-            try:
-                with path.open("r", encoding="utf-8") as file:
-                    payload = json.load(file)
-            except (IOError, json.JSONDecodeError):
-                continue
-
-            stem = path.stem
-            if stem.endswith("_bottom"):
-                stem = stem[:-7]
-            if self.is_champion_ignored(stem):
-                continue
-            adc_name = self.format_display_name(stem)
-
-            support_entries = payload.get("synergy", {}).get("support", {})
-            for entry in support_entries.values():
-                support_name = entry.get("Name") or entry.get("name")
-                if not support_name:
-                    continue
-                if self.is_champion_ignored(support_name):
-                    continue
-                win_rate = self.parse_float(str(entry.get("win_rate", "")).replace("%", ""))
-                pick_rate = self.parse_float(str(entry.get("pick_rate", "")).replace("%", ""))
-                games = self.parse_int(entry.get("games"))
-
-                if win_rate < HIGHLIGHT_WIN_RATE or pick_rate < pick_threshold or games < games_threshold:
-                    continue
-
-                highlights.append({
-                    "duo": f"{adc_name} + {support_name}",
-                    "win": win_rate,
-                    "pick": pick_rate,
-                    "games": games
-                })
-
-        highlights.sort(key=lambda item: (item["win"], item["pick"]), reverse=True)
-        return highlights[:HIGHLIGHT_LIMIT]
-
-    def reset_banpick_slots(self):
-        if not hasattr(self, "banpick_slots"):
-            return
-        for _side_key, slots in self.banpick_slots.items():
-            for slot in slots:
-                self.clear_banpick_slot(slot, reset_lane=True, suppress_update=True)
-        self.active_slot_var.set("")
-        self.update_banpick_recommendations()
-
-    def reset_main_tab(self):
-        self.reset_data()
-
-    def reset_dashboard_tab(self):
-        self.reset_banpick_slots()
-        self.recommend_min_games_entry.delete(0, tk.END)
-        self.recommend_min_games_entry.insert(0, str(BANPICK_MIN_GAMES_DEFAULT))
-        self.update_banpick_recommendations()
-
-    def reset_highlights_tab(self):
-        self.highlight_pick_entry.delete(0, tk.END)
-        self.highlight_pick_entry.insert(0, str(HIGHLIGHT_PICK_RATE))
-        self.highlight_games_entry.delete(0, tk.END)
-        self.highlight_games_entry.insert(0, str(HIGHLIGHT_MIN_GAMES))
-        self.populate_synergy_highlights()
-
-    def reset_highlight_tree(self):
-        if hasattr(self, "highlight_tree"):
-            for item in self.highlight_tree.get_children():
-                self.highlight_tree.delete(item)
-
-    def format_display_name(self, slug: str) -> str:
-        key = slug.lower().replace("_", "")
-        display = self.display_lookup.get(key)
-        if display:
-            return display
-        return slug.replace("_", " ").title()
-
-    def on_counter_select(self, event):
-        selection = event.widget.curselection()
-        if not selection:
-            return
-        label = event.widget.get(selection[0])
-        key = self.counter_listbox_map.get(label)
-        cached = self.counter_cache.get(key) if key else None
-        if not cached:
-            return
-        self.all_data = self.clone_dataset(cached)
-        self.apply_counter_filter()
-        self.update_GUI()
-
-    def on_synergy_select(self, event):
-        selection = event.widget.curselection()
-        if not selection:
-            return
-        label = event.widget.get(selection[0])
-        key = self.synergy_listbox_map.get(label)
-        cached = self.synergy_cache.get(key) if key else None
-        if not cached:
-            return
-        self.synergy_data = self.clone_dataset(cached)
-        self.apply_synergy_filter()
-        self.update_synergy_GUI()
-
-
-    def integrate_data(self, existing_data, new_data):
-        existing_games = self.parse_int(existing_data.get("games"))
-        new_games = self.parse_int(new_data.get("games"))
-        total_games = existing_games + new_games
-
-        existing_win_rate = self.parse_float(existing_data.get("win_rate"))
-        new_win_rate = self.parse_float(new_data.get("win_rate"))
-
-        weighted_win_rate = (
-            ((existing_win_rate * existing_games) + (new_win_rate * new_games)) 
-            / total_games if total_games > 0 else 0
-        )
-        
-        win_rate_diff = weighted_win_rate - 50
-        
-        total_popularity = self.parse_float(existing_data.get("popularity")) + \
-                        self.parse_float(new_data.get("popularity"))
-
-        existing_data.update({
-            "games": f"{total_games}",
-            "win_rate_diff": f"{win_rate_diff:.2f}",
-            "popularity": f"{total_popularity:.2f}",
-            "win_rate": f"{weighted_win_rate:.2f}"
-        })
-
-        return existing_data
-
-    def integrate_synergy_data(self, existing_data, new_data):
-        existing_games = self.parse_int(existing_data.get("games"))
-        new_games = self.parse_int(new_data.get("games"))
-        total_games = existing_games + new_games
-
-        existing_win_rate = self.parse_float(existing_data.get("win_rate"))
-        new_win_rate = self.parse_float(new_data.get("win_rate"))
-
-        existing_pick_rate = self.parse_float(existing_data.get("pick_rate"))
-        new_pick_rate = self.parse_float(new_data.get("pick_rate"))
-
-        weighted_win_rate = (
-            ((existing_win_rate * existing_games) + (new_win_rate * new_games))
-            / total_games if total_games > 0 else 0
-        )
-
-        weighted_pick_rate = (
-            ((existing_pick_rate * existing_games) + (new_pick_rate * new_games))
-            / total_games if total_games > 0 else 0
-        )
-
-        existing_data.update({
-            "games": f"{total_games}",
-            "win_rate": f"{weighted_win_rate:.2f}",
-            "pick_rate": f"{weighted_pick_rate:.2f}"
-        })
-
-        return existing_data
-
     def sanitize_counter_entry(self, entry):
         sanitized = entry.copy()
         sanitized["games"] = f"{self.parse_int(entry.get('games'))}"

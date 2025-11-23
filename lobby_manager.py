@@ -10,6 +10,7 @@ from collections import defaultdict
 from op_duos_tab import OpDuosTab
 from ignore_tab import IgnoreTab
 from counter_synergy_tab import CounterSynergyTab
+from credits_tab import CreditsTab
 from common import (
     resolve_resource_path,
     AutocompletePopup,
@@ -767,6 +768,8 @@ class ChampionScraperApp:
         self.counter_synergy_tab = CounterSynergyTab(self.notebook, self)
         self.op_duos_tab = OpDuosTab(self.notebook, self, DATA_DIR)
         self.ignore_tab = IgnoreTab(self.notebook, self)
+        self.credits_tab = CreditsTab(self.notebook, self)
+        self.notebook.add(self.credits_tab, text="Credits")
 
     def build_dashboard_tab(self):
         self.banpick_slots = {"allies": [], "enemies": []}

@@ -10,6 +10,7 @@ args = [
     '--add-data=data;data',
     '--add-data=champion_aliases.json;.',
     '--add-data=ignored_champions.json;.',
+    '--add-data=credits.json;.',
     '--exclude-module=scraper',
     '--clean',
 ]

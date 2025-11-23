@@ -5,7 +5,7 @@ a = Analysis(
     ['lobby_manager.py'],
     pathex=[],
     binaries=[],
-    datas=[('data', 'data'), ('champion_aliases.json', '.'), ('ignored_champions.json', '.')],
+    datas=[('data', 'data'), ('champion_aliases.json', '.'), ('ignored_champions.json', '.'), ('credits.json', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

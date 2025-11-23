@@ -1108,6 +1108,17 @@ class ChampionScraperApp:
             slot_frame.pack(fill="x", pady=4)
 
             tk.Label(slot_frame, text=f"Slot {idx + 1}", font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w")
+            
+            # Exclude Checkbox
+            exclude_var = tk.BooleanVar(value=False)
+            exclude_var.trace_add("write", lambda *args: self.update_banpick_recommendations())
+            exclude_check = tk.Checkbutton(
+                slot_frame,
+                text="제외",
+                variable=exclude_var
+            )
+            exclude_check.grid(row=0, column=1, padx=(10, 0), sticky="e")
+
             clear_button = tk.Button(slot_frame, text="Clear", width=6)
             clear_button.grid(row=0, column=2, padx=(6, 0), sticky="e")
             active_check = tk.Checkbutton(
@@ -1115,9 +1126,10 @@ class ChampionScraperApp:
                 text="내 차례",
                 variable=self.active_slot_var,
                 onvalue=f"{side_key}:{idx}",
-                offvalue=""
+                offvalue="",
+                command=lambda: self.update_banpick_recommendations()
             )
-            active_check.grid(row=0, column=3, sticky="e")
+            active_check.grid(row=0, column=3, padx=(6, 0), sticky="e")
 
             entry = tk.Entry(slot_frame, width=18)
             entry.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(4, 2))
@@ -1145,6 +1157,7 @@ class ChampionScraperApp:
                 "clear_button": clear_button,
                 "result_var": result_var,
                 "active_check": active_check,
+                "exclude_var": exclude_var,
                 "display_name": None,
                 "canonical_name": None,
                 "selected_lane": None,
@@ -1654,6 +1667,8 @@ class ChampionScraperApp:
 
         # Synergy contributions from same side
         for friend in self.banpick_slots.get(side_key, []):
+            if friend.get("exclude_var") and friend["exclude_var"].get():
+                continue
             dataset = friend.get("synergy_dataset")
             if not dataset:
                 continue
@@ -1691,7 +1706,12 @@ class ChampionScraperApp:
 
         # Counter contributions from opposing side
         opponent_side = "enemies" if side_key == "allies" else "allies"
+        print(f"[DEBUG] Calculating counters from {opponent_side}")
         for enemy in self.banpick_slots.get(opponent_side, []):
+            is_excluded = enemy.get("exclude_var") and enemy["exclude_var"].get()
+            print(f"[DEBUG] Enemy Slot {enemy.get('index')} ({enemy.get('display_name')}): Excluded={is_excluded}")
+            if is_excluded:
+                continue
             dataset = enemy.get("counter_dataset")
             if not dataset:
                 continue

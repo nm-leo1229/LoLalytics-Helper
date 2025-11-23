@@ -819,13 +819,13 @@ class ChampionScraperApp:
 
         tk.Button(
             self.dashboard_tab,
-            text="Reset Dashboard",
+            text="대시보드 초기화",
             command=self.reset_dashboard_tab
         ).pack(anchor="ne", padx=10, pady=(5, 0))
 
-        left_column = self._create_banpick_column(container, "(Blue Side)", "allies")
+        left_column = self._create_banpick_column(container, "우리팀", "allies")
         left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
-        right_column = self._create_banpick_column(container, "(Red Side)", "enemies")
+        right_column = self._create_banpick_column(container, "상대팀", "enemies")
         right_column.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
 
         recommend_frame = tk.LabelFrame(self.dashboard_tab, text="추천 챔피언")
@@ -833,30 +833,30 @@ class ChampionScraperApp:
 
         filter_frame = tk.Frame(recommend_frame)
         filter_frame.pack(fill="x", padx=5, pady=(5, 0))
-        tk.Label(filter_frame, text="Min Games").pack(side="left")
+        tk.Label(filter_frame, text="최소 게임 수").pack(side="left")
         self.recommend_min_games_entry = tk.Entry(filter_frame, width=6)
         self.recommend_min_games_entry.insert(0, str(BANPICK_MIN_GAMES_DEFAULT))
         self.recommend_min_games_entry.pack(side="left", padx=(4, 0))
         self.recommend_min_games_entry.bind("<KeyRelease>", lambda _e: self.update_banpick_recommendations())
         self.recommend_min_games_entry.bind("<FocusOut>", lambda _e: self.update_banpick_recommendations())
 
-        tk.Label(filter_frame, text="Pick Rate ≥").pack(side="left", padx=(10, 0))
+        tk.Label(filter_frame, text="최소 픽률").pack(side="left", padx=(10, 0))
         self.recommend_pick_rate_entry = tk.Entry(filter_frame, width=6)
         self.recommend_pick_rate_entry.insert(0, str(BANPICK_PICK_RATE_OVERRIDE))
         self.recommend_pick_rate_entry.pack(side="left", padx=(4, 0))
         self.recommend_pick_rate_entry.bind("<KeyRelease>", lambda _e: self.update_banpick_recommendations())
         self.recommend_pick_rate_entry.bind("<FocusOut>", lambda _e: self.update_banpick_recommendations())
 
-        columns = ("Champion", "Tags", "Score", "Synergy", "Counter")
+        columns = ("챔피언", "태그", "최종 점수", "시너지", "카운터")
         self.recommend_tree = ttk.Treeview(recommend_frame, columns=columns, show="headings", height=8)
         for col in columns:
             self.recommend_tree.heading(col, text=col)
             self.recommend_tree.column(col, anchor="center")
-        self.recommend_tree.column("Champion", anchor="w", width=180)
-        self.recommend_tree.column("Tags", anchor="w", width=160)
-        self.recommend_tree.column("Score", width=80)
-        self.recommend_tree.column("Synergy", width=80)
-        self.recommend_tree.column("Counter", width=80)
+        self.recommend_tree.column("챔피언", anchor="w", width=180)
+        self.recommend_tree.column("태그", anchor="w", width=160)
+        self.recommend_tree.column("최종 점수", width=80)
+        self.recommend_tree.column("시너지", width=80)
+        self.recommend_tree.column("카운터", width=80)
         scroll = tk.Scrollbar(recommend_frame, orient="vertical", command=self.recommend_tree.yview)
         scroll.pack(side="right", fill="y")
         self.recommend_tree.configure(yscrollcommand=scroll.set)
@@ -1107,23 +1107,23 @@ class ChampionScraperApp:
             slot_frame = tk.Frame(column, bd=1, relief="groove", padx=6, pady=6)
             slot_frame.pack(fill="x", pady=4)
 
-            tk.Label(slot_frame, text=f"Slot {idx + 1}", font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w")
+            tk.Label(slot_frame, text=f"슬롯 {idx + 1}", font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w")
             
             # Exclude Checkbox
             exclude_var = tk.BooleanVar(value=False)
             exclude_var.trace_add("write", lambda *args: self.update_banpick_recommendations())
             exclude_check = tk.Checkbutton(
                 slot_frame,
-                text="제외",
+                text="데이터 제외",
                 variable=exclude_var
             )
             exclude_check.grid(row=0, column=1, padx=(10, 0), sticky="e")
 
-            clear_button = tk.Button(slot_frame, text="Clear", width=6)
+            clear_button = tk.Button(slot_frame, text="데이터 제거", width=10)
             clear_button.grid(row=0, column=2, padx=(6, 0), sticky="e")
             active_check = tk.Checkbutton(
                 slot_frame,
-                text="내 차례",
+                text="내 슬롯",
                 variable=self.active_slot_var,
                 onvalue=f"{side_key}:{idx}",
                 offvalue="",
@@ -1139,7 +1139,7 @@ class ChampionScraperApp:
             if idx < len(BANPICK_DEFAULT_LANES):
                 lane_box.set(BANPICK_DEFAULT_LANES[idx])
             else:
-                lane_box.set("Select Lane")
+                lane_box.set("라인 선택")
 
             search_button = tk.Button(slot_frame, text="검색", width=6)
             search_button.grid(row=1, column=3, padx=(6, 0))

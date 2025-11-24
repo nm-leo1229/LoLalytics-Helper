@@ -1,0 +1,23 @@
+{
+    "phase": null,
+    "timestamp": 1763995116.783566,
+    "allies": [
+        {
+            "cellId": 9,
+            "championId": 98,
+            "assignedPosition": "top",
+            "completed": false,
+            "pickTurn": 0,
+            "isLocalPlayer": false,
+            "name": "쉔"
+        }
+    ],
+    "enemies": [],
+    "timer": {
+        "adjustedTimeLeftInPhase": 11030,
+        "internalNowInEpochMs": 1763995115569,
+        "isInfinite": false,
+        "phase": "PLANNING",
+        "totalTimeInPhase": 24000
+    }
+}

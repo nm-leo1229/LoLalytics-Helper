@@ -128,15 +128,10 @@ class AutocompletePopup:
                 add_unique(word_matches, value)
                 continue
 
-            if len(lowered) >= 2 and lowered in candidate:
-                add_unique(substring_matches, value)
-
             if len(prefix_matches) + len(word_matches) >= self.max_results:
                 break
 
         combined = prefix_matches + word_matches
-        if len(combined) < self.max_results:
-            combined.extend(substring_matches)
         return combined[:self.max_results]
 
     def _ensure_popup(self):

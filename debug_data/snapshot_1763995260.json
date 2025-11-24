@@ -1,0 +1,96 @@
+{
+    "phase": null,
+    "timestamp": 1763995257.136641,
+    "allies": [
+        {
+            "cellId": 5,
+            "championId": 18,
+            "assignedPosition": "bottom",
+            "completed": true,
+            "pickTurn": 0,
+            "isLocalPlayer": true,
+            "name": "트리스타나"
+        },
+        {
+            "cellId": 6,
+            "championId": 64,
+            "assignedPosition": "jungle",
+            "completed": true,
+            "pickTurn": 0,
+            "isLocalPlayer": false,
+            "name": "리 신"
+        },
+        {
+            "cellId": 7,
+            "championId": 98,
+            "assignedPosition": "top",
+            "completed": true,
+            "pickTurn": 0,
+            "isLocalPlayer": false,
+            "name": "쉔"
+        },
+        {
+            "cellId": 8,
+            "championId": 800,
+            "assignedPosition": "middle",
+            "completed": true,
+            "pickTurn": 0,
+            "isLocalPlayer": false,
+            "name": "멜"
+        }
+    ],
+    "enemies": [
+        {
+            "cellId": 0,
+            "championId": 266,
+            "assignedPosition": "",
+            "completed": true,
+            "pickTurn": 0,
+            "isLocalPlayer": false,
+            "name": "아트록스"
+        },
+        {
+            "cellId": 1,
+            "championId": 51,
+            "assignedPosition": "",
+            "completed": true,
+            "pickTurn": 0,
+            "isLocalPlayer": false,
+            "name": "케이틀린"
+        },
+        {
+            "cellId": 2,
+            "championId": 32,
+            "assignedPosition": "",
+            "completed": true,
+            "pickTurn": 0,
+            "isLocalPlayer": false,
+            "name": "아무무"
+        },
+        {
+            "cellId": 3,
+            "championId": 234,
+            "assignedPosition": "",
+            "completed": false,
+            "pickTurn": 0,
+            "isLocalPlayer": false,
+            "name": "비에고"
+        },
+        {
+            "cellId": 4,
+            "championId": 131,
+            "assignedPosition": "",
+            "completed": true,
+            "pickTurn": 0,
+            "isLocalPlayer": false,
+            "name": "다이애나"
+        }
+    ],
+    "timer": {
+        "adjustedTimeLeftInPhase": 3394,
+        "internalNowInEpochMs": 1763995256282,
+        "isInfinite": false,
+        "phase": "BAN_PICK",
+        "totalTimeInPhase": 30000
+    }
+}

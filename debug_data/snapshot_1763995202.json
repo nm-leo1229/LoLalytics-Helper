@@ -1,0 +1,51 @@
+{
+    "phase": null,
+    "timestamp": 1763995194.072049,
+    "allies": [
+        {
+            "cellId": 5,
+            "championId": 18,
+            "assignedPosition": "bottom",
+            "completed": false,
+            "pickTurn": 0,
+            "isLocalPlayer": true,
+            "name": "트리스타나"
+        },
+        {
+            "cellId": 6,
+            "championId": 64,
+            "assignedPosition": "jungle",
+            "completed": true,
+            "pickTurn": 0,
+            "isLocalPlayer": false,
+            "name": "리 신"
+        },
+        {
+            "cellId": 9,
+            "championId": 98,
+            "assignedPosition": "top",
+            "completed": false,
+            "pickTurn": 0,
+            "isLocalPlayer": false,
+            "name": "쉔"
+        }
+    ],
+    "enemies": [
+        {
+            "cellId": 0,
+            "championId": 266,
+            "assignedPosition": "",
+            "completed": true,
+            "pickTurn": 0,
+            "isLocalPlayer": false,
+            "name": "아트록스"
+        }
+    ],
+    "timer": {
+        "adjustedTimeLeftInPhase": 1904,
+        "internalNowInEpochMs": 1763995193826,
+        "isInfinite": false,
+        "phase": "BAN_PICK",
+        "totalTimeInPhase": 30000
+    }
+}

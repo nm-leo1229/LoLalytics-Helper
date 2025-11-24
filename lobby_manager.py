@@ -483,6 +483,7 @@ else:
                 cell_map[cell_id] = {
                     "cellId": cell_id,
                     "championId": member.get("championId"),
+                    "assignedPosition": member.get("assignedPosition"),
                     "completed": True,  # 이미 완료된 픽으로 가정하되 actions로 덮어씌움
                     "pickTurn": 0,
                     "isLocalPlayer": (cell_id == local_player_cell_id)
@@ -713,7 +714,7 @@ def diagnose_lcu_connection():
         report_lines.append("현재 픽창 단계가 아니므로 자동 챔피언 입력은 대기 중입니다.")
     else:
         # 세션이 감지되었지만 phase가 없는 경우(커스텀 등), 챔피언 정보도 확인
-        if details.get("phase") == "Custom/Active (Phase 없음)":
+        if details.get("phase") == "Custom/Active (Phase 없음)":    
             report_lines.append("참고: 커스텀 게임은 픽창 단계 정보(Phase)가 없을 수 있습니다.")
 
     return True, "\n".join(report_lines), details
@@ -809,6 +810,14 @@ class ChampionScraperApp:
             state="disabled" # 연결 점검 성공 후 활성화
         )
         self.client_fetch_button.pack(side="left", padx=(5, 0))
+
+        self.save_snapshot_button = tk.Button(
+            sync_frame,
+            text="스냅샷 저장",
+            command=self.save_snapshot,
+            state="disabled"
+        )
+        self.save_snapshot_button.pack(side="left", padx=(5, 0))
         
         container = tk.Frame(self.dashboard_tab)
         container.pack(fill="both", expand=True, padx=10, pady=10)
@@ -850,9 +859,9 @@ class ChampionScraperApp:
         for col in columns:
             self.recommend_tree.heading(col, text=col)
             self.recommend_tree.column(col, anchor="center")
-        self.recommend_tree.column("챔피언", anchor="w", width=180)
-        self.recommend_tree.column("태그", anchor="w", width=160)
-        self.recommend_tree.column("최종 점수", width=80)
+        self.recommend_tree.column("챔피언", anchor="w", width=10)
+        self.recommend_tree.column("태그", anchor="w", width=50)
+        self.recommend_tree.column("최종 점수", width=10)
         self.recommend_tree.column("시너지", width=80)
         self.recommend_tree.column("카운터", width=80)
         scroll = tk.Scrollbar(recommend_frame, orient="vertical", command=self.recommend_tree.yview)
@@ -1055,10 +1064,12 @@ class ChampionScraperApp:
         if success:
             self.client_sync_checkbox.config(state="normal")
             self.client_fetch_button.config(state="normal")
+            self.save_snapshot_button.config(state="normal")
             messagebox.showinfo("클라이언트 연결 점검", report)
         else:
             self.client_sync_checkbox.config(state="disabled")
             self.client_fetch_button.config(state="disabled")
+            self.save_snapshot_button.config(state="disabled")
             messagebox.showerror("클라이언트 연결 점검", report)
 
     def ignore_selected_recommendations(self):
@@ -1239,6 +1250,26 @@ class ChampionScraperApp:
     def handle_client_status(self, message):
         self.root.after(0, lambda: self._set_client_status(message))
 
+    def save_snapshot(self):
+        if not hasattr(self, "last_client_snapshot") or not self.last_client_snapshot:
+            messagebox.showinfo("Info", "저장할 스냅샷 데이터가 없습니다.")
+            return
+
+        debug_dir = "debug_data"
+        if not os.path.exists(debug_dir):
+            os.makedirs(debug_dir)
+        
+        timestamp = int(time.time())
+        filename = f"snapshot_{timestamp}.json"
+        filepath = os.path.join(debug_dir, filename)
+        
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(self.last_client_snapshot, f, indent=4, ensure_ascii=False)
+            messagebox.showinfo("Success", f"스냅샷이 저장되었습니다:\n{filepath}")
+        except Exception as e:
+            messagebox.showerror("Error", f"스냅샷 저장 실패: {e}")
+
     def _apply_snapshot_and_status(self, snapshot):
         changed = self._apply_client_snapshot(snapshot)
         phase = snapshot.get("phase")
@@ -1295,14 +1326,142 @@ class ChampionScraperApp:
                 "display": display,
                 "canonical": canonical or name or str(champion_id),
                 "normalized": normalized,
-                "isLocalPlayer": is_local_player
+                "isLocalPlayer": is_local_player,
+                "assignedPosition": entry.get("assignedPosition")
             })
         return normalized_entries
 
+    def _get_champion_lane_pick_rates(self, champion_name):
+        """
+        Calculate pick rate (games count) for each lane for a champion.
+        Returns a dict: {'jungle': 12000, 'support': 500, ...}
+        """
+        if not champion_name:
+            return {}
+            
+        full_name = self.resolve_champion_name(champion_name)
+        if not full_name:
+            return {}
+            
+        pick_rates = {}
+        
+        for lane in LANES:
+            data_filename = f"{full_name}_{lane}.json".replace(" ", "_")
+            filename = resolve_resource_path("data", data_filename)
+            
+            try:
+                with open(filename, "r", encoding="utf-8") as file:
+                    raw_data = json.load(file)
+                    
+                    # Get games count from counters -> [lane]
+                    # We use the same lane key to avoid double counting
+                    counters = raw_data.get("counters", {})
+                    lane_data = counters.get(lane, {})
+                    
+                    total_games = 0
+                    for enemy_data in lane_data.values():
+                        games_str = enemy_data.get("games", "0")
+                        games = int(str(games_str).replace(",", ""))
+                        total_games += games
+                        
+                    if total_games > 0:
+                        pick_rates[lane] = total_games
+                        
+            except (FileNotFoundError, json.JSONDecodeError, OSError, ValueError):
+                continue
+                
+        return pick_rates
+
+    def _resolve_lane_conflicts_by_pick_rate(self, side_key, entries):
+        """
+        Resolve lane conflicts using pick rate data.
+        Assigns lanes to champions based on highest pick rate first.
+        """
+        # Only process if any entry is missing assignedPosition
+        if all(e.get("assignedPosition") for e in entries):
+            return entries
+
+        champion_pick_rates = []
+        for i, entry in enumerate(entries):
+            name = entry.get("canonical") or entry.get("display")
+            rates = self._get_champion_lane_pick_rates(name)
+            champion_pick_rates.append({
+                "index": i,
+                "entry": entry,
+                "rates": rates
+            })
+            
+        potential_assignments = []
+        for item in champion_pick_rates:
+            entry = item["entry"]
+            current_pos = entry.get("assignedPosition")
+            
+            # If entry already has a valid position, treat it as a very high priority assignment
+            if current_pos and current_pos.lower() in LANES:
+                potential_assignments.append({
+                    "count": 999999999,
+                    "index": item["index"],
+                    "lane": current_pos.lower()
+                })
+                continue
+
+            rates = item["rates"]
+            if not rates:
+                continue
+            for lane, count in rates.items():
+                potential_assignments.append({
+                    "count": count,
+                    "index": item["index"],
+                    "lane": lane
+                })
+                
+        # Sort by count descending (greedy assignment)
+        potential_assignments.sort(key=lambda x: x["count"], reverse=True)
+        
+        assigned_lanes = set()
+        champion_assigned = set()
+        
+        for assign in potential_assignments:
+            idx = assign["index"]
+            lane = assign["lane"]
+            
+            if idx in champion_assigned:
+                continue
+            if lane in assigned_lanes:
+                continue
+                
+            entries[idx]["assignedPosition"] = lane
+            champion_assigned.add(idx)
+            assigned_lanes.add(lane)
+            
+        return entries
+
     def _populate_side_from_client(self, side_key, entries):
+        if side_key == "enemies":
+            entries = self._resolve_lane_conflicts_by_pick_rate(side_key, entries)
+
         slots = self.banpick_slots.get(side_key, [])
         if not slots:
             return False
+        
+        # Sort entries by lane if assignedPosition is available
+        lane_priority = {
+            'top': 0,
+            'jungle': 1,
+            'middle': 2,
+            'bottom': 3,
+            'utility': 4,
+            'support': 4
+        }
+        
+        def get_sort_key(entry):
+            pos = entry.get("assignedPosition", "").lower()
+            return lane_priority.get(pos, 99)
+
+        # Only sort if at least one entry has a valid assigned position
+        if any(entry.get("assignedPosition") for entry in entries):
+            entries = sorted(entries, key=get_sort_key)
+
         changed = False
         for idx, slot in enumerate(slots):
             if idx < len(entries):
@@ -1336,7 +1495,61 @@ class ChampionScraperApp:
         if widget:
             widget.delete(0, tk.END)
             widget.insert(0, display)
-        success = self.perform_banpick_search(slot, auto_trigger=True)
+        
+        # LCU assignedPosition handling
+        assigned_position = entry.get("assignedPosition")
+        target_lane = None
+        if assigned_position:
+            assigned_position = assigned_position.lower()
+            if assigned_position == "utility":
+                assigned_position = "support"
+            if assigned_position in LANES:
+                target_lane = assigned_position
+                lane_box = slot.get("lane")
+                if lane_box:
+                    current_lane = lane_box.get()
+                    
+                    # Check if target_lane is already used by another slot
+                    side_key = slot.get("side")
+                    conflicting_slot = None
+                    
+                    if side_key and target_lane != current_lane:
+                        for other_slot in self.banpick_slots.get(side_key, []):
+                            if other_slot is slot:
+                                continue
+                            other_lane = other_slot.get("lane")
+                            if other_lane and other_lane.get() == target_lane:
+                                # Found a conflict - check if the other slot is empty
+                                other_entry = other_slot.get("entry")
+                                if other_entry and not other_entry.get():
+                                    # Other slot is empty, we can take this lane
+                                    conflicting_slot = other_slot
+                                    break
+                    
+                    # Set the lane for current slot
+                    lane_box.set(target_lane)
+                    self._update_slot_lane_cache(slot, target_lane)
+                    
+                    # If there was a conflicting empty slot, swap its lane
+                    if conflicting_slot:
+                        conflicting_lane_box = conflicting_slot.get("lane")
+                        if conflicting_lane_box and current_lane:
+                            conflicting_lane_box.set(current_lane)
+                            self._update_slot_lane_cache(conflicting_slot, current_lane)
+                        
+                        # CRITICAL FIX: Also swap active slot checkbox if it was on the conflicting slot
+                        current_active = self.active_slot_var.get()
+                        slot_key = f"{side_key}:{slot.get('index')}"
+                        conflicting_key = f"{side_key}:{conflicting_slot.get('index')}"
+                        
+                        if current_active == conflicting_key:
+                            # Active checkbox was on the conflicting slot, move it to current slot
+                            self.active_slot_var.set(slot_key)
+                        elif current_active == slot_key:
+                            # Active checkbox was on current slot, move it to conflicting slot
+                            self.active_slot_var.set(conflicting_key)
+
+        success = self.perform_banpick_search(slot, auto_trigger=True, force_lane=target_lane)
         if success:
             slot["client_last_champion"] = normalized or (canonical.lower() if isinstance(canonical, str) else canonical)
         return success
@@ -1449,7 +1662,7 @@ class ChampionScraperApp:
     def get_autocomplete_candidates(self):
         return self.autocomplete_candidates
 
-    def perform_banpick_search(self, slot, auto_trigger=False):
+    def perform_banpick_search(self, slot, auto_trigger=False, force_lane=None):
         if not slot:
             return False
         entry_widget = slot.get("entry")
@@ -1494,9 +1707,12 @@ class ChampionScraperApp:
         # Determine best lane based on games count (only for auto-trigger)
         target_lane = lane
         if auto_trigger:
-            best_lane = self._find_best_lane_by_counters(full_name)
-            if best_lane:
-                target_lane = best_lane
+            if force_lane:
+                target_lane = force_lane
+            else:
+                best_lane = self._find_best_lane_by_counters(full_name)
+                if best_lane:
+                    target_lane = best_lane
 
         # Load datasets and capture the actual lane found
         synergy_dataset, synergy_lane, _ = self._load_lane_dataset(
@@ -1905,7 +2121,10 @@ class ChampionScraperApp:
         suppress_errors=False,
         apply_ignore_filter=True
     ):
-        lanes_to_try = [preferred_lane] + [lane for lane in LANES if lane != preferred_lane]
+        if preferred_lane in LANES:
+            lanes_to_try = [preferred_lane]
+        else:
+            lanes_to_try = [preferred_lane] + [lane for lane in LANES if lane != preferred_lane]
         best_candidate = None
 
         for lane_candidate in lanes_to_try:

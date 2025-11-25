@@ -712,7 +712,8 @@ def diagnose_lcu_connection():
         break
 
     if not session_detected:
-        report_lines.append("연결 완료. 자동 챔피언 불러오기 대기 중입니다.")
+        summoner_name = details.get("summoner", "소환사")
+        report_lines.append(f"연결 완료! {summoner_name} 님 테스트 감사드립니다. (_ _)")
     else:
         # 세션이 감지되었지만 phase가 없는 경우(커스텀 등), 챔피언 정보도 확인
         if details.get("phase") == "Custom/Active (Phase 없음)":    
@@ -806,7 +807,7 @@ class ChampionScraperApp:
         
         self.client_fetch_button = tk.Button(
             sync_frame,
-            text="지금 불러오기",
+            text="수동 불러오기",
             command=self.manual_client_import,
             state="disabled" # 연결 점검 성공 후 활성화
         )

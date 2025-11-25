@@ -711,7 +711,7 @@ def diagnose_lcu_connection():
         break
 
     if not session_detected:
-        report_lines.append("현재 픽창 단계가 아니므로 자동 챔피언 입력은 대기 중입니다.")
+        report_lines.append("연결 완료. 자동 챔피언 불러오기 대기 중입니다.")
     else:
         # 세션이 감지되었지만 phase가 없는 경우(커스텀 등), 챔피언 정보도 확인
         if details.get("phase") == "Custom/Active (Phase 없음)":    
@@ -761,7 +761,7 @@ class ChampionScraperApp:
         if requests is None:
             initial_lcu_status = "requests 미설치로 LCU 점검 불가"
         self.lcu_status_var = tk.StringVar(value=initial_lcu_status)
-        self.client_sync_var = tk.BooleanVar(value=False)
+        self.client_sync_var = tk.BooleanVar(value=True)
 
         self.build_dashboard_tab()
         
@@ -774,8 +774,8 @@ class ChampionScraperApp:
 
     def build_dashboard_tab(self):
         self.banpick_slots = {"allies": [], "enemies": []}
-        self.active_slot_var = tk.StringVar(value="")
-        self.active_slot_var.trace_add("write", lambda *_: self.update_banpick_recommendations())
+        self.my_lane_var = tk.StringVar(value="")
+        self.my_lane_var.trace_add("write", lambda *_: self.update_banpick_recommendations())
         lcu_frame = tk.LabelFrame(self.dashboard_tab, text="클라이언트 연결 상태")
         lcu_frame.pack(fill="x", padx=10, pady=(0, 5))
         tk.Label(
@@ -785,7 +785,7 @@ class ChampionScraperApp:
         ).pack(side="left", padx=(8, 10))
         self.lcu_check_button = tk.Button(
             lcu_frame,
-            text="연결 점검",
+            text="연결",
             command=self.on_lcu_check_clicked,
             state="normal" if requests is not None else "disabled"
         )
@@ -819,6 +819,35 @@ class ChampionScraperApp:
         )
         self.save_snapshot_button.pack(side="left", padx=(5, 0))
         
+        # My Lane selection frame
+        my_lane_frame = tk.LabelFrame(self.dashboard_tab, text="나의 라인")
+        my_lane_frame.pack(fill="x", padx=10, pady=(5, 5))
+        
+        lane_names = [
+            ("top", "탑"),
+            ("jungle", "정글"),
+            ("middle", "미드"),
+            ("bottom", "바텀"),
+            ("support", "서포터")
+        ]
+        
+        for lane_value, lane_label in lane_names:
+            tk.Radiobutton(
+                my_lane_frame,
+                text=lane_label,
+                variable=self.my_lane_var,
+                value=lane_value,
+                indicatoron=0,
+                width=8
+            ).pack(side="left", padx=5, pady=5)
+        
+        # Clear selection button
+        tk.Button(
+            my_lane_frame,
+            text="선택 해제",
+            command=lambda: self.my_lane_var.set("")
+        ).pack(side="left", padx=10)
+        
         container = tk.Frame(self.dashboard_tab)
         container.pack(fill="both", expand=True, padx=10, pady=10)
         container.columnconfigure(0, weight=1)
@@ -831,9 +860,9 @@ class ChampionScraperApp:
         ).pack(anchor="ne", padx=10, pady=(5, 0))
 
         left_column = self._create_banpick_column(container, "우리팀", "allies")
-        left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        left_column.grid(row=0, column=0, sticky="nsw", padx=(0, 5))
         right_column = self._create_banpick_column(container, "상대팀", "enemies")
-        right_column.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+        right_column.grid(row=0, column=1, sticky="nse", padx=(5, 0))
 
         recommend_frame = tk.LabelFrame(self.dashboard_tab, text="추천 챔피언")
         recommend_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
@@ -1066,6 +1095,8 @@ class ChampionScraperApp:
             self.client_fetch_button.config(state="normal")
             self.save_snapshot_button.config(state="normal")
             messagebox.showinfo("클라이언트 연결 점검", report)
+            if self.client_sync_var.get():
+                self._start_client_sync()
         else:
             self.client_sync_checkbox.config(state="disabled")
             self.client_fetch_button.config(state="disabled")
@@ -1125,17 +1156,8 @@ class ChampionScraperApp:
 
             clear_button = tk.Button(slot_frame, text="데이터 제거", width=10)
             clear_button.grid(row=0, column=2, padx=(6, 0), sticky="e")
-            active_check = tk.Checkbutton(
-                slot_frame,
-                text="내 슬롯",
-                variable=self.active_slot_var,
-                onvalue=f"{side_key}:{idx}",
-                offvalue="",
-                command=lambda: self.update_banpick_recommendations()
-            )
-            active_check.grid(row=0, column=3, padx=(6, 0), sticky="e")
 
-            entry = tk.Entry(slot_frame, width=18)
+            entry = tk.Entry(slot_frame, width=14)
             entry.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(4, 2))
 
             lane_box = ttk.Combobox(slot_frame, values=LANES, state="readonly", width=12)
@@ -1160,7 +1182,6 @@ class ChampionScraperApp:
                 "button": search_button,
                 "clear_button": clear_button,
                 "result_var": result_var,
-                "active_check": active_check,
                 "exclude_var": exclude_var,
                 "display_name": None,
                 "canonical_name": None,
@@ -1481,11 +1502,14 @@ class ChampionScraperApp:
             
         slot_canonical = slot.get("canonical_name")
         
-        # 내 픽이면서 아직 슬롯이 내 차례가 아니거나 비어있다면 강제 입력
+        # If this is the local player and my_lane_var is not set, set it to this slot's lane
         if is_local_player:
-            active_check = slot.get("active_check")
-            if active_check and not self.active_slot_var.get():
-                self.active_slot_var.set(f"{slot.get('side')}:{slot.get('index')}")
+            if not self.my_lane_var.get():
+                slot_lane = slot.get("lane")
+                if slot_lane:
+                    lane_value = slot_lane.get().lower()
+                    if lane_value in LANES:
+                        self.my_lane_var.set(lane_value)
         
         if slot_canonical and normalized and slot_canonical.lower() == normalized:
             slot["client_last_champion"] = normalized
@@ -1537,17 +1561,16 @@ class ChampionScraperApp:
                             conflicting_lane_box.set(current_lane)
                             self._update_slot_lane_cache(conflicting_slot, current_lane)
                         
-                        # CRITICAL FIX: Also swap active slot checkbox if it was on the conflicting slot
-                        current_active = self.active_slot_var.get()
-                        slot_key = f"{side_key}:{slot.get('index')}"
-                        conflicting_key = f"{side_key}:{conflicting_slot.get('index')}"
+                        # Swap exclude_var
+                        slot_exclude = slot.get("exclude_var")
+                        conflicting_exclude = conflicting_slot.get("exclude_var")
+                        if slot_exclude and conflicting_exclude:
+                            val1 = slot_exclude.get()
+                            val2 = conflicting_exclude.get()
+                            slot_exclude.set(val2)
+                            conflicting_exclude.set(val1)
                         
-                        if current_active == conflicting_key:
-                            # Active checkbox was on the conflicting slot, move it to current slot
-                            self.active_slot_var.set(slot_key)
-                        elif current_active == slot_key:
-                            # Active checkbox was on current slot, move it to conflicting slot
-                            self.active_slot_var.set(conflicting_key)
+                        # Note: my_lane_var doesn't need to be swapped because it's lane-based, not slot-based
 
         success = self.perform_banpick_search(slot, auto_trigger=True, force_lane=target_lane)
         if success:
@@ -1624,13 +1647,7 @@ class ChampionScraperApp:
                 finally:
                     self._lane_swap_guard = False
                 self._update_slot_lane_cache(swap_target, previous_value)
-            current_active = self.active_slot_var.get()
-            slot_key = f"{side_key}:{slot.get('index')}"
-            target_key = f"{side_key}:{swap_target.get('index')}"
-            if current_active == target_key:
-                self.active_slot_var.set(slot_key)
-            elif current_active == slot_key:
-                self.active_slot_var.set(target_key)
+            # Note: my_lane_var doesn't need to be swapped because it's lane-based, not slot-based
 
         self.update_banpick_recommendations()
 
@@ -1656,6 +1673,12 @@ class ChampionScraperApp:
         slot["selected_lane"] = None
         slot["synergy_dataset"] = None
         slot["counter_dataset"] = None
+        
+        # Reset exclude checkbox
+        exclude_var = slot.get("exclude_var")
+        if exclude_var:
+            exclude_var.set(False)
+        
         if not suppress_update:
             self.update_banpick_recommendations()
 
@@ -1793,22 +1816,24 @@ class ChampionScraperApp:
         for item in tree.get_children():
             tree.delete(item)
 
-        active_key = self.active_slot_var.get()
-        if not active_key:
-            return
-        try:
-            side_key, idx_str = active_key.split(":")
-            idx = int(idx_str)
-        except ValueError:
+        my_lane = self.my_lane_var.get()
+        if not my_lane or my_lane not in LANES:
             return
 
-        side_slots = self.banpick_slots.get(side_key)
-        if not side_slots or not (0 <= idx < len(side_slots)):
+        # Find the slot in allies team that matches my lane
+        target_slot = None
+        for slot in self.banpick_slots.get("allies", []):
+            slot_lane = slot.get("lane")
+            if slot_lane and slot_lane.get().lower() == my_lane:
+                target_slot = slot
+                break
+        
+        if not target_slot:
             return
-        target_slot = side_slots[idx]
-        target_lane = target_slot.get("lane").get().lower()
-        if target_lane not in LANES:
-            return
+        
+        # My lane is always in the allies team
+        side_key = "allies"
+        target_lane = my_lane
 
         scores = {}
         pick_rate_override = (
@@ -2209,7 +2234,7 @@ class ChampionScraperApp:
         for _side_key, slots in self.banpick_slots.items():
             for slot in slots:
                 self.clear_banpick_slot(slot, reset_lane=True, suppress_update=True)
-        self.active_slot_var.set("")
+        # my_lane_var should NOT be reset - it persists across dashboard resets
         self.update_banpick_recommendations()
 
     def format_display_name(self, slug: str) -> str:

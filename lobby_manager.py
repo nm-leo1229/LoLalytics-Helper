@@ -35,6 +35,7 @@ except ImportError:  # requests는 선택적 의존성
 
 ALIAS_FILE = resolve_resource_path("champion_aliases.json")
 IGNORED_CHAMPIONS_FILE = resolve_resource_path("ignored_champions.json")
+UI_SETTINGS_FILE = resolve_resource_path("ui_settings.json")
 DATA_DIR = Path(resolve_resource_path("data"))
 
 RECOMMEND_LOW_SAMPLE_TAG = "데이터 부족"
@@ -111,7 +112,7 @@ def extract_choseong(text: str) -> str:
 
 def alias_variants(alias: str, include_initials: bool = True) -> set[str]:
     variants = set()
-    candidate = alias.strip()
+    candidate = alias.strip()   
     if not candidate:
         return variants
 
@@ -724,6 +725,7 @@ class ChampionScraperApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Champion Ban/Pick Helper")
+        self.root.state('zoomed')  # Start maximized
         self.root.grid_rowconfigure(0, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
         self.notebook = ttk.Notebook(root)
@@ -731,12 +733,17 @@ class ChampionScraperApp:
         
         self.dashboard_tab = tk.Frame(self.notebook)
         self.notebook.add(self.dashboard_tab, text="Champion Picker")
+        self.recommend_counter_cache = {}
         
-        # Tabs will be initialized later in build order or explicitly
-        self.counter_synergy_tab = None
-        self.op_duos_tab = None
-        self.ignore_tab = None
-
+        self._lane_swap_guard = False
+        self.paned_window = None  # Will be set in build_dashboard_tab
+        self.ui_settings = self._load_ui_settings()  # Load UI settings
+        
+        self.client_watcher = None
+        self.client_sync_supported = True
+        self.client_sync_error = None
+        self.last_client_snapshot = None
+        
         (
             self.canonical_lookup,
             self.alias_lookup,
@@ -744,13 +751,7 @@ class ChampionScraperApp:
             self.autocomplete_candidates
         ) = load_alias_tables()
         self.ignored_champions = self._initialize_ignored_champions()
-        self.recommend_counter_cache = {}
         
-        self._lane_swap_guard = False
-        self.client_watcher = None
-        self.client_sync_supported = True
-        self.client_sync_error = None
-        self.last_client_snapshot = None
         try:
             self.client_watcher = LeagueClientWatcher()
         except RuntimeError as exc:
@@ -848,24 +849,40 @@ class ChampionScraperApp:
             command=lambda: self.my_lane_var.set("")
         ).pack(side="left", padx=10)
         
-        container = tk.Frame(self.dashboard_tab)
-        container.pack(fill="both", expand=True, padx=10, pady=10)
+        # Create PanedWindow for resizable layout
+        self.paned_window = tk.PanedWindow(self.dashboard_tab, orient=tk.VERTICAL, sashrelief=tk.RAISED, sashwidth=5)
+        self.paned_window.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Top pane: slots container
+        top_pane = tk.Frame(self.paned_window)
+        self.paned_window.add(top_pane, minsize=200)
+        
+        container = tk.Frame(top_pane)
+        container.pack(fill="both", expand=True)
         container.columnconfigure(0, weight=1)
         container.columnconfigure(1, weight=1)
 
         tk.Button(
-            self.dashboard_tab,
+            top_pane,
             text="대시보드 초기화",
             command=self.reset_dashboard_tab
-        ).pack(anchor="ne", padx=10, pady=(5, 0))
+        ).pack(anchor="ne", padx=0, pady=(5, 0))
 
         left_column = self._create_banpick_column(container, "우리팀", "allies")
         left_column.grid(row=0, column=0, sticky="nsw", padx=(0, 5))
         right_column = self._create_banpick_column(container, "상대팀", "enemies")
         right_column.grid(row=0, column=1, sticky="nse", padx=(5, 0))
 
-        recommend_frame = tk.LabelFrame(self.dashboard_tab, text="추천 챔피언")
-        recommend_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        # Bottom pane: recommendations
+        recommend_frame = tk.LabelFrame(self.paned_window, text="추천 챔피언")
+        self.paned_window.add(recommend_frame, minsize=150)
+        
+        # Restore saved sash position after a delay to ensure window is rendered
+        if "paned_sash_percentage" in self.ui_settings:
+            self.root.after(500, lambda: self._restore_sash_position())
+        
+        # Bind events to save position when dragging ends
+        self.paned_window.bind("<ButtonRelease-1>", self._on_paned_window_moved)
 
         filter_frame = tk.Frame(recommend_frame)
         filter_frame.pack(fill="x", padx=5, pady=(5, 0))
@@ -1154,20 +1171,20 @@ class ChampionScraperApp:
             )
             exclude_check.grid(row=0, column=1, padx=(10, 0), sticky="e")
 
-            clear_button = tk.Button(slot_frame, text="데이터 제거", width=10)
+            clear_button = tk.Button(slot_frame, text="데이터 제거", width=8)
             clear_button.grid(row=0, column=2, padx=(6, 0), sticky="e")
 
-            entry = tk.Entry(slot_frame, width=14)
+            entry = tk.Entry(slot_frame, width=11)
             entry.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(4, 2))
 
-            lane_box = ttk.Combobox(slot_frame, values=LANES, state="readonly", width=12)
+            lane_box = ttk.Combobox(slot_frame, values=LANES, state="readonly", width=9)
             lane_box.grid(row=1, column=2, padx=(6, 0), pady=(4, 2))
             if idx < len(BANPICK_DEFAULT_LANES):
                 lane_box.set(BANPICK_DEFAULT_LANES[idx])
             else:
                 lane_box.set("라인 선택")
 
-            search_button = tk.Button(slot_frame, text="검색", width=6)
+            search_button = tk.Button(slot_frame, text="검색", width=5)
             search_button.grid(row=1, column=3, padx=(6, 0))
 
             result_var = tk.StringVar(value="검색 결과 없음")
@@ -2336,6 +2353,60 @@ class ChampionScraperApp:
             return float(value)
         except (TypeError, ValueError):
             return 0.0
+    
+    def _load_ui_settings(self):
+        """Load UI settings from file"""
+        try:
+            if os.path.exists(UI_SETTINGS_FILE):
+                with open(UI_SETTINGS_FILE, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return {}
+    
+    def _save_ui_settings(self):
+        """Save UI settings to file"""
+        try:
+            with open(UI_SETTINGS_FILE, "w", encoding="utf-8") as f:
+                json.dump(self.ui_settings, f, indent=2)
+        except Exception:
+            pass
+    
+    def _restore_sash_position(self):
+        """Restore PanedWindow sash position from saved settings"""
+        if self.paned_window and "paned_sash_percentage" in self.ui_settings:
+            try:
+                # Restore as percentage of window height
+                percentage = self.ui_settings["paned_sash_percentage"]
+                # Ensure window is fully rendered
+                self.root.update_idletasks()
+                # Get PanedWindow height
+                paned_height = self.paned_window.winfo_height()
+                
+                if paned_height > 100:  # Window is rendered
+                    y_pos = int(paned_height * percentage)
+                    self.paned_window.sash_place(0, 0, y_pos)
+                else:
+                    # Window not ready, try again after another delay
+                    self.root.after(200, lambda: self._restore_sash_position())
+            except Exception as e:
+                # Silently fail - not critical
+                pass
+    
+    def _on_paned_window_moved(self, event):
+        """Save PanedWindow sash position when dragging ends"""
+        if self.paned_window:
+            try:
+                # Get sash position and PanedWindow height
+                sash_coord = self.paned_window.sash_coord(0)
+                paned_height = self.paned_window.winfo_height()
+                if sash_coord and paned_height > 0:
+                    # Save as percentage of total height
+                    percentage = sash_coord[1] / paned_height
+                    self.ui_settings["paned_sash_percentage"] = percentage
+                    self._save_ui_settings()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

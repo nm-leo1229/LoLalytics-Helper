@@ -1,3 +1,6 @@
+<img width="1918" height="1077" alt="image" src="https://github.com/user-attachments/assets/33386ad7-dac8-4e8f-bfaa-de2e04b9e555" />
+
+
 # LoLalytics Scraper & Counters Finder
 
 **LSCF** is a Python script designed to help you find the best champion choices in *League of Legends* by scraping champion data from the *LoLalytics* website. The data is then used to identify the best counter-picks based on the enemy team's composition.

@@ -1,6 +1,4 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service as ChromeService
-from webdriver_manager.chrome import ChromeDriverManager
+import undetected_chromedriver as uc
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -31,8 +29,27 @@ CHAMPION_NAMES = load_champion_names()
 
 LANES = ['top', 'jungle', 'middle', 'bottom', 'support']
 
+def normalize_champion_name(name):
+    """Normalize champion name for URL generation."""
+    # Special cases
+    special_cases = {
+        'nunu & willump': 'nunu',
+        'renata glasc': 'renata',
+    }
+    
+    name_lower = name.lower().strip()
+    
+    # Check special cases first
+    if name_lower in special_cases:
+        return special_cases[name_lower]
+    
+    # Remove special characters: apostrophes, periods, spaces
+    normalized = name_lower.replace("'", "").replace(".", "").replace(" ", "")
+    
+    return normalized
+
 def generate_url(name, lane):
-    formatted_name = name.lower()
+    formatted_name = normalize_champion_name(name)
     return f"https://lolalytics.com/lol/{formatted_name}/build/?lane={lane}&tier=diamond_plus&patch=30"
 
 def format_data(element):
@@ -188,14 +205,19 @@ def format_synergy_data(element, debug=False):
     }
 
 def scrape_web(driver, url, current_lane):
-    driver.get(url)
+    try:
+        driver.get(url)
+    except Exception as e:
+        print(f"Error loading page {url}: {e}")
+        return None
 
-    # Scroll down the page slightly to ensure content is loaded
+    # Scroll down the page to ensure content is loaded (1.5x more scroll)
     body = driver.find_element(By.CSS_SELECTOR, 'body')
-    for _ in range(3):
+    for _ in range(2):  # Increased from 1 to 2 (1.5x more scroll)
         body.send_keys(Keys.PAGE_DOWN)
         time.sleep(0.25)
 
+    time.sleep(1)
     # Find the element containing "Pick Rate"
     pick_rate_value = None
     try:
@@ -212,19 +234,29 @@ def scrape_web(driver, url, current_lane):
     # If pick rate is not found or is low, skip
     if pick_rate_value is None or pick_rate_value < 0.5:
         print(f"Skip, {url}")
-        return
+        return None
 
     # Scrape counter data
     lane_data = {lane: {} for lane in LANES}
     for i, lane in enumerate(LANES, start=2):
         xpath = f"/html/body/main/div[6]/div[1]/div[{i}]/div[2]"
-        parent_element = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, xpath)))
+        try:
+            parent_element = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, xpath)))
+        except Exception as e:
+            error_msg = f"Could not find counter section for {lane}: {e}"
+            print(f"Warning: {error_msg}")
+            # Raise exception to trigger retry with browser restart
+            raise Exception(error_msg)
 
         for _ in range(6):
             # Get all the children
-            children = WebDriverWait(driver, 15).until(
-                EC.presence_of_all_elements_located((By.XPATH, f"{xpath}/div[1]/*"))
-            )
+            try:
+                children = WebDriverWait(driver, 5).until(
+                    EC.presence_of_all_elements_located((By.XPATH, f"{xpath}/div[1]/*"))
+                )
+            except Exception as e:
+                print(f"Warning: Could not find children elements for {lane}")
+                break
 
             for element in children:
                 data = format_data(element)
@@ -237,20 +269,16 @@ def scrape_web(driver, url, current_lane):
             driver.execute_script("arguments[0].scrollLeft += 500;", parent_element)
             time.sleep(0.5)
 
+
     # Scrape synergy data (Common Teammates)
-    # Synergy data structure: {lane: {champion_name: data}} (excluding current lane)
     synergy_data = {lane: {} for lane in LANES}
     
     try:
-        # Find the button using data-type attribute (most reliable)
-        # The button is a div with data-type="common_synergy"
+        # Find and click the Common Teammates button
         teammates_button = None
         button_selectors = [
             "//div[@data-type='common_synergy']",
             "//div[contains(@class, 'cursor-pointer') and .//span[contains(text(), 'Common Teammates')]]",
-            "//div[contains(@class, 'cursor-pointer') and .//span[contains(text(), 'Common')]]",
-            "//span[contains(text(), 'Common Teammates')]/ancestor::div[contains(@class, 'cursor-pointer')]",
-            "//span[contains(text(), 'Common')]/ancestor::div[@data-type='common_synergy']"
         ]
         
         for selector in button_selectors:
@@ -265,19 +293,13 @@ def scrape_web(driver, url, current_lane):
             except:
                 continue
         
-        if teammates_button is None:
-            print(f"Warning: Could not find 'Common Teammates' button for {current_lane}")
-        else:
+        if teammates_button:
             try:
-                # Scroll button into view
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", teammates_button)
                 time.sleep(0.5)
-                
-                # Click the button using JavaScript (more reliable for Qwik framework)
                 driver.execute_script("arguments[0].click();", teammates_button)
-                time.sleep(2)  # Wait for content to load
+                time.sleep(2)
                 
-                # Scroll to synergy section
                 body.send_keys(Keys.PAGE_DOWN)
                 time.sleep(0.5)
                 
@@ -294,12 +316,18 @@ def scrape_web(driver, url, current_lane):
                         synergy_div_index = lane_index + 1
                     
                     xpath = f"/html/body/main/div[6]/div[1]/div[{synergy_div_index}]/div[2]"
-                    parent_element = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, xpath)))
+                    try:
+                        parent_element = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, xpath)))
+                    except Exception as e:
+                        continue
                     
                     for _ in range(6):
-                        children = WebDriverWait(driver, 15).until(
-                            EC.presence_of_all_elements_located((By.XPATH, f"{xpath}/div[1]/*"))
-                        )
+                        try:
+                            children = WebDriverWait(driver, 5).until(
+                                EC.presence_of_all_elements_located((By.XPATH, f"{xpath}/div[1]/*"))
+                            )
+                        except Exception as e:
+                            break
                         
                         for element in children:
                             data = format_synergy_data(element)
@@ -312,10 +340,9 @@ def scrape_web(driver, url, current_lane):
                         time.sleep(0.5)
                             
             except Exception as e:
-                print(f"Error clicking 'Common Teammates' button or collecting synergy data: {e}")
-            
+                print(f"Error collecting synergy data: {e}")
     except Exception as e:
-        print(f"Error scraping synergy data: {e}")
+        print(f"Error finding synergy button: {e}")
 
     # Combine counter and synergy data
     result = {
@@ -328,7 +355,8 @@ def scrape_web(driver, url, current_lane):
 
 def save_data(full_name, data, lane):
     """Save the champion's data to a file in the /data directory."""
-    filename = f"data/{full_name}_{lane}.json".replace(" ", "_")
+    normalized_name = normalize_champion_name(full_name)
+    filename = f"data/{normalized_name}_{lane}.json"
 
     try:
         with open(filename, 'w') as file:
@@ -337,45 +365,144 @@ def save_data(full_name, data, lane):
     except IOError as e:
         print(f"Error saving data to file: {e}")
 
-def scrape_and_save(driver, full_name):
-    for lane in LANES:
-        url = generate_url(full_name, lane)
+def create_driver():
+    """Create and configure a new Chrome driver instance."""
+    options = uc.ChromeOptions()
+    options.page_load_strategy = 'eager'
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    
+    driver = uc.Chrome(options=options)
+    driver.set_page_load_timeout(60)
+    driver.set_script_timeout(60)
+    return driver
 
-        filename = f"data/{full_name}_{lane}.json".replace(" ", "_")
+def quit_driver(driver):
+    """Safely quit the driver."""
+    try:
+        driver.quit()
+    except OSError:
+        pass
+    # Prevent __del__ from calling quit again and causing OSError
+    driver.quit = lambda: None
+
+def validate_data(full_name, lane):
+    """Check if data file exists and has valid content."""
+    # Use normalized name for filename
+    normalized_name = normalize_champion_name(full_name)
+    filename = f"data/{normalized_name}_{lane}.json"
+    
+    if not os.path.exists(filename):
+        return False
+    
+    try:
+        with open(filename, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            
+        # Check if counter and synergy data exists and is not empty
+        counters = data.get('counter') or data.get('counters')
+        synergy = data.get('synergy')
         
-        if os.path.exists(filename):
-            print(f"Skip, Data for {full_name} {lane} already exists.")
-            continue
+        if not counters or not synergy:
+            return False
         
-        data = scrape_web(driver, url, lane)
+        # Check that at least one lane has actual data (not empty dict)
+        has_counter_data = any(counters.get(lane_name) for lane_name in counters)
+        has_synergy_data = any(synergy.get(lane_name) for lane_name in synergy)
         
-        # if not empty save
-        if data:
-            print(f"Data extracted for {full_name} {lane} lane")
+        if not has_counter_data or not has_synergy_data:
+            return False
+            
+        return True
+    except (json.JSONDecodeError, IOError):
+        return False
+
+def scrape_and_save(driver, full_name, lanes_to_scrape):
+    """Scrape data once and save to all required lanes."""
+    if not lanes_to_scrape:
+        return False
+    
+    # Use the first lane to scrape (all data is the same regardless of which lane URL we visit)
+    first_lane = lanes_to_scrape[0]
+    url = generate_url(full_name, first_lane)
+
+    data = scrape_web(driver, url, first_lane)
+    
+    # Save the same data to all required lanes
+    if data:
+        for lane in lanes_to_scrape:
+            print(f"Saving data for {full_name} {lane} lane")
             save_data(full_name, data, lane)
+        return True
+    else:
+        print(f"No data collected for {full_name}")
+        return False
         
 
-def scrape_and_save_subset(driver, champion_names_subset):
-    for champion_name in champion_names_subset:
-        scrape_and_save(driver, champion_name)
-
-def split_champion_names(fifth):
-    total_names = len(CHAMPION_NAMES)
-    part_size = total_names // 5
-
-    start_index = fifth * part_size
-    if fifth == 4:  # The last part gets any remainder names
-        champion_names_subset = CHAMPION_NAMES[start_index:]
-    else:
-        champion_names_subset = CHAMPION_NAMES[start_index:start_index + part_size]
-
-    return champion_names_subset
-
+def scrape_and_save_subset(champion_lane_list):
+    """Scrape data for champions in the list, optimizing for missing data."""
+    
+    # Group by champion to minimize browser restarts
+    champion_lanes = {}
+    for lane, champions in champion_lane_list.items():
+        for champ in champions:
+            name = champ['name']
+            if name not in champion_lanes:
+                champion_lanes[name] = []
+            champion_lanes[name].append(lane)
+    
+    total_champs = len(champion_lanes)
+    current_champ_idx = 0
+    
+    for champion_name, lanes in champion_lanes.items():
+        current_champ_idx += 1
+        
+        # Filter lanes that need scraping
+        lanes_to_scrape = []
+        for lane in lanes:
+            if not validate_data(champion_name, lane):
+                lanes_to_scrape.append(lane)
+            else:
+                # print(f"Skipping {champion_name} {lane} - valid data exists")
+                pass
+        
+        if not lanes_to_scrape:
+            print(f"[{current_champ_idx}/{total_champs}] Skipping {champion_name} - all data valid")
+            continue
+            
+        print(f"\n[{current_champ_idx}/{total_champs}] Processing {champion_name} for lanes: {', '.join(lanes_to_scrape)}")
+        
+        max_retries = 3
+        retry_count = 0
+        success = False
+        
+        while retry_count < max_retries and not success:
+            if retry_count > 0:
+                print(f"  Retrying {champion_name} (attempt {retry_count + 1}/{max_retries})")
+            
+            driver = None
+            try:
+                driver = create_driver()
+                success = scrape_and_save(driver, champion_name, lanes_to_scrape)
+                
+                if not success:
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        print(f"  Will retry {champion_name} with a fresh browser...")
+                        
+            except Exception as e:
+                retry_count += 1
+                print(f"  Error scraping {champion_name}: {e}")
+                if retry_count < max_retries:
+                    print(f"  Will retry {champion_name} with a fresh browser...")
+            finally:
+                if driver:
+                    quit_driver(driver)
 
 # If errors input your github token
 # os.environ['GH_TOKEN'] = "_"
 
-def main(fifth):
+def main():
     if not os.path.exists('data'):
         os.makedirs('data')
     
@@ -383,20 +510,16 @@ def main(fifth):
         os.environ["WDM_SSL_VERIFY"] = "0"
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-    driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()))
-
+    # Load champion lane list
     try:
-        if fifth == 0:
-            scrape_and_save_subset(driver, CHAMPION_NAMES)
-        else:
-            champion_names_subset = split_champion_names(fifth-1)
-            scrape_and_save_subset(driver, champion_names_subset)
-    finally:
-        driver.quit()
+        with open('champion_lane_list.json', 'r', encoding='utf-8') as f:
+            champion_lane_list = json.load(f)
+    except FileNotFoundError:
+        print("Error: champion_lane_list.json not found. Please run parse_champion_data.py first.")
+        return
+
+    print("Loaded champion list. Starting optimized scrape...")
+    scrape_and_save_subset(champion_lane_list)
 
 if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser(description="Run scraping for a specific subset of champions.")
-    parser.add_argument('fifth', type=int, choices=range(6), help="Specify which 1/5th of the list to process (0 for all, 1-5 for subsets).")
-    args = parser.parse_args()
-    main(args.fifth)
+    main()

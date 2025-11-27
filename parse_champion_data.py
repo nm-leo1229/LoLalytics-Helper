@@ -24,7 +24,7 @@ import os
 LANES = ['top', 'jungle', 'middle', 'bottom', 'support']
 
 def parse_champion_file(filepath):
-    """Parse a champion data file and extract champions with pick rate >= 1%."""
+    """Parse a champion data file and extract all champions."""
     champions = []
     
     try:
@@ -58,7 +58,7 @@ def parse_champion_file(filepath):
                 champion_name = lines[i + 2]  # Line 3 (0-indexed as 2)
                 tier = lines[i + 3]
                 win_rate = lines[i + 5]
-                pickrate_str = lines[i + 6]  # Has +/- prefix
+                pickrate_str = lines[i + 7]  # Line 8 (0-indexed as 7) - actual pickrate
                 
                 # Parse pick rate (remove +/- prefix and convert to float)
                 try:
@@ -66,14 +66,13 @@ def parse_champion_file(filepath):
                 except ValueError:
                     continue
                 
-                # Only include champions with pick rate >= 1%
-                if pickrate >= 1.0:
-                    champions.append({
-                        'name': champion_name.lower(),
-                        'pick_rate': pickrate,
-                        'win_rate': win_rate,
-                        'tier': tier
-                    })
+                # Include all champions (no pick rate filter)
+                champions.append({
+                    'name': champion_name.lower(),
+                    'pick_rate': pickrate,
+                    'win_rate': win_rate,
+                    'tier': tier
+                })
                     
             except (IndexError, ValueError) as e:
                 # Skip malformed entries
@@ -96,7 +95,7 @@ def collect_all_champions():
         print(f"Parsing {filename}...")
         champions = parse_champion_file(filepath)
         lane_champions[lane] = champions
-        print(f"  Found {len(champions)} champions with pick rate >= 1%")
+        print(f"  Found {len(champions)} champions")
     
     return lane_champions
 

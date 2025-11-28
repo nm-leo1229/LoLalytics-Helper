@@ -51,7 +51,7 @@ def normalize_champion_name(name):
 
 def generate_url(name, lane):
     formatted_name = normalize_champion_name(name)
-    return f"https://lolalytics.com/lol/{formatted_name}/build/?lane={lane}&tier=diamond_plus&patch=30"
+    return f"https://lolalytics.com/lol/{formatted_name}/build/?lane={lane}&patch=30"
 
 def format_data(element):
     text = element.text.replace('\n', ' ').strip().split()

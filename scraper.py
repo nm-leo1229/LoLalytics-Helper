@@ -412,8 +412,17 @@ def create_driver():
         "profile.managed_default_content_settings.images": 2,  # 이미지 차단
         "profile.managed_default_content_settings.media_stream": 2,
         "profile.managed_default_content_settings.notifications": 2,
+        "profile.managed_default_content_settings.plugins": 2,  # 플러그인 차단
+        "profile.managed_default_content_settings.popups": 2,  # 팝업 차단
+        "profile.managed_default_content_settings.automatic_downloads": 2,
+        "profile.default_content_setting_values.media_stream_mic": 2,
+        "profile.default_content_setting_values.media_stream_camera": 2,
+        "profile.default_content_setting_values.autoplay": 2,  # 자동재생 차단
     }
     options.add_experimental_option("prefs", prefs)
+    
+    # 자동재생 비활성화
+    options.add_argument('--autoplay-policy=user-gesture-required')
     
     driver = uc.Chrome(options=options)
     driver.set_page_load_timeout(60)
@@ -423,6 +432,7 @@ def create_driver():
     # CDP로 광고 URL 패턴 차단
     driver.execute_cdp_cmd('Network.enable', {})
     driver.execute_cdp_cmd('Network.setBlockedURLs', {'urls': [
+        # 일반 광고
         '*doubleclick.net*',
         '*googlesyndication.com*',
         '*googleadservices.com*',
@@ -441,6 +451,28 @@ def create_driver():
         '*taboola.com*',
         '*ad.*.com*',
         '*ads.*.com*',
+        # 동영상 광고
+        '*imasdk.googleapis.com*',
+        '*youtube.com/pagead*',
+        '*youtube.com/api/stats/ads*',
+        '*vid.springserve.com*',
+        '*springserve.com*',
+        '*video-ad*',
+        '*videoad*',
+        '*vast.xml*',
+        '*vast2.xml*',
+        '*vast3.xml*',
+        '*vast4.xml*',
+        '*vpaid*',
+        '*.mp4*adsystem*',
+        '*serving-sys.com*',
+        '*teads.tv*',
+        '*spotxchange.com*',
+        '*spotx.tv*',
+        '*advertising.com*',
+        '*innovid.com*',
+        '*connatix.com*',
+        '*primis.tech*',
     ]})
     
     return driver
@@ -522,50 +554,68 @@ def scrape_and_save_subset(champion_lane_list):
     total_champs = len(champion_lanes)
     current_champ_idx = 0
     
-    for champion_name, lanes in champion_lanes.items():
-        current_champ_idx += 1
-        
-        # Filter lanes that need scraping
-        lanes_to_scrape = []
-        for lane in lanes:
-            if not validate_data(champion_name, lane):
-                lanes_to_scrape.append(lane)
-            else:
-                # print(f"Skipping {champion_name} {lane} - valid data exists")
-                pass
-        
-        if not lanes_to_scrape:
-            print(f"[{current_champ_idx}/{total_champs}] Skipping {champion_name} - all data valid")
-            continue
+    # 브라우저 재사용 - 한 번만 생성
+    driver = None
+    champs_since_restart = 0
+    RESTART_INTERVAL = 30  # 브라우저 재시작 (메모리 관리)
+    
+    try:
+        for champion_name, lanes in champion_lanes.items():
+            current_champ_idx += 1
             
-        print(f"\n[{current_champ_idx}/{total_champs}] Processing {champion_name} for lanes: {', '.join(lanes_to_scrape)}")
-        
-        max_retries = 3
-        retry_count = 0
-        success = False
-        
-        while retry_count < max_retries and not success:
-            if retry_count > 0:
-                print(f"  Retrying {champion_name} (attempt {retry_count + 1}/{max_retries})")
+            # Filter lanes that need scraping
+            lanes_to_scrape = []
+            for lane in lanes:
+                if not validate_data(champion_name, lane):
+                    lanes_to_scrape.append(lane)
             
-            driver = None
-            try:
-                driver = create_driver()
-                success = scrape_and_save(driver, champion_name, lanes_to_scrape)
+            if not lanes_to_scrape:
+                print(f"[{current_champ_idx}/{total_champs}] Skipping {champion_name} - all data valid")
+                continue
                 
-                if not success:
+            print(f"\n[{current_champ_idx}/{total_champs}] Processing {champion_name} for lanes: {', '.join(lanes_to_scrape)}")
+            
+            max_retries = 3
+            retry_count = 0
+            success = False
+            
+            while retry_count < max_retries and not success:
+                if retry_count > 0:
+                    print(f"  Retrying {champion_name} (attempt {retry_count + 1}/{max_retries})")
+                
+                try:
+                    # 브라우저가 없거나 재시작 필요 시 생성
+                    if driver is None or champs_since_restart >= RESTART_INTERVAL:
+                        if driver is not None:
+                            print("  Restarting browser for memory management...")
+                            quit_driver(driver)
+                        driver = create_driver()
+                        champs_since_restart = 0
+                    
+                    success = scrape_and_save(driver, champion_name, lanes_to_scrape)
+                    
+                    if success:
+                        champs_since_restart += 1
+                    else:
+                        retry_count += 1
+                        if retry_count < max_retries:
+                            print(f"  Will retry {champion_name} with a fresh browser...")
+                            quit_driver(driver)
+                            driver = None
+                            
+                except Exception as e:
                     retry_count += 1
+                    print(f"  Error scraping {champion_name}: {e}")
                     if retry_count < max_retries:
                         print(f"  Will retry {champion_name} with a fresh browser...")
-                        
-            except Exception as e:
-                retry_count += 1
-                print(f"  Error scraping {champion_name}: {e}")
-                if retry_count < max_retries:
-                    print(f"  Will retry {champion_name} with a fresh browser...")
-            finally:
-                if driver:
-                    quit_driver(driver)
+                    # 에러 시 브라우저 재시작
+                    if driver:
+                        quit_driver(driver)
+                        driver = None
+    finally:
+        # 모든 작업 완료 후 브라우저 종료
+        if driver:
+            quit_driver(driver)
 
 # If errors input your github token
 # os.environ['GH_TOKEN'] = "_"

@@ -3,6 +3,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import TimeoutException, WebDriverException
 import time
 import json
 import os
@@ -236,38 +237,46 @@ def scrape_web(driver, url, current_lane):
         print(f"Skip, {url}")
         return None
 
-    # Scrape counter data
+    # Scrape counter data - 모든 레인 동시 스크롤
     lane_data = {lane: {} for lane in LANES}
+    
+    # 모든 레인의 parent_element를 먼저 수집
+    parent_elements = {}
+    xpaths = {}
     for i, lane in enumerate(LANES, start=2):
         xpath = f"/html/body/main/div[6]/div[1]/div[{i}]/div[2]"
+        xpaths[lane] = xpath
         try:
-            parent_element = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, xpath)))
-        except Exception as e:
+            parent_elements[lane] = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, xpath)))
+        except (TimeoutException, WebDriverException) as e:
             error_msg = f"Could not find counter section for {lane}: {e}"
             print(f"Warning: {error_msg}")
-            # Raise exception to trigger retry with browser restart
             raise Exception(error_msg)
 
-        for _ in range(6):
-            # Get all the children
+    # 6번 반복하면서 모든 레인 동시 처리
+    for _ in range(6):
+        # 모든 레인에서 데이터 수집
+        for lane in LANES:
             try:
-                children = WebDriverWait(driver, 5).until(
-                    EC.presence_of_all_elements_located((By.XPATH, f"{xpath}/div[1]/*"))
-                )
-            except Exception as e:
-                print(f"Warning: Could not find children elements for {lane}")
-                break
-
-            for element in children:
-                data = format_data(element)
-                name = data.get("Name")
-                
-                if name != 'error' and name != 'N/A' and name not in lane_data[lane]:
-                    lane_data[lane][name] = data
+                children = driver.find_elements(By.XPATH, f"{xpaths[lane]}/div[1]/*")
+                for element in children:
+                    try:
+                        data = format_data(element)
+                        name = data.get("Name")
+                        if name != 'error' and name != 'N/A' and name not in lane_data[lane]:
+                            lane_data[lane][name] = data
+                    except (TimeoutException, WebDriverException):
+                        continue
+            except (TimeoutException, WebDriverException):
+                continue
         
-            # Scroll the parent element sideways to load more elements
-            driver.execute_script("arguments[0].scrollLeft += 500;", parent_element)
+        # 모든 레인을 한 번에 스크롤
+        try:
+            scroll_script = "for(let i=0; i<arguments.length; i++) { if(arguments[i]) arguments[i].scrollLeft += 500; }"
+            driver.execute_script(scroll_script, *parent_elements.values())
             time.sleep(0.5)
+        except (TimeoutException, WebDriverException):
+            break
 
 
     # Scrape synergy data (Common Teammates)
@@ -303,46 +312,67 @@ def scrape_web(driver, url, current_lane):
                 body.send_keys(Keys.PAGE_DOWN)
                 time.sleep(0.5)
                 
-                # Collect synergy data for each lane (excluding current lane)
+                # Collect synergy data for each lane (excluding current lane) - 동시 스크롤
                 lanes_to_check = [lane for lane in LANES if lane != current_lane]
+                current_lane_index = LANES.index(current_lane)
                 
+                # 모든 레인의 parent_element를 먼저 수집
+                synergy_parents = {}
+                synergy_xpaths = {}
                 for lane in lanes_to_check:
-                    current_lane_index = LANES.index(current_lane)
                     lane_index = LANES.index(lane)
-                    
                     if lane_index < current_lane_index:
                         synergy_div_index = lane_index + 2
                     else:
                         synergy_div_index = lane_index + 1
                     
                     xpath = f"/html/body/main/div[6]/div[1]/div[{synergy_div_index}]/div[2]"
+                    synergy_xpaths[lane] = xpath
                     try:
-                        parent_element = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, xpath)))
-                    except Exception as e:
+                        synergy_parents[lane] = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, xpath)))
+                    except (TimeoutException, WebDriverException):
                         continue
-                    
-                    for _ in range(6):
+                
+                # 6번 반복하면서 모든 레인 동시 처리
+                for _ in range(6):
+                    # 모든 레인에서 데이터 수집
+                    for lane in lanes_to_check:
+                        if lane not in synergy_xpaths:
+                            continue
                         try:
-                            children = WebDriverWait(driver, 5).until(
-                                EC.presence_of_all_elements_located((By.XPATH, f"{xpath}/div[1]/*"))
-                            )
-                        except Exception as e:
+                            children = driver.find_elements(By.XPATH, f"{synergy_xpaths[lane]}/div[1]/*")
+                            for element in children:
+                                try:
+                                    data = format_synergy_data(element)
+                                    name = data.get("Name")
+                                    if name != 'error' and name != 'N/A' and name not in synergy_data[lane]:
+                                        synergy_data[lane][name] = data
+                                except (TimeoutException, WebDriverException):
+                                    continue
+                        except (TimeoutException, WebDriverException):
+                            continue
+                    
+                    # 모든 레인을 한 번에 스크롤
+                    if synergy_parents:
+                        try:
+                            scroll_script = "for(let i=0; i<arguments.length; i++) { if(arguments[i]) arguments[i].scrollLeft += 500; }"
+                            driver.execute_script(scroll_script, *synergy_parents.values())
+                            time.sleep(0.5)
+                        except (TimeoutException, WebDriverException):
                             break
-                        
-                        for element in children:
-                            data = format_synergy_data(element)
-                            name = data.get("Name")
                             
-                            if name != 'error' and name != 'N/A' and name not in synergy_data[lane]:
-                                synergy_data[lane][name] = data
-                        
-                        driver.execute_script("arguments[0].scrollLeft += 500;", parent_element)
-                        time.sleep(0.5)
-                            
-            except Exception as e:
-                print(f"Error collecting synergy data: {e}")
+            except (TimeoutException, WebDriverException) as e:
+                print(f"Warning: Synergy data collection interrupted: {e}")
+                raise Exception(f"Synergy data collection timeout: {e}")
     except Exception as e:
         print(f"Error finding synergy button: {e}")
+        # synergy 수집 실패 시 재시도를 위해 예외 발생
+        raise Exception(f"Synergy data collection failed: {e}")
+
+    # synergy 데이터가 비어있으면 재시도
+    has_synergy_data = any(synergy_data.get(lane) for lane in synergy_data)
+    if not has_synergy_data:
+        raise Exception("Synergy data is empty, need retry")
 
     # Combine counter and synergy data
     result = {
@@ -371,10 +401,48 @@ def create_driver():
     options.page_load_strategy = 'eager'
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--disable-extensions')
+    options.add_argument('--disable-background-networking')
+    options.add_argument('--disable-default-apps')
+    options.add_argument('--no-first-run')
+    
+    # 불필요한 리소스 비활성화
+    prefs = {
+        "profile.managed_default_content_settings.images": 2,  # 이미지 차단
+        "profile.managed_default_content_settings.media_stream": 2,
+        "profile.managed_default_content_settings.notifications": 2,
+    }
+    options.add_experimental_option("prefs", prefs)
     
     driver = uc.Chrome(options=options)
     driver.set_page_load_timeout(60)
-    driver.set_script_timeout(60)
+    driver.set_script_timeout(30)  # execute_script 타임아웃 단축
+    driver.implicitly_wait(10)
+    
+    # CDP로 광고 URL 패턴 차단
+    driver.execute_cdp_cmd('Network.enable', {})
+    driver.execute_cdp_cmd('Network.setBlockedURLs', {'urls': [
+        '*doubleclick.net*',
+        '*googlesyndication.com*',
+        '*googleadservices.com*',
+        '*google-analytics.com*',
+        '*adservice.google.*',
+        '*pagead2.googlesyndication.com*',
+        '*amazon-adsystem.com*',
+        '*pubmatic.com*',
+        '*googletagmanager.com*',
+        '*facebook.net*',
+        '*adskeeper.com*',
+        '*adnxs.com*',
+        '*rubiconproject.com*',
+        '*criteo.com*',
+        '*outbrain.com*',
+        '*taboola.com*',
+        '*ad.*.com*',
+        '*ads.*.com*',
+    ]})
+    
     return driver
 
 def quit_driver(driver):

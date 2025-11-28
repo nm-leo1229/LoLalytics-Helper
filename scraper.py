@@ -205,6 +205,110 @@ def format_synergy_data(element, debug=False):
         "games": games
     }
 
+def block_video_ads(driver):
+    """Block all video elements on the page to prevent video ads."""
+    try:
+        # JavaScript to find and stop all video elements
+        block_script = """
+        // Function to block a single video element
+        function blockVideo(video) {
+            try {
+                // Stop video playback
+                if (video.pause) video.pause();
+                if (video.stop) video.stop();
+                
+                // Remove src to prevent loading
+                video.src = '';
+                video.srcObject = null;
+                
+                // Hide the element
+                video.style.display = 'none';
+                video.style.visibility = 'hidden';
+                
+                // Remove from DOM
+                video.remove();
+            } catch (e) {
+                // Ignore errors for individual videos
+            }
+        }
+        
+        // Function to block ad containers
+        function blockAdContainers() {
+            const adContainers = document.querySelectorAll(
+                '[class*="ad-container"], [class*="video-ad"], [id*="ad-container"], [id*="video-ad"], ' +
+                '[class*="advertisement"], [id*="advertisement"]'
+            );
+            adContainers.forEach(container => {
+                try {
+                    container.style.display = 'none';
+                    container.remove();
+                } catch (e) {
+                    // Ignore errors
+                }
+            });
+        }
+        
+        // Block existing videos
+        const videos = document.querySelectorAll('video, iframe[src*="video"], iframe[src*="ad"]');
+        videos.forEach(blockVideo);
+        blockAdContainers();
+        
+        // Prevent autoplay by overriding play method (only once)
+        if (!window._videoBlockerInstalled) {
+            const originalPlay = HTMLMediaElement.prototype.play;
+            HTMLMediaElement.prototype.play = function() {
+                // Only allow play if user initiated (not auto-play)
+                return Promise.reject(new Error('Autoplay blocked'));
+            };
+            window._videoBlockerInstalled = true;
+        }
+        
+        // Set up MutationObserver to block dynamically added videos
+        if (!window._videoObserverInstalled) {
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node.nodeType === 1) { // Element node
+                            // Check if the node itself is a video
+                            if (node.tagName === 'VIDEO' || 
+                                (node.tagName === 'IFRAME' && 
+                                 (node.src.includes('video') || node.src.includes('ad')))) {
+                                blockVideo(node);
+                            }
+                            
+                            // Check for videos within the added node
+                            const innerVideos = node.querySelectorAll('video, iframe[src*="video"], iframe[src*="ad"]');
+                            innerVideos.forEach(blockVideo);
+                            
+                            // Check for ad containers
+                            if (node.className && 
+                                (node.className.includes('ad-container') || 
+                                 node.className.includes('video-ad') ||
+                                 node.className.includes('advertisement'))) {
+                                try {
+                                    node.style.display = 'none';
+                                    node.remove();
+                                } catch (e) {}
+                            }
+                        }
+                    });
+                });
+            });
+            
+            // Start observing the document for changes
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            
+            window._videoObserverInstalled = true;
+        }
+        """
+        driver.execute_script(block_script)
+    except Exception as e:
+        # Silently ignore errors in ad blocking
+        pass
+
 def scrape_web(driver, url, current_lane):
     try:
         driver.get(url)
@@ -212,13 +316,19 @@ def scrape_web(driver, url, current_lane):
         print(f"Error loading page {url}: {e}")
         return None
 
+    # Block video ads immediately after page load
+    block_video_ads(driver)
+    
     # Scroll down the page to ensure content is loaded (1.5x more scroll)
     body = driver.find_element(By.CSS_SELECTOR, 'body')
     for _ in range(2):  # Increased from 1 to 2 (1.5x more scroll)
         body.send_keys(Keys.PAGE_DOWN)
-        time.sleep(0.25)
+        time.sleep(0.1)
+    
+    # Block video ads again after scrolling (in case new content loaded)
+    block_video_ads(driver)
 
-    time.sleep(1)
+    time.sleep(0.5)
     # Find the element containing "Pick Rate"
     pick_rate_value = None
     try:
@@ -254,7 +364,7 @@ def scrape_web(driver, url, current_lane):
             raise Exception(error_msg)
 
     # 6번 반복하면서 모든 레인 동시 처리
-    for _ in range(6):
+    for _ in range(4):
         # 모든 레인에서 데이터 수집
         for lane in LANES:
             try:
@@ -274,7 +384,7 @@ def scrape_web(driver, url, current_lane):
         try:
             scroll_script = "for(let i=0; i<arguments.length; i++) { if(arguments[i]) arguments[i].scrollLeft += 500; }"
             driver.execute_script(scroll_script, *parent_elements.values())
-            time.sleep(0.5)
+            time.sleep(0.25)
         except (TimeoutException, WebDriverException):
             break
 
@@ -305,12 +415,12 @@ def scrape_web(driver, url, current_lane):
         if teammates_button:
             try:
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", teammates_button)
-                time.sleep(0.5)
+                time.sleep(0.3)
                 driver.execute_script("arguments[0].click();", teammates_button)
-                time.sleep(2)
+                time.sleep(1)
                 
                 body.send_keys(Keys.PAGE_DOWN)
-                time.sleep(0.5)
+                time.sleep(0.25)
                 
                 # Collect synergy data for each lane (excluding current lane) - 동시 스크롤
                 lanes_to_check = [lane for lane in LANES if lane != current_lane]
@@ -333,8 +443,8 @@ def scrape_web(driver, url, current_lane):
                     except (TimeoutException, WebDriverException):
                         continue
                 
-                # 6번 반복하면서 모든 레인 동시 처리
-                for _ in range(6):
+                # 4번 반복하면서 모든 레인 동시 처리 (대부분 3-4번이면 충분)
+                for _ in range(4):
                     # 모든 레인에서 데이터 수집
                     for lane in lanes_to_check:
                         if lane not in synergy_xpaths:
@@ -357,7 +467,7 @@ def scrape_web(driver, url, current_lane):
                         try:
                             scroll_script = "for(let i=0; i<arguments.length; i++) { if(arguments[i]) arguments[i].scrollLeft += 500; }"
                             driver.execute_script(scroll_script, *synergy_parents.values())
-                            time.sleep(0.5)
+                            time.sleep(0.2)
                         except (TimeoutException, WebDriverException):
                             break
                             
@@ -518,25 +628,28 @@ def validate_data(full_name, lane):
         return False
 
 def scrape_and_save(driver, full_name, lanes_to_scrape):
-    """Scrape data once and save to all required lanes."""
+    """Scrape data for each lane separately and save to corresponding files."""
     if not lanes_to_scrape:
         return False
     
-    # Use the first lane to scrape (all data is the same regardless of which lane URL we visit)
-    first_lane = lanes_to_scrape[0]
-    url = generate_url(full_name, first_lane)
-
-    data = scrape_web(driver, url, first_lane)
+    all_success = True
     
-    # Save the same data to all required lanes
-    if data:
-        for lane in lanes_to_scrape:
+    # IMPORTANT: Each lane needs its own unique data from its specific URL!
+    # Different lanes have different counter/synergy data
+    for lane in lanes_to_scrape:
+        url = generate_url(full_name, lane)
+        print(f"Fetching data for {full_name} {lane} lane from {url}")
+        
+        data = scrape_web(driver, url, lane)
+        
+        if data:
             print(f"Saving data for {full_name} {lane} lane")
             save_data(full_name, data, lane)
-        return True
-    else:
-        print(f"No data collected for {full_name}")
-        return False
+        else:
+            print(f"No data collected for {full_name} {lane}")
+            all_success = False
+    
+    return all_success
         
 
 def scrape_and_save_subset(champion_lane_list):
@@ -557,7 +670,7 @@ def scrape_and_save_subset(champion_lane_list):
     # 브라우저 재사용 - 한 번만 생성
     driver = None
     champs_since_restart = 0
-    RESTART_INTERVAL = 30  # 브라우저 재시작 (메모리 관리)
+    RESTART_INTERVAL = 90 # 브라우저 재시작 (메모리 관리)
     
     try:
         for champion_name, lanes in champion_lanes.items():

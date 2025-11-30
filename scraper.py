@@ -205,109 +205,7 @@ def format_synergy_data(element, debug=False):
         "games": games
     }
 
-def block_video_ads(driver):
-    """Block all video elements on the page to prevent video ads."""
-    try:
-        # JavaScript to find and stop all video elements
-        block_script = """
-        // Function to block a single video element
-        function blockVideo(video) {
-            try {
-                // Stop video playback
-                if (video.pause) video.pause();
-                if (video.stop) video.stop();
-                
-                // Remove src to prevent loading
-                video.src = '';
-                video.srcObject = null;
-                
-                // Hide the element
-                video.style.display = 'none';
-                video.style.visibility = 'hidden';
-                
-                // Remove from DOM
-                video.remove();
-            } catch (e) {
-                // Ignore errors for individual videos
-            }
-        }
-        
-        // Function to block ad containers
-        function blockAdContainers() {
-            const adContainers = document.querySelectorAll(
-                '[class*="ad-container"], [class*="video-ad"], [id*="ad-container"], [id*="video-ad"], ' +
-                '[class*="advertisement"], [id*="advertisement"]'
-            );
-            adContainers.forEach(container => {
-                try {
-                    container.style.display = 'none';
-                    container.remove();
-                } catch (e) {
-                    // Ignore errors
-                }
-            });
-        }
-        
-        // Block existing videos
-        const videos = document.querySelectorAll('video, iframe[src*="video"], iframe[src*="ad"]');
-        videos.forEach(blockVideo);
-        blockAdContainers();
-        
-        // Prevent autoplay by overriding play method (only once)
-        if (!window._videoBlockerInstalled) {
-            const originalPlay = HTMLMediaElement.prototype.play;
-            HTMLMediaElement.prototype.play = function() {
-                // Only allow play if user initiated (not auto-play)
-                return Promise.reject(new Error('Autoplay blocked'));
-            };
-            window._videoBlockerInstalled = true;
-        }
-        
-        // Set up MutationObserver to block dynamically added videos
-        if (!window._videoObserverInstalled) {
-            const observer = new MutationObserver((mutations) => {
-                mutations.forEach((mutation) => {
-                    mutation.addedNodes.forEach((node) => {
-                        if (node.nodeType === 1) { // Element node
-                            // Check if the node itself is a video
-                            if (node.tagName === 'VIDEO' || 
-                                (node.tagName === 'IFRAME' && 
-                                 (node.src.includes('video') || node.src.includes('ad')))) {
-                                blockVideo(node);
-                            }
-                            
-                            // Check for videos within the added node
-                            const innerVideos = node.querySelectorAll('video, iframe[src*="video"], iframe[src*="ad"]');
-                            innerVideos.forEach(blockVideo);
-                            
-                            // Check for ad containers
-                            if (node.className && 
-                                (node.className.includes('ad-container') || 
-                                 node.className.includes('video-ad') ||
-                                 node.className.includes('advertisement'))) {
-                                try {
-                                    node.style.display = 'none';
-                                    node.remove();
-                                } catch (e) {}
-                            }
-                        }
-                    });
-                });
-            });
-            
-            // Start observing the document for changes
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
-            
-            window._videoObserverInstalled = true;
-        }
-        """
-        driver.execute_script(block_script)
-    except Exception as e:
-        # Silently ignore errors in ad blocking
-        pass
+
 
 def scrape_web(driver, url, current_lane):
     try:
@@ -316,19 +214,20 @@ def scrape_web(driver, url, current_lane):
         print(f"Error loading page {url}: {e}")
         return None
 
-    # Block video ads immediately after page load
-    block_video_ads(driver)
+    # Check for Cloudflare challenge
+    handle_cloudflare_challenge(driver)
     
+    # Random delay to mimic human behavior
+    import random
+    time.sleep(random.uniform(2.0, 4.0))
+
     # Scroll down the page to ensure content is loaded (1.5x more scroll)
     body = driver.find_element(By.CSS_SELECTOR, 'body')
     for _ in range(2):  # Increased from 1 to 2 (1.5x more scroll)
         body.send_keys(Keys.PAGE_DOWN)
-        time.sleep(0.1)
-    
-    # Block video ads again after scrolling (in case new content loaded)
-    block_video_ads(driver)
+        time.sleep(random.uniform(0.5, 1.5))
 
-    time.sleep(0.5)
+    time.sleep(random.uniform(0.5, 1.0))
     # Find the element containing "Pick Rate"
     pick_rate_value = None
     try:
@@ -380,11 +279,14 @@ def scrape_web(driver, url, current_lane):
             except (TimeoutException, WebDriverException):
                 continue
         
-        # 모든 레인을 한 번에 스크롤
+        # 순차적으로 랜덤하게 스크롤 (Human-like)
         try:
-            scroll_script = "for(let i=0; i<arguments.length; i++) { if(arguments[i]) arguments[i].scrollLeft += 500; }"
-            driver.execute_script(scroll_script, *parent_elements.values())
-            time.sleep(0.25)
+            for element in parent_elements.values():
+                if element:
+                    scroll_amount = random.randint(400, 600)
+                    driver.execute_script(f"arguments[0].scrollLeft += {scroll_amount};", element)
+                    time.sleep(random.uniform(0.1, 0.3))
+            time.sleep(random.uniform(0.2, 0.5))
         except (TimeoutException, WebDriverException):
             break
 
@@ -415,12 +317,12 @@ def scrape_web(driver, url, current_lane):
         if teammates_button:
             try:
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", teammates_button)
-                time.sleep(0.3)
+                time.sleep(random.uniform(0.3, 0.6))
                 driver.execute_script("arguments[0].click();", teammates_button)
-                time.sleep(1)
+                time.sleep(random.uniform(1.0, 1.5))
                 
                 body.send_keys(Keys.PAGE_DOWN)
-                time.sleep(0.25)
+                time.sleep(random.uniform(0.3, 0.6))
                 
                 # Collect synergy data for each lane (excluding current lane) - 동시 스크롤
                 lanes_to_check = [lane for lane in LANES if lane != current_lane]
@@ -462,12 +364,15 @@ def scrape_web(driver, url, current_lane):
                         except (TimeoutException, WebDriverException):
                             continue
                     
-                    # 모든 레인을 한 번에 스크롤
+                    # 순차적으로 랜덤하게 스크롤 (Human-like)
                     if synergy_parents:
                         try:
-                            scroll_script = "for(let i=0; i<arguments.length; i++) { if(arguments[i]) arguments[i].scrollLeft += 500; }"
-                            driver.execute_script(scroll_script, *synergy_parents.values())
-                            time.sleep(0.2)
+                            for element in synergy_parents.values():
+                                if element:
+                                    scroll_amount = random.randint(400, 600)
+                                    driver.execute_script(f"arguments[0].scrollLeft += {scroll_amount};", element)
+                                    time.sleep(random.uniform(0.1, 0.3))
+                            time.sleep(random.uniform(0.2, 0.5))
                         except (TimeoutException, WebDriverException):
                             break
                             
@@ -505,9 +410,11 @@ def save_data(full_name, data, lane):
     except IOError as e:
         print(f"Error saving data to file: {e}")
 
-def create_driver():
+def create_driver(proxy=None):
     """Create and configure a new Chrome driver instance."""
     options = uc.ChromeOptions()
+    if proxy:
+        options.add_argument(f'--proxy-server={proxy}')
     options.page_load_strategy = 'eager'
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
@@ -539,53 +446,66 @@ def create_driver():
     driver.set_script_timeout(30)  # execute_script 타임아웃 단축
     driver.implicitly_wait(10)
     
-    # CDP로 광고 URL 패턴 차단
-    driver.execute_cdp_cmd('Network.enable', {})
-    driver.execute_cdp_cmd('Network.setBlockedURLs', {'urls': [
-        # 일반 광고
-        '*doubleclick.net*',
-        '*googlesyndication.com*',
-        '*googleadservices.com*',
-        '*google-analytics.com*',
-        '*adservice.google.*',
-        '*pagead2.googlesyndication.com*',
-        '*amazon-adsystem.com*',
-        '*pubmatic.com*',
-        '*googletagmanager.com*',
-        '*facebook.net*',
-        '*adskeeper.com*',
-        '*adnxs.com*',
-        '*rubiconproject.com*',
-        '*criteo.com*',
-        '*outbrain.com*',
-        '*taboola.com*',
-        '*ad.*.com*',
-        '*ads.*.com*',
-        # 동영상 광고
-        '*imasdk.googleapis.com*',
-        '*youtube.com/pagead*',
-        '*youtube.com/api/stats/ads*',
-        '*vid.springserve.com*',
-        '*springserve.com*',
-        '*video-ad*',
-        '*videoad*',
-        '*vast.xml*',
-        '*vast2.xml*',
-        '*vast3.xml*',
-        '*vast4.xml*',
-        '*vpaid*',
-        '*.mp4*adsystem*',
-        '*serving-sys.com*',
-        '*teads.tv*',
-        '*spotxchange.com*',
-        '*spotx.tv*',
-        '*advertising.com*',
-        '*innovid.com*',
-        '*connatix.com*',
-        '*primis.tech*',
-    ]})
+
     
     return driver
+
+def check_ip(driver):
+    """Check and print the current public IP address."""
+    try:
+        driver.get("https://api.ipify.org?format=json")
+        time.sleep(1)
+        content = driver.find_element(By.TAG_NAME, "body").text
+        ip_data = json.loads(content)
+        print(f"Current IP: {ip_data.get('ip')}")
+    except Exception as e:
+        print(f"Could not verify IP: {e}")
+
+def handle_cloudflare_challenge(driver):
+    """
+    Detects Cloudflare challenge and waits for user to solve it.
+    Returns True if challenge was detected and handled, False otherwise.
+    """
+    try:
+        title = driver.title.lower()
+        # Cloudflare titles usually contain these keywords
+        if "just a moment" in title or "attention required" in title or "security check" in title:
+            print("\n" + "!"*50)
+            print("CLOUDFLARE CHALLENGE DETECTED!")
+            print("Please solve the CAPTCHA/Challenge in the browser window manually.")
+            print("The script is paused and waiting for you...")
+            print("!"*50 + "\n")
+            
+            # Wait until title changes or specific element disappears
+            # We'll check every 2 seconds
+            max_wait = 300  # 5 minutes max wait
+            start_time = time.time()
+            
+            while time.time() - start_time < max_wait:
+                try:
+                    current_title = driver.title.lower()
+                    if "just a moment" not in current_title and "attention required" not in current_title and "security check" not in current_title:
+                        print("\nChallenge appears to be solved! Resuming...")
+                        time.sleep(2) # Wait a bit more for redirect
+                        return True
+                except:
+                    pass
+                time.sleep(2)
+            
+            print("Timeout waiting for Cloudflare challenge solution.")
+            return True # Try to proceed anyway
+            
+        # Also check for specific Cloudflare elements if title check fails
+        # This is a backup check
+        page_source = driver.page_source.lower()
+        if "cf-challenge" in page_source or "cloudflare" in page_source:
+             # If we are here but title didn't catch it, it might be a subtle check or we are already past it
+             # But if we see explicit challenge forms, we should probably wait
+             pass
+             
+    except Exception:
+        pass
+    return False
 
 def quit_driver(driver):
     """Safely quit the driver."""
@@ -652,7 +572,7 @@ def scrape_and_save(driver, full_name, lanes_to_scrape):
     return all_success
         
 
-def scrape_and_save_subset(champion_lane_list):
+def scrape_and_save_subset(champion_lane_list, proxy=None):
     """Scrape data for champions in the list, optimizing for missing data."""
     
     # Group by champion to minimize browser restarts
@@ -702,7 +622,8 @@ def scrape_and_save_subset(champion_lane_list):
                         if driver is not None:
                             print("  Restarting browser for memory management...")
                             quit_driver(driver)
-                        driver = create_driver()
+                        driver = create_driver(proxy=proxy)
+                        check_ip(driver)
                         champs_since_restart = 0
                     
                     success = scrape_and_save(driver, champion_name, lanes_to_scrape)
@@ -749,8 +670,12 @@ def main():
         print("Error: champion_lane_list.json not found. Please run parse_champion_data.py first.")
         return
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--proxy", help="Proxy server URL (e.g., http://127.0.0.1:8080)")
+    args = parser.parse_args()
+
     print("Loaded champion list. Starting optimized scrape...")
-    scrape_and_save_subset(champion_lane_list)
+    scrape_and_save_subset(champion_lane_list, proxy=args.proxy)
 
 if __name__ == "__main__":
     main()

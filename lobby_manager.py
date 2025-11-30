@@ -46,7 +46,7 @@ RECOMMEND_PRE_PICK_TAG = "선픽 카드"
 BANPICK_DEFAULT_LANES = ['jungle', 'bottom', 'support', 'middle', 'top']
 BANPICK_MIN_GAMES_DEFAULT = 900
 BANPICK_PICK_RATE_OVERRIDE = 1.5
-BANPICK_HIGH_SAMPLE_THRESHOLD = 3000
+BANPICK_HIGH_SAMPLE_THRESHOLD = 10000
 BANPICK_PRE_PICK_POPULARITY_THRESHOLD = 1.5
 SYNERGY_OP_THRESHOLD = 55.0
 LANE_WEIGHT_DEEP = 1.0
@@ -1902,6 +1902,10 @@ class ChampionScraperApp:
         selected_lowers = set()
         for slot_list in self.banpick_slots.values():
             for s in slot_list:
+                # 내 라인(target_slot)에 있는 챔피언은 제외 목록에 넣지 않음
+                if s is target_slot:
+                    continue
+
                 name = s.get("display_name")
                 canon = s.get("canonical_name")
                 if name:

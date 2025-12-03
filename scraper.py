@@ -205,29 +205,23 @@ def format_synergy_data(element, debug=False):
         "games": games
     }
 
-
-
 def scrape_web(driver, url, current_lane):
     try:
         driver.get(url)
     except Exception as e:
         print(f"Error loading page {url}: {e}")
         return None
-
-    # Check for Cloudflare challenge
-    handle_cloudflare_challenge(driver)
     
     # Random delay to mimic human behavior
     import random
-    time.sleep(random.uniform(2.0, 4.0))
 
     # Scroll down the page to ensure content is loaded (1.5x more scroll)
     body = driver.find_element(By.CSS_SELECTOR, 'body')
     for _ in range(2):  # Increased from 1 to 2 (1.5x more scroll)
         body.send_keys(Keys.PAGE_DOWN)
-        time.sleep(random.uniform(0.5, 1.5))
+        time.sleep(random.uniform(0.2, 0.3))
 
-    time.sleep(random.uniform(0.5, 1.0))
+    time.sleep(random.uniform(0.5, 0.6))
     # Find the element containing "Pick Rate"
     pick_rate_value = None
     try:
@@ -279,14 +273,11 @@ def scrape_web(driver, url, current_lane):
             except (TimeoutException, WebDriverException):
                 continue
         
-        # 순차적으로 랜덤하게 스크롤 (Human-like)
+        # 추가 챔피언 정보를 보기 위해 좌로 스크롤
         try:
-            for element in parent_elements.values():
-                if element:
-                    scroll_amount = random.randint(400, 600)
-                    driver.execute_script(f"arguments[0].scrollLeft += {scroll_amount};", element)
-                    time.sleep(random.uniform(0.1, 0.3))
-            time.sleep(random.uniform(0.2, 0.5))
+            scroll_script = "for(let i=0; i<arguments.length; i++) { if(arguments[i]) arguments[i].scrollLeft += 500; }"
+            driver.execute_script(scroll_script, *parent_elements.values())
+            time.sleep(0.05)
         except (TimeoutException, WebDriverException):
             break
 
@@ -317,12 +308,12 @@ def scrape_web(driver, url, current_lane):
         if teammates_button:
             try:
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", teammates_button)
-                time.sleep(random.uniform(0.3, 0.6))
+                time.sleep(random.uniform(0.2, 0.3))
                 driver.execute_script("arguments[0].click();", teammates_button)
-                time.sleep(random.uniform(1.0, 1.5))
+                time.sleep(random.uniform(1.0, 1.1))
                 
                 body.send_keys(Keys.PAGE_DOWN)
-                time.sleep(random.uniform(0.3, 0.6))
+                time.sleep(random.uniform(0.2, 0.3))
                 
                 # Collect synergy data for each lane (excluding current lane) - 동시 스크롤
                 lanes_to_check = [lane for lane in LANES if lane != current_lane]
@@ -364,15 +355,12 @@ def scrape_web(driver, url, current_lane):
                         except (TimeoutException, WebDriverException):
                             continue
                     
-                    # 순차적으로 랜덤하게 스크롤 (Human-like)
+                    # 추가 챔피언 정보를 보기 위해 좌로 스크롤
                     if synergy_parents:
                         try:
-                            for element in synergy_parents.values():
-                                if element:
-                                    scroll_amount = random.randint(400, 600)
-                                    driver.execute_script(f"arguments[0].scrollLeft += {scroll_amount};", element)
-                                    time.sleep(random.uniform(0.1, 0.3))
-                            time.sleep(random.uniform(0.2, 0.5))
+                            scroll_script = "for(let i=0; i<arguments.length; i++) { if(arguments[i]) arguments[i].scrollLeft += 500; }"
+                            driver.execute_script(scroll_script, *synergy_parents.values())
+                            time.sleep(0.05)
                         except (TimeoutException, WebDriverException):
                             break
                             
@@ -410,11 +398,9 @@ def save_data(full_name, data, lane):
     except IOError as e:
         print(f"Error saving data to file: {e}")
 
-def create_driver(proxy=None):
+def create_driver():
     """Create and configure a new Chrome driver instance."""
     options = uc.ChromeOptions()
-    if proxy:
-        options.add_argument(f'--proxy-server={proxy}')
     options.page_load_strategy = 'eager'
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
@@ -434,78 +420,18 @@ def create_driver(proxy=None):
         "profile.managed_default_content_settings.automatic_downloads": 2,
         "profile.default_content_setting_values.media_stream_mic": 2,
         "profile.default_content_setting_values.media_stream_camera": 2,
-        "profile.default_content_setting_values.autoplay": 2,  # 자동재생 차단
     }
     options.add_experimental_option("prefs", prefs)
     
     # 자동재생 비활성화
     options.add_argument('--autoplay-policy=user-gesture-required')
     
-    driver = uc.Chrome(options=options)
+    driver = uc.Chrome(options=options, version_main=142)
     driver.set_page_load_timeout(60)
     driver.set_script_timeout(30)  # execute_script 타임아웃 단축
     driver.implicitly_wait(10)
     
-
-    
     return driver
-
-def check_ip(driver):
-    """Check and print the current public IP address."""
-    try:
-        driver.get("https://api.ipify.org?format=json")
-        time.sleep(1)
-        content = driver.find_element(By.TAG_NAME, "body").text
-        ip_data = json.loads(content)
-        print(f"Current IP: {ip_data.get('ip')}")
-    except Exception as e:
-        print(f"Could not verify IP: {e}")
-
-def handle_cloudflare_challenge(driver):
-    """
-    Detects Cloudflare challenge and waits for user to solve it.
-    Returns True if challenge was detected and handled, False otherwise.
-    """
-    try:
-        title = driver.title.lower()
-        # Cloudflare titles usually contain these keywords
-        if "just a moment" in title or "attention required" in title or "security check" in title:
-            print("\n" + "!"*50)
-            print("CLOUDFLARE CHALLENGE DETECTED!")
-            print("Please solve the CAPTCHA/Challenge in the browser window manually.")
-            print("The script is paused and waiting for you...")
-            print("!"*50 + "\n")
-            
-            # Wait until title changes or specific element disappears
-            # We'll check every 2 seconds
-            max_wait = 300  # 5 minutes max wait
-            start_time = time.time()
-            
-            while time.time() - start_time < max_wait:
-                try:
-                    current_title = driver.title.lower()
-                    if "just a moment" not in current_title and "attention required" not in current_title and "security check" not in current_title:
-                        print("\nChallenge appears to be solved! Resuming...")
-                        time.sleep(2) # Wait a bit more for redirect
-                        return True
-                except:
-                    pass
-                time.sleep(2)
-            
-            print("Timeout waiting for Cloudflare challenge solution.")
-            return True # Try to proceed anyway
-            
-        # Also check for specific Cloudflare elements if title check fails
-        # This is a backup check
-        page_source = driver.page_source.lower()
-        if "cf-challenge" in page_source or "cloudflare" in page_source:
-             # If we are here but title didn't catch it, it might be a subtle check or we are already past it
-             # But if we see explicit challenge forms, we should probably wait
-             pass
-             
-    except Exception:
-        pass
-    return False
 
 def quit_driver(driver):
     """Safely quit the driver."""
@@ -572,7 +498,7 @@ def scrape_and_save(driver, full_name, lanes_to_scrape):
     return all_success
         
 
-def scrape_and_save_subset(champion_lane_list, proxy=None):
+def scrape_and_save_subset(champion_lane_list):
     """Scrape data for champions in the list, optimizing for missing data."""
     
     # Group by champion to minimize browser restarts
@@ -622,8 +548,7 @@ def scrape_and_save_subset(champion_lane_list, proxy=None):
                         if driver is not None:
                             print("  Restarting browser for memory management...")
                             quit_driver(driver)
-                        driver = create_driver(proxy=proxy)
-                        check_ip(driver)
+                        driver = create_driver()
                         champs_since_restart = 0
                     
                     success = scrape_and_save(driver, champion_name, lanes_to_scrape)
@@ -670,12 +595,8 @@ def main():
         print("Error: champion_lane_list.json not found. Please run parse_champion_data.py first.")
         return
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--proxy", help="Proxy server URL (e.g., http://127.0.0.1:8080)")
-    args = parser.parse_args()
-
     print("Loaded champion list. Starting optimized scrape...")
-    scrape_and_save_subset(champion_lane_list, proxy=args.proxy)
+    scrape_and_save_subset(champion_lane_list)
 
 if __name__ == "__main__":
     main()

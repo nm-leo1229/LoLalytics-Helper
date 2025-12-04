@@ -765,6 +765,8 @@ class ChampionScraperApp:
         self.lcu_status_var = tk.StringVar(value=initial_lcu_status)
         self.client_sync_var = tk.BooleanVar(value=True)
 
+        self.apply_theme()
+        
         self.build_dashboard_tab()
         
         # Initialize other tabs
@@ -773,6 +775,76 @@ class ChampionScraperApp:
         self.ignore_tab = IgnoreTab(self.notebook, self)
         self.credits_tab = CreditsTab(self.notebook, self)
         self.notebook.add(self.credits_tab, text="Credits")
+
+    def apply_theme(self):
+        """Apply Teddy Bear theme colors and styles."""
+        # Palette
+        bg_color = "#FDF6E3"      # Creamy White
+        fg_color = "#5D4037"      # Dark Brown
+        accent_color = "#D7CCC8"  # Light Brown
+        select_color = "#FFECB3"  # Honey
+        button_color = "#8D6E63"  # Medium Brown
+        button_fg = "#FFFFFF"     # White
+        
+        # Configure standard Tk widgets via option database
+        self.root.option_add("*Background", bg_color)
+        self.root.option_add("*Foreground", fg_color)
+        self.root.option_add("*Entry.Background", "#FFFFFF")
+        self.root.option_add("*Entry.Foreground", fg_color)
+        self.root.option_add("*Listbox.Background", "#FFFFFF")
+        self.root.option_add("*Listbox.Foreground", fg_color)
+        self.root.option_add("*Button.Background", button_color)
+        self.root.option_add("*Button.Foreground", button_fg)
+        self.root.option_add("*Button.activeBackground", "#A1887F") # Lighter brown for hover/active
+        self.root.option_add("*Button.activeForeground", "#FFFFFF") # Keep white text
+        self.root.option_add("*Button.disabledForeground", "#5D4037") # Dark Brown for visibility
+        self.root.option_add("*Label.Background", bg_color)
+        self.root.option_add("*Label.Foreground", fg_color)
+        self.root.option_add("*Frame.Background", bg_color)
+        self.root.option_add("*LabelFrame.Background", bg_color)
+        self.root.option_add("*LabelFrame.Foreground", fg_color)
+        self.root.option_add("*Checkbutton.Background", bg_color)
+        self.root.option_add("*Checkbutton.Foreground", fg_color)
+        self.root.option_add("*Radiobutton.Background", bg_color)
+        self.root.option_add("*Radiobutton.Foreground", fg_color)
+        
+        self.root.configure(bg=bg_color)
+        
+        # Configure TTK styles
+        style = ttk.Style(self.root)
+        style.theme_use('clam')  # Use clam as base for better color customization
+        
+        style.configure(".", background=bg_color, foreground=fg_color, font=("Segoe UI", 9))
+        style.configure("TFrame", background=bg_color)
+        style.configure("TLabel", background=bg_color, foreground=fg_color)
+        style.configure("TButton", background=button_color, foreground=button_fg, borderwidth=1)
+        style.map("TButton",
+            background=[("pressed", "#6D4C41"), ("active", "#A1887F"), ("disabled", "#E0E0E0")],
+            foreground=[("pressed", "#FFFFFF"), ("active", "#FFFFFF"), ("disabled", "#5D4037")]
+        )
+        style.configure("TNotebook", background=bg_color, tabposition='n')
+        style.configure("TNotebook.Tab", background=accent_color, foreground=fg_color, padding=[10, 2])
+        style.map("TNotebook.Tab",
+            background=[("selected", select_color)],
+            foreground=[("selected", fg_color)]
+        )
+        style.configure("Treeview", 
+            background="#FFFFFF",
+            foreground=fg_color,
+            fieldbackground="#FFFFFF",
+            borderwidth=0
+        )
+        style.configure("Treeview.Heading", 
+            background=accent_color, 
+            foreground=fg_color,
+            font=("Segoe UI", 9, "bold")
+        )
+        style.map("Treeview", background=[("selected", select_color)], foreground=[("selected", fg_color)])
+        
+        # Custom styles for specific widgets if needed
+        style.configure("TLabelframe", background=bg_color, foreground=fg_color)
+        style.configure("TLabelframe.Label", background=bg_color, foreground=fg_color)
+
 
     def build_dashboard_tab(self):
         self.banpick_slots = {"allies": [], "enemies": []}
@@ -906,11 +978,11 @@ class ChampionScraperApp:
         for col in columns:
             self.recommend_tree.heading(col, text=col)
             self.recommend_tree.column(col, anchor="center")
-        self.recommend_tree.column("챔피언", anchor="w", width=10)
+        self.recommend_tree.column("챔피언", anchor="w", width=100)
         self.recommend_tree.column("태그", anchor="w", width=50)
-        self.recommend_tree.column("최종 점수", width=10)
-        self.recommend_tree.column("시너지", width=80)
-        self.recommend_tree.column("카운터", width=80)
+        self.recommend_tree.column("최종 점수", width=60)
+        self.recommend_tree.column("시너지", width=200)
+        self.recommend_tree.column("카운터", width=200)
         scroll = tk.Scrollbar(recommend_frame, orient="vertical", command=self.recommend_tree.yview)
         scroll.pack(side="right", fill="y")
         self.recommend_tree.configure(yscrollcommand=scroll.set)

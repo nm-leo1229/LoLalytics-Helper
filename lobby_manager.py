@@ -849,13 +849,13 @@ class ChampionScraperApp:
         )
         self.client_fetch_button.pack(side="left", padx=(5, 0))
 
-        # self.save_snapshot_button = tk.Button(
-        #     sync_frame,
-        #     text="스냅샷 저장",
-        #     command=self.save_snapshot,
-        #     state="disabled"
-        # )
-        # self.save_snapshot_button.pack(side="left", padx=(5, 0))
+        self.save_snapshot_button = tk.Button(
+            sync_frame,
+            text="스냅샷 저장",
+            command=self.save_snapshot,
+            state="disabled"
+        )
+        self.save_snapshot_button.pack(side="left", padx=(5, 0))
         
         # My Lane selection frame
         my_lane_frame = tk.LabelFrame(self.dashboard_tab, text="나의 라인")
@@ -1266,8 +1266,8 @@ class ChampionScraperApp:
             self._update_slot_lane_cache(slot)
             self.banpick_slots[side_key].append(slot)
 
-        # 총 조합 점수 레이블을 컬럼 내부 하단에 추가
-        total_label = tk.Label(column, text="총 조합 점수: 0.00", font=("Segoe UI", 10, "bold"), fg="blue")
+        # 조합 점수 레이블을 컬럼 내부 하단에 추가
+        total_label = tk.Label(column, text="조합 점수: 0.00", font=("Segoe UI", 10, "bold"), fg="blue")
         total_label.pack(fill="x", pady=(10, 5))
 
         return column, total_label
@@ -1768,10 +1768,13 @@ class ChampionScraperApp:
             return False
 
         lane = lane_box.get().lower()
-        if lane not in LANES:
-            if not auto_trigger:
-                messagebox.showerror("Error", "라인을 선택하세요.")
-            return False
+        # "select lane" or empty string check
+        is_lane_selected = lane in LANES
+
+        if not is_lane_selected and not auto_trigger:
+             # If manual search and no lane selected, show error
+             messagebox.showerror("Error", "라인을 선택하세요.")
+             return False
 
         full_name = self.resolve_champion_name(champion_name)
         if not full_name:
@@ -1794,15 +1797,24 @@ class ChampionScraperApp:
         synergy_dataset = None
         counter_dataset = None
         
-        # Determine best lane based on games count (only for auto-trigger)
+        # Determine best lane based on games count (only for auto-trigger AND if no lane selected)
         target_lane = lane
         if auto_trigger:
             if force_lane:
                 target_lane = force_lane
-            else:
+            elif not is_lane_selected:
+                # Only auto-detect lane if user hasn't selected one
                 best_lane = self._find_best_lane_by_counters(full_name)
                 if best_lane:
                     target_lane = best_lane
+        
+        # If we still don't have a valid target lane (e.g. manual trigger but invalid lane, though caught above),
+        # or auto trigger failed to find best lane, ensure we have something valid or fallback
+        if target_lane not in LANES:
+             # Try to find best lane as fallback even if not auto_trigger, if the current selection is invalid
+             best_lane = self._find_best_lane_by_counters(full_name)
+             if best_lane:
+                 target_lane = best_lane
 
         # Load datasets and capture the actual lane found
         synergy_dataset, synergy_lane, _ = self._load_lane_dataset(
@@ -1811,7 +1823,8 @@ class ChampionScraperApp:
             "Synergy",
             "synergy",
             self.sanitize_synergy_entry,
-            suppress_errors=True
+            suppress_errors=True,
+            apply_ignore_filter=False  # 슬롯 점수 계산에는 ignore filter 적용하지 않음
         )
         counter_dataset, counter_lane, _ = self._load_lane_dataset(
             full_name,
@@ -1819,7 +1832,8 @@ class ChampionScraperApp:
             "Counter",
             "counters",
             self.sanitize_counter_entry,
-            suppress_errors=True
+            suppress_errors=True,
+            apply_ignore_filter=False  # 슬롯 점수 계산에는 ignore filter 적용하지 않음
         )
 
         # Determine the final lane to use (prefer synergy lane if available, otherwise counter lane, or fallback to requested lane)
@@ -1869,8 +1883,8 @@ class ChampionScraperApp:
         slot["synergy_dataset"] = synergy_dataset
         slot["counter_dataset"] = counter_dataset
         
-        # 점수 계산 및 표시
-        self._update_slot_score_display(slot)
+        # 모든 슬롯의 점수 재계산 (새 챔피언이 등록되면 다른 슬롯의 점수도 변경될 수 있음)
+        self._update_all_slot_scores()
 
         if not auto_trigger:
             entry_widget.delete(0, tk.END)
@@ -1902,6 +1916,21 @@ class ChampionScraperApp:
             for slot in self.banpick_slots.get(side_key, []):
                 self._update_slot_score_display(slot)
 
+    def _check_champion_data_exists(self, champion_name, lane):
+        """
+        Check if the data file for the champion and lane exists.
+        """
+        if not champion_name or not lane:
+            return False
+            
+        full_name = self.resolve_champion_name(champion_name)
+        if not full_name:
+            return False
+            
+        data_filename = f"{full_name}_{lane}.json".replace(" ", "_")
+        filename = resolve_resource_path("data", data_filename)
+        return os.path.exists(filename)
+
     def calculate_champion_score(self, champion_slot, target_lane=None):
         """특정 챔피언의 점수를 계산합니다 (시너지 + 카운터)"""
         if not champion_slot.get("canonical_name") or not champion_slot.get("selected_lane"):
@@ -1914,6 +1943,13 @@ class ChampionScraperApp:
         opponent_side = "enemies" if side_key == "allies" else "allies"
         # target_lane이 지정되지 않았으면 챔피언의 라인을 사용
         champion_lane = target_lane if target_lane else champion_slot.get("selected_lane")
+        
+        # 슬롯의 챔피언 이름 (정규화된 이름)
+        slot_champion_canonical = champion_slot.get("canonical_name", "")
+        
+        # 데이터 파일 존재 여부 확인
+        if not self._check_champion_data_exists(champion_slot.get("canonical_name"), champion_lane):
+            return 0.0
         
         synergy_sum = 0.0
         synergy_count = 0
@@ -1943,6 +1979,10 @@ class ChampionScraperApp:
             source_lane = friend.get("selected_lane")
             lane_entries = dataset.get(champion_lane, {})
             for champ_name, details in lane_entries.items():
+                # 현재 슬롯의 챔피언과 일치하는 항목만 사용 (정규화된 이름으로 비교)
+                resolved_name = self.resolve_champion_name(champ_name)
+                if not resolved_name or resolved_name != slot_champion_canonical:
+                    continue
                 games = self.parse_int(details.get("games"))
                 pick_rate_value = 0.0
                 if "pick_rate" in details:
@@ -1971,6 +2011,10 @@ class ChampionScraperApp:
             source_lane = enemy.get("selected_lane")
             lane_entries = dataset.get(champion_lane, {})
             for champ_name, details in lane_entries.items():
+                # 현재 슬롯의 챔피언과 일치하는 항목만 사용 (정규화된 이름으로 비교)
+                resolved_name = self.resolve_champion_name(champ_name)
+                if not resolved_name or resolved_name != slot_champion_canonical:
+                    continue
                 games = self.parse_int(details.get("games"))
                 pick_rate_value = 0.0
                 if "pick_rate" in details:
@@ -2007,39 +2051,36 @@ class ChampionScraperApp:
             return
         
         allies_total = 0.0
+        allies_count = 0
         enemies_total = 0.0
+        enemies_count = 0
         
-        my_lane = self.my_lane_var.get()
-        if not my_lane or my_lane not in LANES:
-            # 나의 라인이 선택되지 않았으면 각 챔피언의 라인을 기준으로 계산
-            for slot in self.banpick_slots.get("allies", []):
-                if slot.get("canonical_name") and slot.get("selected_lane"):
-                    score = self.calculate_champion_score(slot, slot.get("selected_lane"))
+        # 각 챔피언의 슬롯에 표시된 점수를 그대로 사용
+        for slot in self.banpick_slots.get("allies", []):
+            if slot.get("canonical_name") and slot.get("selected_lane"):
+                score = self.calculate_champion_score(slot)
+                if score > 0:
                     allies_total += score
-            
-            for slot in self.banpick_slots.get("enemies", []):
-                if slot.get("canonical_name") and slot.get("selected_lane"):
-                    score = self.calculate_champion_score(slot, slot.get("selected_lane"))
+                    allies_count += 1
+        
+        for slot in self.banpick_slots.get("enemies", []):
+            if slot.get("canonical_name") and slot.get("selected_lane"):
+                score = self.calculate_champion_score(slot)
+                if score > 0:
                     enemies_total += score
-        else:
-            # 나의 라인이 선택되었으면 나의 라인을 기준으로 계산
-            for slot in self.banpick_slots.get("allies", []):
-                if slot.get("canonical_name") and slot.get("selected_lane"):
-                    score = self.calculate_champion_score(slot, my_lane)
-                    allies_total += score
-            
-            for slot in self.banpick_slots.get("enemies", []):
-                if slot.get("canonical_name") and slot.get("selected_lane"):
-                    score = self.calculate_champion_score(slot, my_lane)
-                    enemies_total += score
+                    enemies_count += 1
+        
+        # 점수 계산
+        allies_avg = allies_total / allies_count if allies_count > 0 else 0.0
+        enemies_avg = enemies_total / enemies_count if enemies_count > 0 else 0.0
         
         allies_label = self.team_total_labels.get("allies")
         enemies_label = self.team_total_labels.get("enemies")
         
         if allies_label:
-            allies_label.config(text=f"총 조합 점수: {allies_total:.2f}")
+            allies_label.config(text=f"조합 점수: {allies_avg:.2f}")
         if enemies_label:
-            enemies_label.config(text=f"총 조합 점수: {enemies_total:.2f}")
+            enemies_label.config(text=f"조합 점수: {enemies_avg:.2f}")
 
     def update_banpick_recommendations(self):
         tree = getattr(self, "recommend_tree", None)
@@ -2090,7 +2131,9 @@ class ChampionScraperApp:
                     "tags": [],
                     "all_high_sample": True,
                     "all_counter_under_50": True,
-                    "has_op_synergy": False
+                    "has_op_synergy": False,
+                    "synergy_slots_with_data": set(),  # 데이터가 있는 아군 슬롯 인덱스
+                    "counter_slots_with_data": set()   # 데이터가 있는 적군 슬롯 인덱스
                 }
                 scores[champion] = entry
             return entry
@@ -2132,7 +2175,7 @@ class ChampionScraperApp:
             min_games = 0
 
         # Synergy contributions from same side
-        for friend in self.banpick_slots.get(side_key, []):
+        for friend_idx, friend in enumerate(self.banpick_slots.get(side_key, [])):
             if friend.get("exclude_var") and friend["exclude_var"].get():
                 continue
             dataset = friend.get("synergy_dataset")
@@ -2154,6 +2197,7 @@ class ChampionScraperApp:
                 components = ensure_score_entry(champ_name)
                 components["synergy_sum"] += value * weight
                 components["synergy_count"] += 1
+                components["synergy_slots_with_data"].add(friend_idx)  # 데이터가 있는 슬롯 추적
                 if low_sample:
                     components["has_low_sample"] = True
                     append_tag(components, RECOMMEND_LOW_SAMPLE_TAG)
@@ -2169,7 +2213,7 @@ class ChampionScraperApp:
 
         # Counter contributions from opposing side
         opponent_side = "enemies" if side_key == "allies" else "allies"
-        for enemy in self.banpick_slots.get(opponent_side, []):
+        for enemy_idx, enemy in enumerate(self.banpick_slots.get(opponent_side, [])):
             is_excluded = enemy.get("exclude_var") and enemy["exclude_var"].get()
             if is_excluded:
                 continue
@@ -2193,6 +2237,7 @@ class ChampionScraperApp:
                 components = ensure_score_entry(champ_name)
                 components["counter_sum"] += value * weight
                 components["counter_count"] += 1
+                components["counter_slots_with_data"].add(enemy_idx)  # 데이터가 있는 슬롯 추적
                 if low_sample:
                     components["has_low_sample"] = True
                     append_tag(components, RECOMMEND_LOW_SAMPLE_TAG)
@@ -2206,6 +2251,43 @@ class ChampionScraperApp:
                     label = f"{WARNING_ICON} {label}"
                 components["counter_sources"].append(label)
 
+        # 평균 회귀: 데이터가 없는 슬롯에 대해 중립 점수(50점) 추가
+        # 등록되고 제외되지 않은 슬롯 목록 수집
+        active_friend_slots = []  # (slot_idx, source_lane)
+        for friend_idx, friend in enumerate(self.banpick_slots.get(side_key, [])):
+            if friend is target_slot:  # 내 슬롯은 제외
+                continue
+            if friend.get("exclude_var") and friend["exclude_var"].get():
+                continue
+            if friend.get("synergy_dataset") and friend.get("selected_lane"):
+                active_friend_slots.append((friend_idx, friend.get("selected_lane")))
+        
+        active_enemy_slots = []  # (slot_idx, source_lane)
+        for enemy_idx, enemy in enumerate(self.banpick_slots.get(opponent_side, [])):
+            if enemy.get("exclude_var") and enemy["exclude_var"].get():
+                continue
+            if enemy.get("counter_dataset") and enemy.get("selected_lane"):
+                active_enemy_slots.append((enemy_idx, enemy.get("selected_lane")))
+        
+        # 각 추천 챔피언에 대해 누락된 슬롯의 중립 점수 추가
+        NEUTRAL_SCORE = 50.0
+        for champ_name, components in scores.items():
+            # 시너지: 데이터가 없는 아군 슬롯에 대해 50점 추가
+            for friend_idx, source_lane in active_friend_slots:
+                if friend_idx not in components["synergy_slots_with_data"]:
+                    weight = self.get_lane_weight(target_lane, source_lane, "synergy")
+                    if weight > 0:
+                        components["synergy_sum"] += NEUTRAL_SCORE * weight
+                        components["synergy_count"] += 1
+            
+            # 카운터: 데이터가 없는 적군 슬롯에 대해 50점 추가
+            for enemy_idx, source_lane in active_enemy_slots:
+                if enemy_idx not in components["counter_slots_with_data"]:
+                    weight = self.get_lane_weight(target_lane, source_lane, "counter")
+                    if weight > 0:
+                        components["counter_sum"] += NEUTRAL_SCORE * weight
+                        components["counter_count"] += 1
+
         recommendations = []
 
         for champ_name, components in scores.items():
@@ -2215,6 +2297,11 @@ class ChampionScraperApp:
                 continue
             if components["has_low_pick_gap"]:
                 continue
+            
+            # 데이터 파일 존재 여부 확인 (추천 목록에서도 제외)
+            if not self._check_champion_data_exists(champ_name, target_lane):
+                continue
+
             synergy_score = (
                 components["synergy_sum"] / components["synergy_count"]
                 if components["synergy_count"] > 0 else 0.0
@@ -2404,7 +2491,7 @@ class ChampionScraperApp:
         data_key,
         sanitize_entry,
         suppress_errors=False,
-        apply_ignore_filter=True
+        apply_ignore_filter=False  # 기본값 False: 점수 계산에는 ignore list 적용 안 함
     ):
         if preferred_lane in LANES:
             lanes_to_try = [preferred_lane]

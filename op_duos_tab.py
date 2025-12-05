@@ -183,10 +183,8 @@ class OpDuosTab:
                 if win_rate < HIGHLIGHT_WIN_RATE or pick_rate < pick_threshold or games < games_threshold:
                     continue
 
-                my_lane_display = LANE_DISPLAY_NAMES.get(my_lane, my_lane)
-                partner_lane_display = LANE_DISPLAY_NAMES.get(partner_lane, partner_lane)
                 highlights.append({
-                    "duo": f"{my_champ_name} ({my_lane_display}) + {partner_name} ({partner_lane_display})",
+                    "duo": f"{my_champ_name} + {partner_name}",
                     "win": win_rate,
                     "pick": pick_rate,
                     "games": games

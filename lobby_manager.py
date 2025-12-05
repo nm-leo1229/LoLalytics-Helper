@@ -2597,6 +2597,17 @@ class ChampionScraperApp:
         except (TypeError, ValueError):
             return 0.0
     
+    def _normalize_float_values(self, data):
+        """딕셔너리 내의 모든 float 값을 소수점 2자리로 반올림합니다"""
+        if isinstance(data, dict):
+            return {key: self._normalize_float_values(value) for key, value in data.items()}
+        elif isinstance(data, list):
+            return [self._normalize_float_values(item) for item in data]
+        elif isinstance(data, float):
+            return round(data, 2)
+        else:
+            return data
+    
     def _load_weight_settings(self):
         """가중치 설정 파일을 불러옵니다. 없으면 기본값으로 생성합니다."""
         if os.path.exists(WEIGHT_SETTINGS_FILE):
@@ -2614,10 +2625,11 @@ class ChampionScraperApp:
                                 "lane_weight_map": old_map.copy()
                             }
                         }
-                        # 마이그레이션된 데이터 저장
+                        # 마이그레이션된 데이터 저장 (부동소수점 정규화)
                         try:
+                            normalized_data = self._normalize_float_values(data)
                             with open(WEIGHT_SETTINGS_FILE, "w", encoding="utf-8") as f:
-                                json.dump(data, f, indent=2, ensure_ascii=False)
+                                json.dump(normalized_data, f, indent=2, ensure_ascii=False)
                         except OSError:
                             pass
                     return data
@@ -2672,39 +2684,39 @@ class ChampionScraperApp:
         
         synergy_base_map = {
             "bottom": {
-                "bottom": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
-                "support": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
-                "jungle": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY,
-                "middle": LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY,
-                "top": LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY
+                "bottom": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
+                "support": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
+                "jungle": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
+                "middle": round(LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY, 2),
+                "top": round(LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY, 2)
             },
             "support": {
-                "support": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
-                "bottom": LANE_WEIGHT_LOW_DEEP - SYNERGY_WEIGHT_PENALTY,
-                "jungle": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY,
-                "middle": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY,
-                "top": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY
+                "support": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
+                "bottom": round(LANE_WEIGHT_LOW_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
+                "jungle": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
+                "middle": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
+                "top": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2)
             },
             "jungle": {
-                "jungle": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
-                "middle": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
-                "top": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
-                "bottom": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY,
-                "support": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY
+                "jungle": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
+                "middle": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
+                "top": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
+                "bottom": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
+                "support": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2)
             },
             "middle": {
-                "middle": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
-                "jungle": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
-                "top": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY,
-                "bottom": LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY,
-                "support": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY
+                "middle": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
+                "jungle": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
+                "top": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
+                "bottom": round(LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY, 2),
+                "support": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2)
             },
             "top": {
-                "top": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
-                "jungle": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
-                "middle": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY,
-                "bottom": LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY,
-                "support": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY
+                "top": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
+                "jungle": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
+                "middle": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
+                "bottom": round(LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY, 2),
+                "support": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2)
             }
         }
         
@@ -2717,10 +2729,11 @@ class ChampionScraperApp:
             }
         }
         
-        # 파일 저장
+        # 파일 저장 (부동소수점 정규화)
         try:
+            normalized_weights = self._normalize_float_values(default_weights)
             with open(WEIGHT_SETTINGS_FILE, "w", encoding="utf-8") as f:
-                json.dump(default_weights, f, indent=2, ensure_ascii=False)
+                json.dump(normalized_weights, f, indent=2, ensure_ascii=False)
         except OSError:
             pass
         

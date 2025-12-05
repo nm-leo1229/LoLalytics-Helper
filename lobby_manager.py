@@ -12,7 +12,7 @@ from op_duos_tab import OpDuosTab
 from ignore_tab import IgnoreTab
 from counter_synergy_tab import CounterSynergyTab
 from credits_tab import CreditsTab
-from weight_settings_tab import WeightSettingsTab
+from weight_settings_tab import WeightSettingsTab, load_weight_settings
 from common import (
     resolve_resource_path,
     AutocompletePopup,
@@ -699,7 +699,7 @@ class ChampionScraperApp:
         self._lane_swap_guard = False
         self.paned_window = None  # Will be set in build_dashboard_tab
         self.ui_settings = self._load_ui_settings()  # Load UI settings
-        self.weight_settings = self._load_weight_settings()  # Load weight settings
+        self.weight_settings = load_weight_settings()  # Load weight settings
         
         self.client_watcher = None
         self.client_sync_supported = True
@@ -2343,7 +2343,7 @@ class ChampionScraperApp:
         
         # 기본값 사용 (weight_settings.json에서)
         from weight_settings_tab import LANE_WEIGHT_DEFAULT
-        weight_settings = self._load_weight_settings()
+        weight_settings = load_weight_settings()
         weight_type_settings = weight_settings.get(weight_type, {})
         lane_weight_map = weight_type_settings.get("lane_weight_map", {})
         mapping = lane_weight_map.get(target_lane, {})
@@ -2597,147 +2597,6 @@ class ChampionScraperApp:
         except (TypeError, ValueError):
             return 0.0
     
-    def _normalize_float_values(self, data):
-        """딕셔너리 내의 모든 float 값을 소수점 2자리로 반올림합니다"""
-        if isinstance(data, dict):
-            return {key: self._normalize_float_values(value) for key, value in data.items()}
-        elif isinstance(data, list):
-            return [self._normalize_float_values(item) for item in data]
-        elif isinstance(data, float):
-            return round(data, 2)
-        else:
-            return data
-    
-    def _load_weight_settings(self):
-        """가중치 설정 파일을 불러옵니다. 없으면 기본값으로 생성합니다."""
-        if os.path.exists(WEIGHT_SETTINGS_FILE):
-            try:
-                with open(WEIGHT_SETTINGS_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    # 기존 형식 마이그레이션 (lane_weight_map이 최상위에 있는 경우)
-                    if "lane_weight_map" in data and "counter" not in data:
-                        old_map = data.get("lane_weight_map", {})
-                        data = {
-                            "counter": {
-                                "lane_weight_map": old_map.copy()
-                            },
-                            "synergy": {
-                                "lane_weight_map": old_map.copy()
-                            }
-                        }
-                        # 마이그레이션된 데이터 저장 (부동소수점 정규화)
-                        try:
-                            normalized_data = self._normalize_float_values(data)
-                            with open(WEIGHT_SETTINGS_FILE, "w", encoding="utf-8") as f:
-                                json.dump(normalized_data, f, indent=2, ensure_ascii=False)
-                        except OSError:
-                            pass
-                    return data
-            except (OSError, json.JSONDecodeError):
-                pass
-        
-        # 가중치 상수 (weight_settings_tab에서 import)
-        from weight_settings_tab import (
-            LANE_WEIGHT_DEEP, LANE_WEIGHT_LOW_DEEP, 
-            LANE_WEIGHT_SHALLOW, LANE_WEIGHT_DEFAULT,
-            SYNERGY_WEIGHT_PENALTY
-        )
-        
-        # 기본값 생성
-        counter_base_map = {
-            "bottom": {
-                "bottom": LANE_WEIGHT_DEEP,
-                "support": LANE_WEIGHT_DEEP,
-                "jungle": LANE_WEIGHT_SHALLOW,
-                "middle": LANE_WEIGHT_DEFAULT,
-                "top": LANE_WEIGHT_DEFAULT
-            },
-            "support": {
-                "support": LANE_WEIGHT_DEEP,
-                "bottom": LANE_WEIGHT_LOW_DEEP,
-                "jungle": LANE_WEIGHT_SHALLOW,
-                "middle": LANE_WEIGHT_SHALLOW,
-                "top": LANE_WEIGHT_SHALLOW
-            },
-            "jungle": {
-                "jungle": LANE_WEIGHT_DEEP,
-                "middle": LANE_WEIGHT_DEEP,
-                "top": LANE_WEIGHT_DEEP,
-                "bottom": LANE_WEIGHT_SHALLOW,
-                "support": LANE_WEIGHT_SHALLOW
-            },
-            "middle": {
-                "middle": LANE_WEIGHT_DEEP,
-                "jungle": LANE_WEIGHT_DEEP,
-                "top": LANE_WEIGHT_SHALLOW,
-                "bottom": LANE_WEIGHT_DEFAULT,
-                "support": LANE_WEIGHT_SHALLOW
-            },
-            "top": {
-                "top": LANE_WEIGHT_DEEP,
-                "jungle": LANE_WEIGHT_DEEP,
-                "middle": LANE_WEIGHT_SHALLOW,
-                "bottom": LANE_WEIGHT_DEFAULT,
-                "support": LANE_WEIGHT_SHALLOW
-            }
-        }
-        
-        synergy_base_map = {
-            "bottom": {
-                "bottom": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-                "support": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-                "jungle": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
-                "middle": round(LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY, 2),
-                "top": round(LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY, 2)
-            },
-            "support": {
-                "support": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-                "bottom": round(LANE_WEIGHT_LOW_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-                "jungle": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
-                "middle": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
-                "top": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2)
-            },
-            "jungle": {
-                "jungle": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-                "middle": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-                "top": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-                "bottom": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
-                "support": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2)
-            },
-            "middle": {
-                "middle": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-                "jungle": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-                "top": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
-                "bottom": round(LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY, 2),
-                "support": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2)
-            },
-            "top": {
-                "top": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-                "jungle": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-                "middle": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
-                "bottom": round(LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY, 2),
-                "support": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2)
-            }
-        }
-        
-        default_weights = {
-            "counter": {
-                "lane_weight_map": copy.deepcopy(counter_base_map)
-            },
-            "synergy": {
-                "lane_weight_map": copy.deepcopy(synergy_base_map)
-            }
-        }
-        
-        # 파일 저장 (부동소수점 정규화)
-        try:
-            normalized_weights = self._normalize_float_values(default_weights)
-            with open(WEIGHT_SETTINGS_FILE, "w", encoding="utf-8") as f:
-                json.dump(normalized_weights, f, indent=2, ensure_ascii=False)
-        except OSError:
-            pass
-        
-        return default_weights
     
     def _load_ui_settings(self):
         """Load UI settings from file"""

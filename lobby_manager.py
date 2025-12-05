@@ -5,12 +5,14 @@ import os
 import re
 import sys
 import subprocess
+import copy
 from pathlib import Path
 from collections import defaultdict
 from op_duos_tab import OpDuosTab
 from ignore_tab import IgnoreTab
 from counter_synergy_tab import CounterSynergyTab
 from credits_tab import CreditsTab
+from weight_settings_tab import WeightSettingsTab
 from common import (
     resolve_resource_path,
     AutocompletePopup,
@@ -36,6 +38,7 @@ except ImportError:  # requests는 선택적 의존성
 ALIAS_FILE = resolve_resource_path("champion_aliases.json")
 IGNORED_CHAMPIONS_FILE = resolve_resource_path("ignored_champions.json")
 UI_SETTINGS_FILE = resolve_resource_path("ui_settings.json")
+WEIGHT_SETTINGS_FILE = resolve_resource_path("weight_settings.json")
 DATA_DIR = Path(resolve_resource_path("data"))
 
 RECOMMEND_LOW_SAMPLE_TAG = "데이터 부족"
@@ -49,49 +52,6 @@ BANPICK_PICK_RATE_OVERRIDE = 1.5
 BANPICK_HIGH_SAMPLE_THRESHOLD = 10000
 BANPICK_PRE_PICK_POPULARITY_THRESHOLD = 1.5
 SYNERGY_OP_THRESHOLD = 55.0
-LANE_WEIGHT_DEEP = 1.0
-LANE_WEIGHT_LOW_DEEP = 0.7
-LANE_WEIGHT_SHALLOW = 0.5
-LANE_WEIGHT_DEFAULT = 0.35
-SYNERGY_WEIGHT_PENALTY = -0.3
-LANE_WEIGHT_MAP = {
-    'bottom': {
-        'bottom': LANE_WEIGHT_DEEP,
-        'support': LANE_WEIGHT_DEEP,
-        'jungle': LANE_WEIGHT_SHALLOW,
-        'middle': LANE_WEIGHT_DEFAULT,
-        'top': LANE_WEIGHT_DEFAULT
-    },
-    'support': {
-        'support': LANE_WEIGHT_DEEP,
-        'bottom': LANE_WEIGHT_LOW_DEEP,
-        'jungle': LANE_WEIGHT_SHALLOW,
-        'middle': LANE_WEIGHT_SHALLOW,
-        'top': LANE_WEIGHT_SHALLOW
-    },
-    'jungle': {
-        'jungle': LANE_WEIGHT_DEEP,
-        'middle': LANE_WEIGHT_DEEP,
-        'top': LANE_WEIGHT_DEEP,
-        'bottom': LANE_WEIGHT_SHALLOW,
-        'support': LANE_WEIGHT_SHALLOW
-    },
-    'middle': {
-        'middle': LANE_WEIGHT_DEEP,
-        'jungle': LANE_WEIGHT_DEEP,
-        'top': LANE_WEIGHT_SHALLOW,
-        'bottom': LANE_WEIGHT_DEFAULT,
-        'support': LANE_WEIGHT_SHALLOW
-    },
-    'top': {
-        'top': LANE_WEIGHT_DEEP,
-        'jungle': LANE_WEIGHT_DEEP,
-        'middle': LANE_WEIGHT_SHALLOW,
-        'bottom': LANE_WEIGHT_DEFAULT,
-        'support': LANE_WEIGHT_SHALLOW
-    }
-}
-
 CHOSEONG_LIST = [
     "ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ", "ㅅ",
     "ㅆ", "ㅇ", "ㅈ", "ㅉ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"
@@ -739,6 +699,7 @@ class ChampionScraperApp:
         self._lane_swap_guard = False
         self.paned_window = None  # Will be set in build_dashboard_tab
         self.ui_settings = self._load_ui_settings()  # Load UI settings
+        self.weight_settings = self._load_weight_settings()  # Load weight settings
         
         self.client_watcher = None
         self.client_sync_supported = True
@@ -775,6 +736,9 @@ class ChampionScraperApp:
         self.ignore_tab = IgnoreTab(self.notebook, self)
         self.credits_tab = CreditsTab(self.notebook, self)
         self.notebook.add(self.credits_tab, text="Credits")
+        
+        # Weight settings tab
+        self.weight_settings_tab = WeightSettingsTab(self.notebook, self)
 
     def apply_theme(self):
         """Apply Teddy Bear theme colors and styles."""
@@ -885,13 +849,13 @@ class ChampionScraperApp:
         )
         self.client_fetch_button.pack(side="left", padx=(5, 0))
 
-        self.save_snapshot_button = tk.Button(
-            sync_frame,
-            text="스냅샷 저장",
-            command=self.save_snapshot,
-            state="disabled"
-        )
-        self.save_snapshot_button.pack(side="left", padx=(5, 0))
+        # self.save_snapshot_button = tk.Button(
+        #     sync_frame,
+        #     text="스냅샷 저장",
+        #     command=self.save_snapshot,
+        #     state="disabled"
+        # )
+        # self.save_snapshot_button.pack(side="left", padx=(5, 0))
         
         # My Lane selection frame
         my_lane_frame = tk.LabelFrame(self.dashboard_tab, text="나의 라인")
@@ -941,10 +905,16 @@ class ChampionScraperApp:
             command=self.reset_dashboard_tab
         ).pack(anchor="ne", padx=0, pady=(5, 0))
 
-        left_column = self._create_banpick_column(container, "우리팀", "allies")
+        left_column, left_total_label = self._create_banpick_column(container, "우리팀", "allies")
         left_column.grid(row=0, column=0, sticky="nsw", padx=(0, 5))
-        right_column = self._create_banpick_column(container, "상대팀", "enemies")
+        
+        right_column, right_total_label = self._create_banpick_column(container, "상대팀", "enemies")
         right_column.grid(row=0, column=1, sticky="nse", padx=(5, 0))
+        
+        self.team_total_labels = {
+            "allies": left_total_label,
+            "enemies": right_total_label
+        }
 
         # Bottom pane: recommendations
         recommend_frame = tk.LabelFrame(self.paned_window, text="추천 챔피언")
@@ -1236,7 +1206,7 @@ class ChampionScraperApp:
             
             # Exclude Checkbox
             exclude_var = tk.BooleanVar(value=False)
-            exclude_var.trace_add("write", lambda *args: self.update_banpick_recommendations())
+            exclude_var.trace_add("write", lambda *args: (self.update_banpick_recommendations(), self.update_team_total_scores()))
             exclude_check = tk.Checkbutton(
                 slot_frame,
                 text="데이터 제외",
@@ -1296,7 +1266,11 @@ class ChampionScraperApp:
             self._update_slot_lane_cache(slot)
             self.banpick_slots[side_key].append(slot)
 
-        return column
+        # 총 조합 점수 레이블을 컬럼 내부 하단에 추가
+        total_label = tk.Label(column, text="총 조합 점수: 0.00", font=("Segoe UI", 10, "bold"), fg="blue")
+        total_label.pack(fill="x", pady=(10, 5))
+
+        return column, total_label
 
     def manual_client_import(self):
         if not self.client_sync_supported or not self.client_watcher:
@@ -1771,6 +1745,9 @@ class ChampionScraperApp:
         
         if not suppress_update:
             self.update_banpick_recommendations()
+            self.update_team_total_scores()
+            # 모든 슬롯의 점수 표시 업데이트
+            self._update_all_slot_scores()
 
     def get_autocomplete_candidates(self):
         return self.autocomplete_candidates
@@ -1891,13 +1868,178 @@ class ChampionScraperApp:
         slot["selected_lane"] = final_lane
         slot["synergy_dataset"] = synergy_dataset
         slot["counter_dataset"] = counter_dataset
-        result_var.set(f"{display_name} ({final_lane})")
+        
+        # 점수 계산 및 표시
+        self._update_slot_score_display(slot)
 
         if not auto_trigger:
             entry_widget.delete(0, tk.END)
 
         self.update_banpick_recommendations()
+        self.update_team_total_scores()
         return True
+    
+    def _update_slot_score_display(self, slot):
+        """슬롯의 점수를 계산하고 표시를 업데이트합니다"""
+        result_var = slot.get("result_var")
+        if not result_var:
+            return
+        
+        display_name = slot.get("display_name")
+        selected_lane = slot.get("selected_lane")
+        
+        if not display_name or not selected_lane:
+            result_var.set("검색 결과 없음")
+            return
+        
+        # 점수 계산
+        score = self.calculate_champion_score(slot)
+        result_var.set(f"{display_name} ({selected_lane}) (score: {score:.2f})")
+    
+    def _update_all_slot_scores(self):
+        """모든 슬롯의 점수 표시를 업데이트합니다"""
+        for side_key in ["allies", "enemies"]:
+            for slot in self.banpick_slots.get(side_key, []):
+                self._update_slot_score_display(slot)
+
+    def calculate_champion_score(self, champion_slot, target_lane=None):
+        """특정 챔피언의 점수를 계산합니다 (시너지 + 카운터)"""
+        if not champion_slot.get("canonical_name") or not champion_slot.get("selected_lane"):
+            return 0.0
+        
+        if champion_slot.get("exclude_var") and champion_slot["exclude_var"].get():
+            return 0.0
+        
+        side_key = champion_slot.get("side")
+        opponent_side = "enemies" if side_key == "allies" else "allies"
+        # target_lane이 지정되지 않았으면 챔피언의 라인을 사용
+        champion_lane = target_lane if target_lane else champion_slot.get("selected_lane")
+        
+        synergy_sum = 0.0
+        synergy_count = 0
+        counter_sum = 0.0
+        counter_count = 0
+        
+        min_games = self.parse_int(self.recommend_min_games_entry.get()) if hasattr(self, "recommend_min_games_entry") else BANPICK_MIN_GAMES_DEFAULT
+        if min_games < 0:
+            min_games = 0
+        
+        pick_rate_override = (
+            self.parse_float(self.recommend_pick_rate_entry.get())
+            if hasattr(self, "recommend_pick_rate_entry") else BANPICK_PICK_RATE_OVERRIDE
+        )
+        if pick_rate_override < 0:
+            pick_rate_override = 0.0
+        
+        # 시너지 점수 계산 (같은 팀)
+        for friend in self.banpick_slots.get(side_key, []):
+            if friend is champion_slot:
+                continue
+            if friend.get("exclude_var") and friend["exclude_var"].get():
+                continue
+            dataset = friend.get("synergy_dataset")
+            if not dataset:
+                continue
+            source_lane = friend.get("selected_lane")
+            lane_entries = dataset.get(champion_lane, {})
+            for champ_name, details in lane_entries.items():
+                games = self.parse_int(details.get("games"))
+                pick_rate_value = 0.0
+                if "pick_rate" in details:
+                    pick_rate_value = self.parse_float(details.get("pick_rate"))
+                elif "popularity" in details:
+                    pick_rate_value = self.parse_float(details.get("popularity"))
+                meets_games_requirement = games >= min_games
+                meets_pick_rate_override = pick_rate_value >= pick_rate_override
+                include_entry = meets_games_requirement or meets_pick_rate_override
+                if not include_entry:
+                    continue
+                value = self.parse_float(details.get("win_rate"))
+                weight = self.get_lane_weight(champion_lane, source_lane, "synergy")
+                if weight <= 0:
+                    continue
+                synergy_sum += value * weight
+                synergy_count += 1
+        
+        # 카운터 점수 계산 (상대팀)
+        for enemy in self.banpick_slots.get(opponent_side, []):
+            if enemy.get("exclude_var") and enemy["exclude_var"].get():
+                continue
+            dataset = enemy.get("counter_dataset")
+            if not dataset:
+                continue
+            source_lane = enemy.get("selected_lane")
+            lane_entries = dataset.get(champion_lane, {})
+            for champ_name, details in lane_entries.items():
+                games = self.parse_int(details.get("games"))
+                pick_rate_value = 0.0
+                if "pick_rate" in details:
+                    pick_rate_value = self.parse_float(details.get("pick_rate"))
+                elif "popularity" in details:
+                    pick_rate_value = self.parse_float(details.get("popularity"))
+                meets_games_requirement = games >= min_games
+                meets_pick_rate_override = pick_rate_value >= pick_rate_override
+                include_entry = meets_games_requirement or meets_pick_rate_override
+                if not include_entry:
+                    continue
+                win_rate_value = self.parse_float(details.get("win_rate"))
+                value = 100.0 - win_rate_value
+                weight = self.get_lane_weight(champion_lane, source_lane, "counter")
+                if weight <= 0:
+                    continue
+                counter_sum += value * weight
+                counter_count += 1
+        
+        synergy_score = (
+            synergy_sum / synergy_count
+            if synergy_count > 0 else 0.0
+        )
+        counter_score = (
+            counter_sum / counter_count
+            if counter_count > 0 else 0.0
+        )
+        
+        return synergy_score + counter_score
+
+    def update_team_total_scores(self):
+        """우리팀과 상대팀의 총 조합 점수를 업데이트합니다"""
+        if not hasattr(self, "team_total_labels"):
+            return
+        
+        allies_total = 0.0
+        enemies_total = 0.0
+        
+        my_lane = self.my_lane_var.get()
+        if not my_lane or my_lane not in LANES:
+            # 나의 라인이 선택되지 않았으면 각 챔피언의 라인을 기준으로 계산
+            for slot in self.banpick_slots.get("allies", []):
+                if slot.get("canonical_name") and slot.get("selected_lane"):
+                    score = self.calculate_champion_score(slot, slot.get("selected_lane"))
+                    allies_total += score
+            
+            for slot in self.banpick_slots.get("enemies", []):
+                if slot.get("canonical_name") and slot.get("selected_lane"):
+                    score = self.calculate_champion_score(slot, slot.get("selected_lane"))
+                    enemies_total += score
+        else:
+            # 나의 라인이 선택되었으면 나의 라인을 기준으로 계산
+            for slot in self.banpick_slots.get("allies", []):
+                if slot.get("canonical_name") and slot.get("selected_lane"):
+                    score = self.calculate_champion_score(slot, my_lane)
+                    allies_total += score
+            
+            for slot in self.banpick_slots.get("enemies", []):
+                if slot.get("canonical_name") and slot.get("selected_lane"):
+                    score = self.calculate_champion_score(slot, my_lane)
+                    enemies_total += score
+        
+        allies_label = self.team_total_labels.get("allies")
+        enemies_label = self.team_total_labels.get("enemies")
+        
+        if allies_label:
+            allies_label.config(text=f"총 조합 점수: {allies_total:.2f}")
+        if enemies_label:
+            enemies_label.config(text=f"총 조합 점수: {enemies_total:.2f}")
 
     def update_banpick_recommendations(self):
         tree = getattr(self, "recommend_tree", None)
@@ -2006,14 +2148,11 @@ class ChampionScraperApp:
                 if not include_entry:
                     continue
                 value = self.parse_float(details.get("win_rate"))
-                weight = self.get_lane_weight(target_lane, source_lane)
+                weight = self.get_lane_weight(target_lane, source_lane, "synergy")
                 if weight <= 0:
                     continue
-                synergy_weight = max(0.0, weight + SYNERGY_WEIGHT_PENALTY)
-                if synergy_weight <= 0:
-                    continue
                 components = ensure_score_entry(champ_name)
-                components["synergy_sum"] += value * synergy_weight
+                components["synergy_sum"] += value * weight
                 components["synergy_count"] += 1
                 if low_sample:
                     components["has_low_sample"] = True
@@ -2048,7 +2187,7 @@ class ChampionScraperApp:
                     continue
                 win_rate_value = self.parse_float(details.get("win_rate"))
                 value = 100.0 - win_rate_value
-                weight = self.get_lane_weight(target_lane, source_lane)
+                weight = self.get_lane_weight(target_lane, source_lane, "counter")
                 if weight <= 0:
                     continue
                 components = ensure_score_entry(champ_name)
@@ -2123,6 +2262,11 @@ class ChampionScraperApp:
                     counter_label
                 )
             )
+        
+        # 총 조합 점수 업데이트
+        self.update_team_total_scores()
+        # 모든 슬롯의 점수 표시 업데이트
+        self._update_all_slot_scores()
 
     def _resolve_canonical_for_dataset(self, champion_name: str | None) -> str | None:
         if not champion_name:
@@ -2178,11 +2322,33 @@ class ChampionScraperApp:
                 return False
         return True
 
-    def get_lane_weight(self, target_lane, source_lane):
+    def get_lane_weight(self, target_lane, source_lane, weight_type="counter"):
+        """
+        라인 가중치를 반환합니다.
+        weight_type: "synergy" 또는 "counter"
+        저장된 값이 있으면 그것을 사용하고, 없으면 weight_settings.json의 기본값을 사용합니다.
+        """
         if not target_lane or not source_lane:
+            from weight_settings_tab import LANE_WEIGHT_DEFAULT
             return LANE_WEIGHT_DEFAULT
-        mapping = LANE_WEIGHT_MAP.get(target_lane, {})
+        
+        # 저장된 가중치 확인 (사용자가 수정한 값)
+        weight_settings_ui = self.ui_settings.get("lane_weights", {})
+        lane_settings = weight_settings_ui.get(target_lane, {})
+        type_settings = lane_settings.get(weight_type, {})
+        
+        saved_weight = type_settings.get(source_lane)
+        if saved_weight is not None:
+            return float(saved_weight)
+        
+        # 기본값 사용 (weight_settings.json에서)
+        from weight_settings_tab import LANE_WEIGHT_DEFAULT
+        weight_settings = self._load_weight_settings()
+        weight_type_settings = weight_settings.get(weight_type, {})
+        lane_weight_map = weight_type_settings.get("lane_weight_map", {})
+        mapping = lane_weight_map.get(target_lane, {})
         return mapping.get(source_lane, LANE_WEIGHT_DEFAULT)
+    
 
     def _parse_threshold_value(self, entry_widget, default_value):
         if not entry_widget:
@@ -2430,6 +2596,135 @@ class ChampionScraperApp:
             return float(value)
         except (TypeError, ValueError):
             return 0.0
+    
+    def _load_weight_settings(self):
+        """가중치 설정 파일을 불러옵니다. 없으면 기본값으로 생성합니다."""
+        if os.path.exists(WEIGHT_SETTINGS_FILE):
+            try:
+                with open(WEIGHT_SETTINGS_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    # 기존 형식 마이그레이션 (lane_weight_map이 최상위에 있는 경우)
+                    if "lane_weight_map" in data and "counter" not in data:
+                        old_map = data.get("lane_weight_map", {})
+                        data = {
+                            "counter": {
+                                "lane_weight_map": old_map.copy()
+                            },
+                            "synergy": {
+                                "lane_weight_map": old_map.copy()
+                            }
+                        }
+                        # 마이그레이션된 데이터 저장
+                        try:
+                            with open(WEIGHT_SETTINGS_FILE, "w", encoding="utf-8") as f:
+                                json.dump(data, f, indent=2, ensure_ascii=False)
+                        except OSError:
+                            pass
+                    return data
+            except (OSError, json.JSONDecodeError):
+                pass
+        
+        # 가중치 상수 (weight_settings_tab에서 import)
+        from weight_settings_tab import (
+            LANE_WEIGHT_DEEP, LANE_WEIGHT_LOW_DEEP, 
+            LANE_WEIGHT_SHALLOW, LANE_WEIGHT_DEFAULT,
+            SYNERGY_WEIGHT_PENALTY
+        )
+        
+        # 기본값 생성
+        counter_base_map = {
+            "bottom": {
+                "bottom": LANE_WEIGHT_DEEP,
+                "support": LANE_WEIGHT_DEEP,
+                "jungle": LANE_WEIGHT_SHALLOW,
+                "middle": LANE_WEIGHT_DEFAULT,
+                "top": LANE_WEIGHT_DEFAULT
+            },
+            "support": {
+                "support": LANE_WEIGHT_DEEP,
+                "bottom": LANE_WEIGHT_LOW_DEEP,
+                "jungle": LANE_WEIGHT_SHALLOW,
+                "middle": LANE_WEIGHT_SHALLOW,
+                "top": LANE_WEIGHT_SHALLOW
+            },
+            "jungle": {
+                "jungle": LANE_WEIGHT_DEEP,
+                "middle": LANE_WEIGHT_DEEP,
+                "top": LANE_WEIGHT_DEEP,
+                "bottom": LANE_WEIGHT_SHALLOW,
+                "support": LANE_WEIGHT_SHALLOW
+            },
+            "middle": {
+                "middle": LANE_WEIGHT_DEEP,
+                "jungle": LANE_WEIGHT_DEEP,
+                "top": LANE_WEIGHT_SHALLOW,
+                "bottom": LANE_WEIGHT_DEFAULT,
+                "support": LANE_WEIGHT_SHALLOW
+            },
+            "top": {
+                "top": LANE_WEIGHT_DEEP,
+                "jungle": LANE_WEIGHT_DEEP,
+                "middle": LANE_WEIGHT_SHALLOW,
+                "bottom": LANE_WEIGHT_DEFAULT,
+                "support": LANE_WEIGHT_SHALLOW
+            }
+        }
+        
+        synergy_base_map = {
+            "bottom": {
+                "bottom": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
+                "support": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
+                "jungle": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY,
+                "middle": LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY,
+                "top": LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY
+            },
+            "support": {
+                "support": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
+                "bottom": LANE_WEIGHT_LOW_DEEP - SYNERGY_WEIGHT_PENALTY,
+                "jungle": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY,
+                "middle": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY,
+                "top": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY
+            },
+            "jungle": {
+                "jungle": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
+                "middle": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
+                "top": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
+                "bottom": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY,
+                "support": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY
+            },
+            "middle": {
+                "middle": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
+                "jungle": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
+                "top": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY,
+                "bottom": LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY,
+                "support": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY
+            },
+            "top": {
+                "top": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
+                "jungle": LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY,
+                "middle": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY,
+                "bottom": LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY,
+                "support": LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY
+            }
+        }
+        
+        default_weights = {
+            "counter": {
+                "lane_weight_map": copy.deepcopy(counter_base_map)
+            },
+            "synergy": {
+                "lane_weight_map": copy.deepcopy(synergy_base_map)
+            }
+        }
+        
+        # 파일 저장
+        try:
+            with open(WEIGHT_SETTINGS_FILE, "w", encoding="utf-8") as f:
+                json.dump(default_weights, f, indent=2, ensure_ascii=False)
+        except OSError:
+            pass
+        
+        return default_weights
     
     def _load_ui_settings(self):
         """Load UI settings from file"""

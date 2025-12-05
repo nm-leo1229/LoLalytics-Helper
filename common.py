@@ -234,3 +234,94 @@ class AutocompletePopup:
         self.popup = None
         self.listbox = None
 
+
+class ScoreTooltip:
+    """마우스 호버 시 점수 계산 상세 정보를 표시하는 툴팁"""
+    
+    def __init__(self, widget, text_provider):
+        """
+        widget: 툴팁을 표시할 위젯
+        text_provider: 툴팁 텍스트를 반환하는 콜백 함수 (동적으로 텍스트 생성)
+        """
+        self.widget = widget
+        self.text_provider = text_provider
+        self.tooltip_window = None
+        self.show_delay = 500  # ms
+        self.show_job = None
+        
+        self.widget.bind("<Enter>", self._on_enter, add="+")
+        self.widget.bind("<Leave>", self._on_leave, add="+")
+        self.widget.bind("<ButtonPress>", self._on_leave, add="+")
+    
+    def _on_enter(self, event):
+        self._cancel_show()
+        self.show_job = self.widget.after(self.show_delay, self._show_tooltip)
+    
+    def _on_leave(self, event):
+        self._cancel_show()
+        self._hide_tooltip()
+    
+    def _cancel_show(self):
+        if self.show_job:
+            self.widget.after_cancel(self.show_job)
+            self.show_job = None
+    
+    def _show_tooltip(self):
+        if self.tooltip_window:
+            return
+        
+        text = self.text_provider()
+        if not text:
+            return
+        
+        x = self.widget.winfo_rootx()
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 5
+        
+        self.tooltip_window = tk.Toplevel(self.widget)
+        self.tooltip_window.wm_overrideredirect(True)
+        self.tooltip_window.attributes("-topmost", True)
+        
+        # 스타일링
+        frame = tk.Frame(
+            self.tooltip_window,
+            background="#FFFDE7",  # 밝은 노란색 배경
+            borderwidth=1,
+            relief="solid"
+        )
+        frame.pack(fill="both", expand=True)
+        
+        label = tk.Label(
+            frame,
+            text=text,
+            justify="left",
+            background="#FFFDE7",
+            foreground="#5D4037",
+            font=("Consolas", 9),
+            padx=8,
+            pady=6
+        )
+        label.pack()
+        
+        # 위치 조정 (화면 밖으로 나가지 않도록)
+        self.tooltip_window.update_idletasks()
+        screen_width = self.widget.winfo_screenwidth()
+        screen_height = self.widget.winfo_screenheight()
+        tooltip_width = self.tooltip_window.winfo_reqwidth()
+        tooltip_height = self.tooltip_window.winfo_reqheight()
+        
+        if x + tooltip_width > screen_width:
+            x = screen_width - tooltip_width - 10
+        if y + tooltip_height > screen_height:
+            y = self.widget.winfo_rooty() - tooltip_height - 5
+        
+        self.tooltip_window.geometry(f"+{x}+{y}")
+    
+    def _hide_tooltip(self):
+        if self.tooltip_window:
+            self.tooltip_window.destroy()
+            self.tooltip_window = None
+    
+    def update_text_provider(self, text_provider):
+        """텍스트 제공자 업데이트"""
+        self.text_provider = text_provider
+

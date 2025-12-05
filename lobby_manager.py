@@ -16,6 +16,7 @@ from weight_settings_tab import WeightSettingsTab, load_weight_settings
 from common import (
     resolve_resource_path,
     AutocompletePopup,
+    ScoreTooltip,
     LANES,
     COUNTER_LOW_GAMES_DEFAULT,
     SYNERGY_LOW_GAMES_DEFAULT,
@@ -1242,6 +1243,7 @@ class ChampionScraperApp:
                 "button": search_button,
                 "clear_button": clear_button,
                 "result_var": result_var,
+                "result_label": result_label,  # 툴팁용
                 "exclude_var": exclude_var,
                 "display_name": None,
                 "canonical_name": None,
@@ -1249,7 +1251,8 @@ class ChampionScraperApp:
                 "synergy_dataset": None,
                 "counter_dataset": None,
                 "last_lane_value": None,
-                "last_lane": None
+                "last_lane": None,
+                "score_details": None  # 점수 계산 상세 정보
             }
 
             search_button.configure(command=lambda s=slot: self.perform_banpick_search(s))
@@ -1261,6 +1264,12 @@ class ChampionScraperApp:
                 entry,
                 self.get_autocomplete_candidates,
                 on_select=lambda _value, s=slot: self.perform_banpick_search(s, auto_trigger=False)
+            )
+            
+            # 점수 상세 정보 툴팁 추가
+            slot["tooltip"] = ScoreTooltip(
+                result_label,
+                lambda s=slot: self._get_score_tooltip_text(s)
             )
 
             self._update_slot_lane_cache(slot)
@@ -1904,10 +1913,12 @@ class ChampionScraperApp:
         
         if not display_name or not selected_lane:
             result_var.set("검색 결과 없음")
+            slot["score_details"] = None
             return
         
-        # 점수 계산
-        score = self.calculate_champion_score(slot)
+        # 점수 계산 및 상세 정보 수집
+        score, details = self.calculate_champion_score_with_details(slot)
+        slot["score_details"] = details
         result_var.set(f"{display_name} ({selected_lane}) (score: {score:.2f})")
     
     def _update_all_slot_scores(self):
@@ -1952,9 +1963,9 @@ class ChampionScraperApp:
             return 0.0
         
         synergy_sum = 0.0
-        synergy_count = 0
+        synergy_weight_sum = 0.0  # 가중치 합 (정규화용)
         counter_sum = 0.0
-        counter_count = 0
+        counter_weight_sum = 0.0  # 가중치 합 (정규화용)
         
         min_games = self.parse_int(self.recommend_min_games_entry.get()) if hasattr(self, "recommend_min_games_entry") else BANPICK_MIN_GAMES_DEFAULT
         if min_games < 0:
@@ -1999,7 +2010,7 @@ class ChampionScraperApp:
                 if weight <= 0:
                     continue
                 synergy_sum += value * weight
-                synergy_count += 1
+                synergy_weight_sum += weight  # 가중치 합산
         
         # 카운터 점수 계산 (상대팀)
         for enemy in self.banpick_slots.get(opponent_side, []):
@@ -2032,18 +2043,190 @@ class ChampionScraperApp:
                 if weight <= 0:
                     continue
                 counter_sum += value * weight
-                counter_count += 1
+                counter_weight_sum += weight  # 가중치 합산
         
+        # 가중치 합으로 나눠서 정규화 (라인 간 비교 가능하게)
         synergy_score = (
-            synergy_sum / synergy_count
-            if synergy_count > 0 else 0.0
+            synergy_sum / synergy_weight_sum
+            if synergy_weight_sum > 0 else 0.0
         )
         counter_score = (
-            counter_sum / counter_count
-            if counter_count > 0 else 0.0
+            counter_sum / counter_weight_sum
+            if counter_weight_sum > 0 else 0.0
         )
         
         return synergy_score + counter_score
+
+    def calculate_champion_score_with_details(self, champion_slot, target_lane=None):
+        """점수 계산과 상세 정보를 함께 반환합니다"""
+        details = {
+            "synergy_entries": [],  # [(champion_name, lane, win_rate, weight, weighted_score)]
+            "counter_entries": [],  # [(champion_name, lane, win_rate, counter_score, weight, weighted_score)]
+            "synergy_score": 0.0,
+            "counter_score": 0.0,
+            "synergy_weight_sum": 0.0,
+            "counter_weight_sum": 0.0,
+            "total_score": 0.0
+        }
+        
+        if not champion_slot.get("canonical_name") or not champion_slot.get("selected_lane"):
+            return 0.0, details
+        
+        if champion_slot.get("exclude_var") and champion_slot["exclude_var"].get():
+            return 0.0, details
+        
+        side_key = champion_slot.get("side")
+        opponent_side = "enemies" if side_key == "allies" else "allies"
+        champion_lane = target_lane if target_lane else champion_slot.get("selected_lane")
+        slot_champion_canonical = champion_slot.get("canonical_name", "")
+        
+        if not self._check_champion_data_exists(champion_slot.get("canonical_name"), champion_lane):
+            return 0.0, details
+        
+        synergy_sum = 0.0
+        synergy_weight_sum = 0.0  # 가중치 합 (정규화용)
+        counter_sum = 0.0
+        counter_weight_sum = 0.0  # 가중치 합 (정규화용)
+        
+        min_games = self.parse_int(self.recommend_min_games_entry.get()) if hasattr(self, "recommend_min_games_entry") else BANPICK_MIN_GAMES_DEFAULT
+        if min_games < 0:
+            min_games = 0
+        
+        pick_rate_override = (
+            self.parse_float(self.recommend_pick_rate_entry.get())
+            if hasattr(self, "recommend_pick_rate_entry") else BANPICK_PICK_RATE_OVERRIDE
+        )
+        if pick_rate_override < 0:
+            pick_rate_override = 0.0
+        
+        # 시너지 점수 계산 (같은 팀)
+        for friend in self.banpick_slots.get(side_key, []):
+            if friend is champion_slot:
+                continue
+            if friend.get("exclude_var") and friend["exclude_var"].get():
+                continue
+            dataset = friend.get("synergy_dataset")
+            if not dataset:
+                continue
+            source_lane = friend.get("selected_lane")
+            friend_name = friend.get("display_name") or friend.get("canonical_name") or "Unknown"
+            lane_entries = dataset.get(champion_lane, {})
+            for champ_name, entry_details in lane_entries.items():
+                resolved_name = self.resolve_champion_name(champ_name)
+                if not resolved_name or resolved_name != slot_champion_canonical:
+                    continue
+                games = self.parse_int(entry_details.get("games"))
+                pick_rate_value = 0.0
+                if "pick_rate" in entry_details:
+                    pick_rate_value = self.parse_float(entry_details.get("pick_rate"))
+                elif "popularity" in entry_details:
+                    pick_rate_value = self.parse_float(entry_details.get("popularity"))
+                meets_games_requirement = games >= min_games
+                meets_pick_rate_override = pick_rate_value >= pick_rate_override
+                include_entry = meets_games_requirement or meets_pick_rate_override
+                if not include_entry:
+                    continue
+                value = self.parse_float(entry_details.get("win_rate"))
+                weight = self.get_lane_weight(champion_lane, source_lane, "synergy")
+                if weight <= 0:
+                    continue
+                weighted_score = value * weight
+                synergy_sum += weighted_score
+                synergy_weight_sum += weight  # 가중치 합산
+                details["synergy_entries"].append((friend_name, source_lane, value, weight, weighted_score))
+        
+        # 카운터 점수 계산 (상대팀)
+        for enemy in self.banpick_slots.get(opponent_side, []):
+            if enemy.get("exclude_var") and enemy["exclude_var"].get():
+                continue
+            dataset = enemy.get("counter_dataset")
+            if not dataset:
+                continue
+            source_lane = enemy.get("selected_lane")
+            enemy_name = enemy.get("display_name") or enemy.get("canonical_name") or "Unknown"
+            lane_entries = dataset.get(champion_lane, {})
+            for champ_name, entry_details in lane_entries.items():
+                resolved_name = self.resolve_champion_name(champ_name)
+                if not resolved_name or resolved_name != slot_champion_canonical:
+                    continue
+                games = self.parse_int(entry_details.get("games"))
+                pick_rate_value = 0.0
+                if "pick_rate" in entry_details:
+                    pick_rate_value = self.parse_float(entry_details.get("pick_rate"))
+                elif "popularity" in entry_details:
+                    pick_rate_value = self.parse_float(entry_details.get("popularity"))
+                meets_games_requirement = games >= min_games
+                meets_pick_rate_override = pick_rate_value >= pick_rate_override
+                include_entry = meets_games_requirement or meets_pick_rate_override
+                if not include_entry:
+                    continue
+                win_rate_value = self.parse_float(entry_details.get("win_rate"))
+                counter_value = 100.0 - win_rate_value
+                weight = self.get_lane_weight(champion_lane, source_lane, "counter")
+                if weight <= 0:
+                    continue
+                weighted_score = counter_value * weight
+                counter_sum += weighted_score
+                counter_weight_sum += weight  # 가중치 합산
+                details["counter_entries"].append((enemy_name, source_lane, win_rate_value, counter_value, weight, weighted_score))
+        
+        # 가중치 합으로 나눠서 정규화 (라인 간 비교 가능하게)
+        synergy_score = synergy_sum / synergy_weight_sum if synergy_weight_sum > 0 else 0.0
+        counter_score = counter_sum / counter_weight_sum if counter_weight_sum > 0 else 0.0
+        total_score = synergy_score + counter_score
+        
+        details["synergy_score"] = synergy_score
+        details["counter_score"] = counter_score
+        details["synergy_weight_sum"] = synergy_weight_sum
+        details["counter_weight_sum"] = counter_weight_sum
+        details["total_score"] = total_score
+        
+        return total_score, details
+    
+    def _get_score_tooltip_text(self, slot):
+        """슬롯의 점수 상세 정보를 툴팁 텍스트로 포맷팅합니다"""
+        details = slot.get("score_details")
+        if not details:
+            return None
+        
+        display_name = slot.get("display_name", "Unknown")
+        selected_lane = slot.get("selected_lane", "?")
+        
+        lines = []
+        lines.append(f"=== {display_name} ({selected_lane}) 점수 상세 ===")
+        lines.append("")
+        
+        # 시너지 정보
+        synergy_entries = details.get("synergy_entries", [])
+        synergy_weight_sum = details.get("synergy_weight_sum", 0.0)
+        if synergy_entries:
+            lines.append("[ 시너지 ]")
+            for name, lane, win_rate, weight, weighted in synergy_entries:
+                lines.append(f"  {name}({lane}): {win_rate:.1f}% × {weight:.1f} = {weighted:.1f}")
+            synergy_sum = sum(w for _, _, _, _, w in synergy_entries)
+            lines.append(f"  합계: {synergy_sum:.1f} / 가중치합: {synergy_weight_sum:.1f}")
+            lines.append(f"  → 시너지 점수: {details['synergy_score']:.2f}")
+            lines.append("")
+        
+        # 카운터 정보
+        counter_entries = details.get("counter_entries", [])
+        counter_weight_sum = details.get("counter_weight_sum", 0.0)
+        if counter_entries:
+            lines.append("[ 카운터 ]")
+            for name, lane, win_rate, counter_val, weight, weighted in counter_entries:
+                lines.append(f"  {name}({lane}): 100-{win_rate:.1f}={counter_val:.1f} × {weight:.1f} = {weighted:.1f}")
+            counter_sum = sum(w for _, _, _, _, _, w in counter_entries)
+            lines.append(f"  합계: {counter_sum:.1f} / 가중치합: {counter_weight_sum:.1f}")
+            lines.append(f"  → 카운터 점수: {details['counter_score']:.2f}")
+            lines.append("")
+        
+        if not synergy_entries and not counter_entries:
+            lines.append("(데이터 없음)")
+            lines.append("")
+        
+        lines.append(f"총점: {details['synergy_score']:.2f} + {details['counter_score']:.2f} = {details['total_score']:.2f}")
+        
+        return "\n".join(lines)
 
     def update_team_total_scores(self):
         """우리팀과 상대팀의 총 조합 점수를 업데이트합니다"""
@@ -2121,9 +2304,9 @@ class ChampionScraperApp:
             if entry is None:
                 entry = {
                     "synergy_sum": 0.0,
-                    "synergy_count": 0,
+                    "synergy_weight_sum": 0.0,  # 가중치 합 (정규화용)
                     "counter_sum": 0.0,
-                    "counter_count": 0,
+                    "counter_weight_sum": 0.0,  # 가중치 합 (정규화용)
                     "synergy_sources": [],
                     "counter_sources": [],
                     "has_low_sample": False,
@@ -2196,7 +2379,7 @@ class ChampionScraperApp:
                     continue
                 components = ensure_score_entry(champ_name)
                 components["synergy_sum"] += value * weight
-                components["synergy_count"] += 1
+                components["synergy_weight_sum"] += weight  # 가중치 합산
                 components["synergy_slots_with_data"].add(friend_idx)  # 데이터가 있는 슬롯 추적
                 if low_sample:
                     components["has_low_sample"] = True
@@ -2236,7 +2419,7 @@ class ChampionScraperApp:
                     continue
                 components = ensure_score_entry(champ_name)
                 components["counter_sum"] += value * weight
-                components["counter_count"] += 1
+                components["counter_weight_sum"] += weight  # 가중치 합산
                 components["counter_slots_with_data"].add(enemy_idx)  # 데이터가 있는 슬롯 추적
                 if low_sample:
                     components["has_low_sample"] = True
@@ -2278,7 +2461,7 @@ class ChampionScraperApp:
                     weight = self.get_lane_weight(target_lane, source_lane, "synergy")
                     if weight > 0:
                         components["synergy_sum"] += NEUTRAL_SCORE * weight
-                        components["synergy_count"] += 1
+                        components["synergy_weight_sum"] += weight  # 가중치 합산
             
             # 카운터: 데이터가 없는 적군 슬롯에 대해 50점 추가
             for enemy_idx, source_lane in active_enemy_slots:
@@ -2286,7 +2469,7 @@ class ChampionScraperApp:
                     weight = self.get_lane_weight(target_lane, source_lane, "counter")
                     if weight > 0:
                         components["counter_sum"] += NEUTRAL_SCORE * weight
-                        components["counter_count"] += 1
+                        components["counter_weight_sum"] += weight  # 가중치 합산
 
         recommendations = []
 
@@ -2302,20 +2485,21 @@ class ChampionScraperApp:
             if not self._check_champion_data_exists(champ_name, target_lane):
                 continue
 
+            # 가중치 합으로 나눠서 정규화 (라인 간 비교 가능하게)
             synergy_score = (
-                components["synergy_sum"] / components["synergy_count"]
-                if components["synergy_count"] > 0 else 0.0
+                components["synergy_sum"] / components["synergy_weight_sum"]
+                if components["synergy_weight_sum"] > 0 else 0.0
             )
             counter_score = (
-                components["counter_sum"] / components["counter_count"]
-                if components["counter_count"] > 0 else 0.0
+                components["counter_sum"] / components["counter_weight_sum"]
+                if components["counter_weight_sum"] > 0 else 0.0
             )
             total = synergy_score + counter_score
             if total == 0:
                 continue
-            if components["counter_count"] > 0 and components["all_counter_under_50"]:
+            if components["counter_weight_sum"] > 0 and components["all_counter_under_50"]:
                 append_tag(components, RECOMMEND_FULL_COUNTER_TAG)
-            if components["all_high_sample"] and (components["synergy_count"] > 0 or components["counter_count"] > 0):
+            if components["all_high_sample"] and (components["synergy_weight_sum"] > 0 or components["counter_weight_sum"] > 0):
                 append_tag(components, RECOMMEND_HIGH_SAMPLE_TAG)
             if components["has_op_synergy"]:
                 append_tag(components, RECOMMEND_OP_SYNERGY_TAG)

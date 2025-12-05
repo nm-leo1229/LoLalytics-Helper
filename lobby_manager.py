@@ -1905,6 +1905,7 @@ class ChampionScraperApp:
     def _update_slot_score_display(self, slot):
         """슬롯의 점수를 계산하고 표시를 업데이트합니다"""
         result_var = slot.get("result_var")
+        result_label = slot.get("result_label")
         if not result_var:
             return
         
@@ -1914,12 +1915,28 @@ class ChampionScraperApp:
         if not display_name or not selected_lane:
             result_var.set("검색 결과 없음")
             slot["score_details"] = None
+            if result_label:
+                result_label.config(fg="#111111")
             return
         
         # 점수 계산 및 상세 정보 수집
         score, details = self.calculate_champion_score_with_details(slot)
         slot["score_details"] = details
-        result_var.set(f"{display_name} ({selected_lane}) (score: {score:.2f})")
+        
+        # 점수에 따른 이모지와 색상 결정
+        if score > 102:
+            emoji = "🟢"
+            color = "#2E7D32"  # Green
+        elif score >= 98:
+            emoji = "🟡"
+            color = "#F57F17"  # Yellow/Orange
+        else:
+            emoji = "🔴"
+            color = "#C62828"  # Red
+        
+        result_var.set(f"{emoji} {display_name} ({selected_lane}) score: {score:.2f}")
+        if result_label:
+            result_label.config(fg=color)
     
     def _update_all_slot_scores(self):
         """모든 슬롯의 점수 표시를 업데이트합니다"""
@@ -2257,13 +2274,46 @@ class ChampionScraperApp:
         allies_avg = allies_total / allies_count if allies_count > 0 else 0.0
         enemies_avg = enemies_total / enemies_count if enemies_count > 0 else 0.0
         
+        # 예상 승률 계산: 50% + (우리팀 점수 - 상대팀 점수) / 2
+        # 범위 제한: 5% ~ 95%
+        if allies_avg > 0 and enemies_avg > 0:
+            allies_win_rate = 50 + (allies_avg - enemies_avg) / 2
+            allies_win_rate = max(5, min(95, allies_win_rate))  # 5~95% 범위 제한
+            enemies_win_rate = 100 - allies_win_rate
+        else:
+            allies_win_rate = None
+            enemies_win_rate = None
+        
+        def get_score_style(score):
+            """점수에 따른 이모지와 색상 반환"""
+            if score > 102:
+                return "🟢", "#2E7D32"  # Green
+            elif score >= 98:
+                return "🟡", "#F57F17"  # Yellow/Orange
+            else:
+                return "🔴", "#C62828"  # Red
+        
         allies_label = self.team_total_labels.get("allies")
         enemies_label = self.team_total_labels.get("enemies")
         
         if allies_label:
-            allies_label.config(text=f"조합 점수: {allies_avg:.2f}")
+            if allies_avg > 0:
+                emoji, color = get_score_style(allies_avg)
+                if allies_win_rate is not None:
+                    allies_label.config(text=f"{emoji} 조합 점수: {allies_avg:.2f} (승률 {allies_win_rate:.1f}%)", fg=color)
+                else:
+                    allies_label.config(text=f"{emoji} 조합 점수: {allies_avg:.2f}", fg=color)
+            else:
+                allies_label.config(text="조합 점수: 0.00", fg="blue")
         if enemies_label:
-            enemies_label.config(text=f"조합 점수: {enemies_avg:.2f}")
+            if enemies_avg > 0:
+                emoji, color = get_score_style(enemies_avg)
+                if enemies_win_rate is not None:
+                    enemies_label.config(text=f"{emoji} 조합 점수: {enemies_avg:.2f} (승률 {enemies_win_rate:.1f}%)", fg=color)
+                else:
+                    enemies_label.config(text=f"{emoji} 조합 점수: {enemies_avg:.2f}", fg=color)
+            else:
+                enemies_label.config(text="조합 점수: 0.00", fg="blue")
 
     def update_banpick_recommendations(self):
         tree = getattr(self, "recommend_tree", None)

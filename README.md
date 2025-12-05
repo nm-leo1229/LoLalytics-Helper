@@ -1,43 +1,191 @@
+# LoLalytics Helper
+
 <img width="1918" height="1077" alt="image" src="https://github.com/user-attachments/assets/33386ad7-dac8-4e8f-bfaa-de2e04b9e555" />
 
+리그 오브 레전드 챔피언 데이터를 LoLalytics에서 수집하고, 게임 로비에서 최적의 카운터 픽과 시너지를 추천해주는 도구입니다.
 
-# LoLalytics Scraper & Counters Finder
+## 주요 기능
 
-**LSCF** is a Python script designed to help you find the best champion choices in *League of Legends* by scraping champion data from the *LoLalytics* website. The data is then used to identify the best counter-picks based on the enemy team's composition.
+- **LCU API 연동**: 리그 클라이언트와 자동 연동하여 픽 정보 자동 감지
+- **시너지 승률 표기**: 아군 챔피언과의 시너지 승률 표기 및 점수 계산
+- **카운터 승률 표기**: 상대팀 챔피언에 대한 카운터 승률 표기 점수 계산
+- **챔피언 추천**: 시너지와 카운터 승률을 종합하여 챔피언을 추천
+- **OP 듀오 체커**: 승률 54% 이상, 픽률 2% 이상인 OP 바텀 듀오 수집
 
-## Features
-- Scrapes champion data from *Lolalytics* into JSON files.
-- Allows you to input enemy champion picks and receive suggestions for the best counter-picks based on real-time data.
-- Toggle which counter lanes are visible in the lobby manager with simple checkboxes.
-- Separate ally input shows synergy tables with pick-rate filters and lane toggles.
-- Auto-highlights the top 10 bot lane duos (win rate ≥ 54, pick rate ≥ 2) sourced from `_bottom` JSON synergy data.
+## 사용법
 
-## Usage
+### 1. 로비 매니저 실행
 
-### Part 1: Scraping Data
+게임 로비에서 챔피언 추천을 받으려면 `LoLalyticsHelper.exe` 혹은 `lobby_manager.py`를 실행합니다.
 
-1. **Run the scraper:**
-   The script will open a browser (using Selenium), navigate to the *Lolalytics* page, and retrieve relevant data for all champions.
-   
-   ```bash
-   python scraper.py X
-   ```
-   - X should be an integer between 0 and 5.
-   - 0 means data for all champions will be scraped.
-   - Numbers between 1 and 5 represent subsets of champions, allowing you to split the scraping into 5 simultaneous scripts.
+```bash
+python lobby_manager.py
+```
 
-   - The data will be stored in a structured format for easy access later.
+### 2. 기본 사용 방법
 
-### Part 2: Managing Data in the Game Lobby
+#### 2.1 나의 라인 선택
 
-1. **Run the lobby manager:**
-   ```bash
-   python lobby_manager.py
-   ```
+1. 상단의 "나의 라인" 섹션에서 자신이 플레이할 라인을 선택합니다
+   - 탑 / 정글 / 미드 / 바텀 / 서포터 중 선택
 
-2. **Input enemy champions:**
-   You can input the enemy team's champions as they are selected. The script will recommend optimal champions for your team to pick based on win rate and counter-pick data.
+#### 2.2 챔피언 입력
 
-### TODO
-1. **scraper.py 수집 시간 최적화**
-   - 시너지 정보는 bottom lane, support lane, jungle lane 인 경우에만 수집
+**우리팀 (왼쪽 컬럼):**
+- 각 슬롯에 아군 챔피언 이름을 입력합니다
+- 라인 드롭다운에서 해당 챔피언의 라인을 선택합니다
+- "검색" 버튼을 클릭하거나 Enter 키를 누릅니다
+
+**상대팀 (오른쪽 컬럼):**
+- 각 슬롯에 상대팀 챔피언 이름을 입력합니다
+- 라인 드롭다운에서 해당 챔피언의 라인을 선택합니다
+- "검색" 버튼을 클릭하거나 Enter 키를 누릅니다
+
+**자동완성:**
+- 챔피언 이름을 입력하면 자동완성 목록이 표시됩니다
+- 화살표 키(↑↓)로 선택하고 Enter로 확인할 수 있습니다
+
+#### 2.3 추천 챔피언 확인
+
+- 하단의 "추천 챔피언" 테이블에서 내 라인에 맞는 최적의 챔피언을 확인할 수 있습니다
+- 추천은 시너지 점수와 카운터 점수를 합산한 최종 점수 순으로 정렬됩니다
+
+**컬럼 설명:**
+- **챔피언**: 추천 챔피언 이름 (⚠ 표시는 데이터 부족 경고)
+- **태그**: 
+  - `신뢰도 높음`: 모든 데이터가 3000게임 이상
+  - `올카운터`: 모든 상대팀 챔피언에 대해 승률 50% 미만
+  - `OP 시너지`: 아군과의 시너지 승률 55% 이상
+  - `선픽 카드`: 높은 인기도와 승률을 가진 안정적인 픽
+  - `데이터 부족`: 최소 게임 수 기준 미달
+- **최종 점수**: 시너지 점수 + 카운터 점수
+- **시너지**: 아군 챔피언과의 시너지 정보 (승률 표시)
+- **카운터**: 상대팀 챔피언에 대한 카운터 정보 (승률 표시)
+
+#### 2.4 필터 조정
+
+추천 테이블 상단에서 필터를 조정할 수 있습니다:
+- **최소 게임 수**: 기본값 900 (이 게임 수 이상인 데이터만 사용)
+- **최소 픽률**: 기본값 1.5 (이 픽률 이상인 데이터만 사용)
+
+### 3. LCU API 연동 (자동 픽 감지)
+
+리그 클라이언트와 연동하여 픽 정보를 자동으로 감지할 수 있습니다.
+
+#### 3.1 연결 점검
+
+1. 리그 오브 레전드 클라이언트를 실행하고 로비에 들어갑니다
+2. "연결" 버튼을 클릭하여 LCU 연결 상태를 점검합니다
+3. 연결이 성공하면 "자동 동기화" 체크박스와 "수동 불러오기" 버튼이 활성화됩니다
+
+#### 3.2 자동 동기화
+
+- "자동 동기화" 체크박스를 활성화하면 픽창에서 챔피언이 선택될 때마다 자동으로 업데이트됩니다
+- 2초마다 클라이언트 상태를 확인하여 변경사항을 감지합니다
+
+#### 3.3 수동 불러오기
+
+- "수동 불러오기" 버튼을 클릭하면 현재 픽창 상태를 즉시 불러옵니다
+- 자동 동기화가 꺼져있을 때 사용할 수 있습니다
+
+#### 3.4 스냅샷 저장
+
+- "스냅샷 저장" 버튼을 클릭하면 현재 감지된 픽 정보를 JSON 파일로 저장합니다
+- 디버깅 목적으로 `debug_data/` 폴더에 저장됩니다
+
+**주의사항:**
+- LCU 연동 기능을 사용하려면 `requests` 패키지가 설치되어 있어야 합니다
+- 리그 클라이언트가 실행 중이어야 합니다
+- 픽창 단계가 아니면 픽 정보를 가져올 수 없습니다
+
+### 4. 고급 기능
+
+#### 4.1 데이터 제외
+
+- 각 슬롯의 "데이터 제외" 체크박스를 활성화하면 해당 챔피언의 데이터를 추천 계산에서 제외합니다
+- 예: 특정 챔피언이 오프메타로 플레이되는 경우
+
+#### 4.2 챔피언 제외 목록
+
+- "Ignore" 탭에서 추천에서 제외할 챔피언 목록을 관리할 수 있습니다
+- 추천 테이블에서 챔피언을 선택하고 "선택 챔피언 제외" 버튼을 클릭하여 추가할 수 있습니다
+
+#### 4.3 카운터/시너지 분석
+
+- "Counter/Synergy" 탭에서 특정 챔피언의 상세한 카운터/시너지 데이터를 확인할 수 있습니다
+- 라인별 필터링과 최소 게임 수 필터를 사용할 수 있습니다
+
+#### 4.4 OP 듀오 확인
+
+- "OP Duos" 탭에서 승률이 높은 바텀 듀오 조합을 확인할 수 있습니다
+- 승률 54% 이상, 픽률 2% 이상인 조합이 자동으로 하이라이트됩니다
+
+### 5. 데이터 수집 (최초 1회 또는 업데이트 시) (배포자용)
+
+데이터를 수집하려면 `scraper.py`를 실행합니다.
+
+```bash
+python scraper.py
+```
+
+**주의사항:**
+- Chrome 브라우저가 설치되어 있어야 합니다
+- 수집에는 시간이 오래 걸릴 수 있습니다 (모든 챔피언 기준 수 시간)
+- 수집된 데이터는 `data/` 폴더에 JSON 파일로 저장됩니다. 업데이트 시에는 모든 json 파일을 제거하고 다시 파일이 생성 될 수 있도록 해주세요
+
+## 설치 및 요구사항 (개발용)
+
+### 필수 패키지
+
+```bash
+pip install selenium undetected-chromedriver
+```
+
+### 선택적 패키지 (LCU 연동용)
+
+```bash
+pip install requests urllib3
+```
+
+### 파일 구조
+
+- `scraper.py`: 데이터 수집 스크립트
+- `lobby_manager.py`: 로비 매니저 GUI 애플리케이션
+- `data/`: 수집된 챔피언 데이터 (JSON 파일)
+- `champion_aliases.json`: 챔피언 별칭 목록
+- `ignored_champions.json`: 제외할 챔피언 목록
+
+## 빌드
+
+실행 파일로 빌드하려면:
+
+```bash
+python build.py
+```
+
+빌드된 실행 파일은 `dist/` 폴더에 생성됩니다.
+
+## 문제 해결
+
+### 스크래퍼가 작동하지 않을 때
+
+- Chrome 브라우저가 최신 버전인지 확인하세요 (driver 142 버전으로 테스트 됨)
+- 인터넷 연결을 확인하세요
+- LoLalytics 웹사이트가 접근 가능한지 확인하세요
+
+### LCU 연결이 안 될 때
+
+- 리그 클라이언트가 실행 중인지 확인하세요
+- 픽창 단계에 들어가 있는지 확인하세요
+- `requests` 패키지가 설치되어 있는지 확인하세요
+- "연결" 버튼을 클릭하여 연결 상태를 점검하세요
+
+### 추천이 표시되지 않을 때
+
+- "나의 라인"이 선택되어 있는지 확인하세요
+- 우리팀 또는 상대팀에 최소 1명의 챔피언이 입력되어 있는지 확인하세요
+- `data/` 폴더에 해당 챔피언의 데이터 파일이 있는지 확인하세요
+
+## 라이선스
+
+이 프로젝트는 개인 사용 목적으로 제작되었습니다.

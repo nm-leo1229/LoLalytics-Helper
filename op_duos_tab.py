@@ -24,7 +24,7 @@ class OpDuosTab:
         self.data_dir = data_dir
         
         self.tab = tk.Frame(self.notebook)
-        self.notebook.add(self.tab, text="OP Duos")
+        self.notebook.add(self.tab, text="OP 조합")
         
         self.synergy_highlights = []
         self.highlight_tree = None

@@ -47,6 +47,56 @@ RECOMMEND_HIGH_SAMPLE_TAG = "신뢰도 높음"
 RECOMMEND_FULL_COUNTER_TAG = "올카운터"
 RECOMMEND_OP_SYNERGY_TAG = "OP 시너지"
 RECOMMEND_PRE_PICK_TAG = "선픽 카드"
+
+# 테마 정의
+THEME_LIGHT = {
+    "name": "light",
+    "bg_color": "#FDF6E3",       # Creamy White
+    "fg_color": "#2D2D2D",       # Dark Gray (가독성 향상)
+    "accent_color": "#D7CCC8",   # Light Brown
+    "select_color": "#FFECB3",   # Honey
+    "button_color": "#5D4037",   # Medium Brown
+    "button_fg": "#FFFFFF",      # White
+    "button_active_bg": "#8D6E63",
+    "button_pressed_bg": "#4E342E",
+    "entry_bg": "#FFFFFF",
+    "entry_fg": "#2D2D2D",       # Dark Gray
+    "treeview_bg": "#FFFFFF",
+    "treeview_heading_bg": "#D7CCC8",
+    "low_sample": "#888888",
+    "normal_sample": "#2D2D2D",  # Dark Gray
+    "tooltip_bg": "#FFFDE7",
+    "tooltip_fg": "#2D2D2D",     # Dark Gray
+    "score_default": "#1976D2",  # Blue (Darker for readability)
+    "score_high": "#2E7D32",     # Green
+    "score_medium": "#F57F17",   # Orange
+    "score_low": "#C62828",      # Red
+}
+
+THEME_DARK = {
+    "name": "dark",
+    "bg_color": "#1E1E2E",       # Dark background (Catppuccin Base)
+    "fg_color": "#CDD6F4",       # Light text (Catppuccin Text)
+    "accent_color": "#313244",   # Dark accent (Catppuccin Surface0)
+    "select_color": "#45475A",   # Selection (Catppuccin Surface1)
+    "button_color": "#89B4FA",   # Blue button (Catppuccin Blue)
+    "button_fg": "#1E1E2E",      # Dark button text
+    "button_active_bg": "#74C7EC",  # Catppuccin Sapphire
+    "button_pressed_bg": "#89DCEB",  # Catppuccin Sky
+    "entry_bg": "#313244",       # Entry background
+    "entry_fg": "#CDD6F4",       # Entry text
+    "treeview_bg": "#1E1E2E",    # Treeview background
+    "treeview_heading_bg": "#313244",
+    "low_sample": "#6C7086",     # Catppuccin Overlay0
+    "normal_sample": "#CDD6F4",  # Catppuccin Text
+    "tooltip_bg": "#313244",
+    "tooltip_fg": "#CDD6F4",
+    "score_default": "#89B4FA",  # Catppuccin Blue
+    "score_high": "#A6E3A1",     # Catppuccin Green
+    "score_medium": "#F9E2AF",   # Catppuccin Yellow
+    "score_low": "#F38BA8",      # Catppuccin Red
+}
+
 BANPICK_DEFAULT_LANES = ['jungle', 'bottom', 'support', 'middle', 'top']
 BANPICK_MIN_GAMES_DEFAULT = 900
 BANPICK_PICK_RATE_OVERRIDE = 1.5
@@ -694,13 +744,17 @@ class ChampionScraperApp:
         self.notebook.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
         
         self.dashboard_tab = tk.Frame(self.notebook)
-        self.notebook.add(self.dashboard_tab, text="Champion Picker")
+        self.notebook.add(self.dashboard_tab, text="챔피언 추천")
         self.recommend_counter_cache = {}
         
         self._lane_swap_guard = False
         self.paned_window = None  # Will be set in build_dashboard_tab
         self.ui_settings = self._load_ui_settings()  # Load UI settings
         self.weight_settings = load_weight_settings()  # Load weight settings
+        
+        # 테마 초기화
+        saved_theme = self.ui_settings.get("theme", "light")
+        self.current_theme = THEME_DARK if saved_theme == "dark" else THEME_LIGHT
         
         self.client_watcher = None
         self.client_sync_supported = True
@@ -736,33 +790,47 @@ class ChampionScraperApp:
         self.op_duos_tab = OpDuosTab(self.notebook, self, DATA_DIR)
         self.ignore_tab = IgnoreTab(self.notebook, self)
         self.credits_tab = CreditsTab(self.notebook, self)
-        self.notebook.add(self.credits_tab, text="Credits")
+        self.notebook.add(self.credits_tab, text="고마운 분들")
         
         # Weight settings tab
         self.weight_settings_tab = WeightSettingsTab(self.notebook, self)
 
-    def apply_theme(self):
-        """Apply Teddy Bear theme colors and styles."""
-        # Palette
-        bg_color = "#FDF6E3"      # Creamy White
-        fg_color = "#5D4037"      # Dark Brown
-        accent_color = "#D7CCC8"  # Light Brown
-        select_color = "#FFECB3"  # Honey
-        button_color = "#8D6E63"  # Medium Brown
-        button_fg = "#FFFFFF"     # White
+    def apply_theme(self, theme=None):
+        """현재 테마 또는 지정된 테마를 적용합니다."""
+        if theme is not None:
+            self.current_theme = theme
+        
+        t = self.current_theme
+        bg_color = t["bg_color"]
+        fg_color = t["fg_color"]
+        accent_color = t["accent_color"]
+        select_color = t["select_color"]
+        button_color = t["button_color"]
+        button_fg = t["button_fg"]
+        entry_bg = t["entry_bg"]
+        entry_fg = t["entry_fg"]
+        treeview_bg = t["treeview_bg"]
+        treeview_heading_bg = t["treeview_heading_bg"]
+        button_active_bg = t["button_active_bg"]
+        button_pressed_bg = t["button_pressed_bg"]
+        
+        # 다크모드에서 비활성화 버튼 색상 조정
+        is_dark = t["name"] == "dark"
+        disabled_bg = "#45475A" if is_dark else "#E0E0E0"
+        disabled_fg = "#6C7086" if is_dark else "#5D4037"
         
         # Configure standard Tk widgets via option database
         self.root.option_add("*Background", bg_color)
         self.root.option_add("*Foreground", fg_color)
-        self.root.option_add("*Entry.Background", "#FFFFFF")
-        self.root.option_add("*Entry.Foreground", fg_color)
-        self.root.option_add("*Listbox.Background", "#FFFFFF")
-        self.root.option_add("*Listbox.Foreground", fg_color)
+        self.root.option_add("*Entry.Background", entry_bg)
+        self.root.option_add("*Entry.Foreground", entry_fg)
+        self.root.option_add("*Listbox.Background", entry_bg)
+        self.root.option_add("*Listbox.Foreground", entry_fg)
         self.root.option_add("*Button.Background", button_color)
         self.root.option_add("*Button.Foreground", button_fg)
-        self.root.option_add("*Button.activeBackground", "#A1887F") # Lighter brown for hover/active
-        self.root.option_add("*Button.activeForeground", "#FFFFFF") # Keep white text
-        self.root.option_add("*Button.disabledForeground", "#5D4037") # Dark Brown for visibility
+        self.root.option_add("*Button.activeBackground", button_active_bg)
+        self.root.option_add("*Button.activeForeground", button_fg)
+        self.root.option_add("*Button.disabledForeground", disabled_fg)
         self.root.option_add("*Label.Background", bg_color)
         self.root.option_add("*Label.Foreground", fg_color)
         self.root.option_add("*Frame.Background", bg_color)
@@ -770,8 +838,10 @@ class ChampionScraperApp:
         self.root.option_add("*LabelFrame.Foreground", fg_color)
         self.root.option_add("*Checkbutton.Background", bg_color)
         self.root.option_add("*Checkbutton.Foreground", fg_color)
+        self.root.option_add("*Checkbutton.selectColor", accent_color)
         self.root.option_add("*Radiobutton.Background", bg_color)
         self.root.option_add("*Radiobutton.Foreground", fg_color)
+        self.root.option_add("*Radiobutton.selectColor", accent_color)
         
         self.root.configure(bg=bg_color)
         
@@ -784,8 +854,8 @@ class ChampionScraperApp:
         style.configure("TLabel", background=bg_color, foreground=fg_color)
         style.configure("TButton", background=button_color, foreground=button_fg, borderwidth=1)
         style.map("TButton",
-            background=[("pressed", "#6D4C41"), ("active", "#A1887F"), ("disabled", "#E0E0E0")],
-            foreground=[("pressed", "#FFFFFF"), ("active", "#FFFFFF"), ("disabled", "#5D4037")]
+            background=[("pressed", button_pressed_bg), ("active", button_active_bg), ("disabled", disabled_bg)],
+            foreground=[("pressed", button_fg), ("active", button_fg), ("disabled", disabled_fg)]
         )
         style.configure("TNotebook", background=bg_color, tabposition='n')
         style.configure("TNotebook.Tab", background=accent_color, foreground=fg_color, padding=[10, 2])
@@ -794,21 +864,49 @@ class ChampionScraperApp:
             foreground=[("selected", fg_color)]
         )
         style.configure("Treeview", 
-            background="#FFFFFF",
+            background=treeview_bg,
             foreground=fg_color,
-            fieldbackground="#FFFFFF",
+            fieldbackground=treeview_bg,
             borderwidth=0
         )
         style.configure("Treeview.Heading", 
-            background=accent_color, 
+            background=treeview_heading_bg, 
             foreground=fg_color,
             font=("Segoe UI", 9, "bold")
         )
         style.map("Treeview", background=[("selected", select_color)], foreground=[("selected", fg_color)])
         
-        # Custom styles for specific widgets if needed
+        # TCombobox 스타일 (다크모드 호환)
+        style.configure("TCombobox",
+            background=entry_bg,
+            foreground=entry_fg,
+            fieldbackground=entry_bg,
+            selectbackground=select_color,
+            selectforeground=fg_color
+        )
+        style.map("TCombobox",
+            fieldbackground=[("readonly", entry_bg)],
+            selectbackground=[("readonly", select_color)]
+        )
+        
+        # Custom styles for specific widgets
         style.configure("TLabelframe", background=bg_color, foreground=fg_color)
         style.configure("TLabelframe.Label", background=bg_color, foreground=fg_color)
+        
+        # Treeview 태그 색상 갱신
+        low_sample_color = t["low_sample"]
+        normal_sample_color = t["normal_sample"]
+        
+        # counter_synergy_tab이 있으면 Treeview 색상 갱신
+        if hasattr(self, "counter_synergy_tab") and self.counter_synergy_tab:
+            self.counter_synergy_tab.update_tree_colors(low_sample_color, normal_sample_color)
+        
+        # 테마 토글 버튼 텍스트 갱신
+        if hasattr(self, "theme_toggle_button"):
+            if is_dark:
+                self.theme_toggle_button.config(text="☀️ 라이트")
+            else:
+                self.theme_toggle_button.config(text="🌙 다크")
 
 
     def build_dashboard_tab(self):
@@ -857,6 +955,17 @@ class ChampionScraperApp:
             state="disabled"
         )
         self.save_snapshot_button.pack(side="left", padx=(5, 0))
+        
+        # 테마 토글 버튼
+        is_dark = self.current_theme["name"] == "dark"
+        theme_text = "☀️ 라이트" if is_dark else "🌙 다크"
+        self.theme_toggle_button = tk.Button(
+            lcu_frame,
+            text=theme_text,
+            command=self.toggle_theme,
+            width=10
+        )
+        self.theme_toggle_button.pack(side="right", padx=(5, 8))
         
         # My Lane selection frame
         my_lane_frame = tk.LabelFrame(self.dashboard_tab, text="나의 라인")
@@ -1276,7 +1385,8 @@ class ChampionScraperApp:
             self.banpick_slots[side_key].append(slot)
 
         # 조합 점수 레이블을 컬럼 내부 하단에 추가
-        total_label = tk.Label(column, text="조합 점수: 0.00", font=("Segoe UI", 10, "bold"), fg="blue")
+        default_color = self.current_theme.get("score_default", "blue")
+        total_label = tk.Label(column, text="조합 점수: 0.00", font=("Segoe UI", 10, "bold"), fg=default_color)
         total_label.pack(fill="x", pady=(10, 5))
 
         return column, total_label
@@ -2285,13 +2395,13 @@ class ChampionScraperApp:
             enemies_win_rate = None
         
         def get_score_style(score):
-            """점수에 따른 이모지와 색상 반환"""
+            t = self.current_theme
             if score > 102:
-                return "🟢", "#2E7D32"  # Green
+                return "🟢", t.get("score_high", "#2E7D32")  # Green
             elif score >= 98:
-                return "🟡", "#F57F17"  # Yellow/Orange
+                return "🟡", t.get("score_medium", "#F57F17")  # Yellow/Orange
             else:
-                return "🔴", "#C62828"  # Red
+                return "🔴", t.get("score_low", "#C62828")  # Red
         
         allies_label = self.team_total_labels.get("allies")
         enemies_label = self.team_total_labels.get("enemies")
@@ -2304,7 +2414,8 @@ class ChampionScraperApp:
                 else:
                     allies_label.config(text=f"{emoji} 조합 점수: {allies_avg:.2f}", fg=color)
             else:
-                allies_label.config(text="조합 점수: 0.00", fg="blue")
+                default_color = self.current_theme.get("score_default", "blue")
+                allies_label.config(text="조합 점수: 0.00", fg=default_color)
         if enemies_label:
             if enemies_avg > 0:
                 emoji, color = get_score_style(enemies_avg)
@@ -2313,7 +2424,8 @@ class ChampionScraperApp:
                 else:
                     enemies_label.config(text=f"{emoji} 조합 점수: {enemies_avg:.2f}", fg=color)
             else:
-                enemies_label.config(text="조합 점수: 0.00", fg="blue")
+                default_color = self.current_theme.get("score_default", "blue")
+                enemies_label.config(text="조합 점수: 0.00", fg=default_color)
 
     def update_banpick_recommendations(self):
         tree = getattr(self, "recommend_tree", None)
@@ -2918,6 +3030,67 @@ class ChampionScraperApp:
         except (TypeError, ValueError):
             return 0.0
     
+    def toggle_theme(self):
+        """다크모드/라이트모드 전환"""
+        if self.current_theme["name"] == "dark":
+            new_theme = THEME_LIGHT
+        else:
+            new_theme = THEME_DARK
+        
+        # 테마 적용
+        self.apply_theme(new_theme)
+        
+        # 설정 저장
+        self.ui_settings["theme"] = new_theme["name"]
+        self._save_ui_settings()
+        
+        # 모든 위젯 색상 갱신
+        self._refresh_all_widgets()
+        
+        # 조합 점수 및 추천 목록 색상 갱신
+        self.update_team_total_scores()
+    
+    def _refresh_all_widgets(self):
+        """테마 변경 후 모든 위젯 색상을 갱신합니다."""
+        t = self.current_theme
+        bg_color = t["bg_color"]
+        fg_color = t["fg_color"]
+        entry_bg = t["entry_bg"]
+        entry_fg = t["entry_fg"]
+        button_color = t["button_color"]
+        button_fg = t["button_fg"]
+        accent_color = t["accent_color"]
+        
+        def refresh_widget(widget):
+            """재귀적으로 위젯 색상을 갱신합니다."""
+            widget_class = widget.winfo_class()
+            
+            try:
+                if widget_class in ("Frame", "Labelframe", "Toplevel"):
+                    widget.configure(bg=bg_color)
+                elif widget_class == "Label":
+                    widget.configure(bg=bg_color, fg=fg_color)
+                elif widget_class == "Button":
+                    widget.configure(bg=button_color, fg=button_fg, activebackground=t["button_active_bg"])
+                elif widget_class == "Entry":
+                    widget.configure(bg=entry_bg, fg=entry_fg, insertbackground=entry_fg)
+                elif widget_class == "Listbox":
+                    widget.configure(bg=entry_bg, fg=entry_fg, selectbackground=t["select_color"])
+                elif widget_class == "Checkbutton":
+                    widget.configure(bg=bg_color, fg=fg_color, selectcolor=accent_color, activebackground=bg_color)
+                elif widget_class == "Radiobutton":
+                    widget.configure(bg=bg_color, fg=fg_color, selectcolor=accent_color, activebackground=bg_color)
+                elif widget_class == "Scrollbar":
+                    widget.configure(bg=accent_color, troughcolor=bg_color)
+            except tk.TclError:
+                pass  # 일부 위젯은 특정 옵션을 지원하지 않음
+            
+            # 자식 위젯 갱신
+            for child in widget.winfo_children():
+                refresh_widget(child)
+        
+        # 루트 윈도우부터 시작
+        refresh_widget(self.root)
     
     def _load_ui_settings(self):
         """Load UI settings from file"""

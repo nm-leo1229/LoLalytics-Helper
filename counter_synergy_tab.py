@@ -622,3 +622,15 @@ class CounterSynergyTab:
             for lane, lane_data in dataset.items()
         }
 
+    def update_tree_colors(self, low_sample_color, normal_sample_color):
+        """테마 변경 시 Treeview 태그 색상을 갱신합니다."""
+        # Counter Treeviews
+        for tree in self.treeviews.values():
+            tree.tag_configure("low_games", foreground=low_sample_color)
+            tree.tag_configure("normal_games", foreground=normal_sample_color)
+        
+        # Synergy Treeviews
+        for tree in self.synergy_treeviews.values():
+            tree.tag_configure("low_games", foreground=low_sample_color)
+            tree.tag_configure("normal_games", foreground=normal_sample_color)
+

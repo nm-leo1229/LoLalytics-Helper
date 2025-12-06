@@ -7,7 +7,7 @@ class IgnoreTab:
         self.notebook = notebook
         self.app = app_context
         self.tab = tk.Frame(self.notebook)
-        self.notebook.add(self.tab, text="Ignore List")
+        self.notebook.add(self.tab, text="추천 제외 목록")
         
         self.ignore_listbox_map = {}
         self._build_ui()

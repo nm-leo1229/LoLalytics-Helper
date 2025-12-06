@@ -733,10 +733,17 @@ def diagnose_lcu_connection():
     return True, "\n".join(report_lines), details
 
 
+
+VERSION = "v1.3.0"
+
 class ChampionScraperApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Champion Ban/Pick Helper")
+        self.root.title(f"LoLalytics Helper {VERSION}")
+        try:
+            self.root.iconbitmap("icon.ico")
+        except tk.TclError:
+            pass  # 아이콘 파일이 없거나 로드 실패 시 무시
         self.root.state('zoomed')  # Start maximized
         self.root.grid_rowconfigure(0, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
@@ -2026,7 +2033,9 @@ class ChampionScraperApp:
             result_var.set("검색 결과 없음")
             slot["score_details"] = None
             if result_label:
-                result_label.config(fg="#111111")
+                # 테마에 맞는 텍스트 색상 사용
+                fg_color = self.current_theme.get("fg_color", "#111111")
+                result_label.config(fg=fg_color)
             return
         
         # 점수 계산 및 상세 정보 수집

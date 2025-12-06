@@ -6,11 +6,12 @@ args = [
     'lobby_manager.py',
     '--onefile',
     '--noconsole',
-    '--name=LoLalyticsHelper',
+    '--name=LoLalyticsHelper_v1.3.0',
     '--add-data=data;data',
     '--add-data=champion_aliases.json;.',
     '--add-data=ignored_champions.json;.',
     '--add-data=credits.json;.',
+    '--icon=icon.ico',
     '--exclude-module=scraper',
     '--clean',
 ]

@@ -252,6 +252,15 @@ class ScoreTooltip:
         self.widget.bind("<Enter>", self._on_enter, add="+")
         self.widget.bind("<Leave>", self._on_leave, add="+")
         self.widget.bind("<ButtonPress>", self._on_leave, add="+")
+        
+        # 기본 테마 색상 (라이트 모드 기준)
+        self.bg_color = "#FFFDE7"
+        self.fg_color = "#2D2D2D"
+    
+    def update_theme(self, bg_color, fg_color):
+        """툴팁 테마 색상을 업데이트합니다."""
+        self.bg_color = bg_color
+        self.fg_color = fg_color
     
     def _on_enter(self, event):
         self._cancel_show()
@@ -284,7 +293,7 @@ class ScoreTooltip:
         # 스타일링
         frame = tk.Frame(
             self.tooltip_window,
-            background="#FFFDE7",  # 밝은 노란색 배경
+            background=self.bg_color,
             borderwidth=1,
             relief="solid"
         )
@@ -294,11 +303,11 @@ class ScoreTooltip:
             frame,
             text=text,
             justify="left",
-            background="#FFFDE7",
-            foreground="#5D4037",
+            background=self.bg_color,
+            foreground=self.fg_color,
             font=("Consolas", 9),
             padx=8,
-            pady=6
+            pady=4
         )
         label.pack()
         

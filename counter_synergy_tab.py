@@ -17,7 +17,7 @@ class CounterSynergyTab:
             command=self.reset_main_tab
         ).grid(row=0, column=3, sticky="e", padx=5, pady=5)
         
-        self.notebook.add(self.tab, text="Counter & Synergy")
+        self.notebook.add(self.tab, text="카운터 & 시너지")
 
         self.all_data = {lane: {} for lane in LANES}
         self.synergy_data = {lane: {} for lane in LANES}

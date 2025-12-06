@@ -63,7 +63,7 @@ THEME_LIGHT = {
     "entry_fg": "#2D2D2D",       # Dark Gray
     "treeview_bg": "#FFFFFF",
     "treeview_heading_bg": "#D7CCC8",
-    "low_sample": "#888888",
+    "low_sample": "#444444",
     "normal_sample": "#2D2D2D",  # Dark Gray
     "tooltip_bg": "#FFFDE7",
     "tooltip_fg": "#2D2D2D",     # Dark Gray
@@ -3058,6 +3058,9 @@ class ChampionScraperApp:
         
         # 조합 점수 및 추천 목록 색상 갱신
         self.update_team_total_scores()
+        
+        # 각 슬롯의 챔피언 점수 색상 재적용 (이모지 및 색상)
+        self._update_all_slot_scores()
     
     def _refresh_all_widgets(self):
         """테마 변경 후 모든 위젯 색상을 갱신합니다."""
@@ -3075,7 +3078,9 @@ class ChampionScraperApp:
             widget_class = widget.winfo_class()
             
             try:
-                if widget_class in ("Frame", "Labelframe", "Toplevel"):
+                if widget_class == "Labelframe":
+                    widget.configure(bg=bg_color, fg=fg_color)
+                elif widget_class in ("Frame", "Toplevel"):
                     widget.configure(bg=bg_color)
                 elif widget_class == "Label":
                     widget.configure(bg=bg_color, fg=fg_color)

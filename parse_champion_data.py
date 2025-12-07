@@ -23,7 +23,7 @@ import os
 
 LANES = ['top', 'jungle', 'middle', 'bottom', 'support']
 
-def parse_champion_file(filepath):
+def parse_champion_file(filepath, min_pick_rate=0.5):
     """Parse a champion data file and extract all champions."""
     champions = []
     
@@ -66,7 +66,10 @@ def parse_champion_file(filepath):
                 except ValueError:
                     continue
                 
-                # Include all champions (no pick rate filter)
+                # Filter by pick rate
+                if pickrate < min_pick_rate:
+                    continue
+                
                 champions.append({
                     'name': champion_name.lower(),
                     'pick_rate': pickrate,
@@ -84,7 +87,7 @@ def parse_champion_file(filepath):
     
     return champions
 
-def collect_all_champions():
+def collect_all_champions(min_pick_rate=0.5):
     """Collect champions from all lane files."""
     lane_champions = {}
     
@@ -93,7 +96,7 @@ def collect_all_champions():
         filepath = os.path.join(os.path.dirname(__file__), filename)
         
         print(f"Parsing {filename}...")
-        champions = parse_champion_file(filepath)
+        champions = parse_champion_file(filepath, min_pick_rate)
         lane_champions[lane] = champions
         print(f"  Found {len(champions)} champions")
     
@@ -124,12 +127,19 @@ def save_champion_list(lane_champions):
             print(f"  {lane}: {', '.join([c['name'] for c in champs[:5]])}...")
 
 if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Parse champion data from text files.')
+    parser.add_argument('--min-pick-rate', type=float, default=0.5,
+                        help='Minimum pick rate to include a champion (default: 0.5)')
+    args = parser.parse_args()
+
     print("="*50)
-    print("Parsing champion data from text files")
+    print(f"Parsing champion data from text files (Min Pick Rate: {args.min_pick_rate}%)")
     print("="*50)
     print()
     
-    lane_champions = collect_all_champions()
+    lane_champions = collect_all_champions(args.min_pick_rate)
     save_champion_list(lane_champions)
     
     print("\nDone!")

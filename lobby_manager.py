@@ -2198,6 +2198,8 @@ class ChampionScraperApp:
         details = {
             "synergy_entries": [],  # [(champion_name, lane, win_rate, weight, weighted_score)]
             "counter_entries": [],  # [(champion_name, lane, win_rate, counter_score, weight, weighted_score)]
+            "excluded_synergy": [], # [(champion_name, lane, games, pick_rate, win_rate)]
+            "excluded_counter": [], # [(champion_name, lane, games, pick_rate, win_rate)]
             "synergy_score": 0.0,
             "counter_score": 0.0,
             "synergy_weight_sum": 0.0,
@@ -2257,12 +2259,17 @@ class ChampionScraperApp:
                     pick_rate_value = self.parse_float(entry_details.get("pick_rate"))
                 elif "popularity" in entry_details:
                     pick_rate_value = self.parse_float(entry_details.get("popularity"))
+                
+                value = self.parse_float(entry_details.get("win_rate"))
+                
                 meets_games_requirement = games >= min_games
                 meets_pick_rate_override = pick_rate_value >= pick_rate_override
                 include_entry = meets_games_requirement or meets_pick_rate_override
+                
                 if not include_entry:
+                    details["excluded_synergy"].append((friend_name, source_lane, games, pick_rate_value, value))
                     continue
-                value = self.parse_float(entry_details.get("win_rate"))
+                
                 weight = self.get_lane_weight(champion_lane, source_lane, "synergy")
                 if weight <= 0:
                     continue
@@ -2291,12 +2298,17 @@ class ChampionScraperApp:
                     pick_rate_value = self.parse_float(entry_details.get("pick_rate"))
                 elif "popularity" in entry_details:
                     pick_rate_value = self.parse_float(entry_details.get("popularity"))
+                
+                win_rate_value = self.parse_float(entry_details.get("win_rate"))
+                
                 meets_games_requirement = games >= min_games
                 meets_pick_rate_override = pick_rate_value >= pick_rate_override
                 include_entry = meets_games_requirement or meets_pick_rate_override
+                
                 if not include_entry:
+                    details["excluded_counter"].append((enemy_name, source_lane, games, pick_rate_value, win_rate_value))
                     continue
-                win_rate_value = self.parse_float(entry_details.get("win_rate"))
+                
                 counter_value = 100.0 - win_rate_value
                 weight = self.get_lane_weight(champion_lane, source_lane, "counter")
                 if weight <= 0:
@@ -2355,8 +2367,25 @@ class ChampionScraperApp:
             lines.append(f"  합계: {counter_sum:.1f} / 가중치합: {counter_weight_sum:.1f}")
             lines.append(f"  → 카운터 점수: {details['counter_score']:.2f}")
             lines.append("")
+            
+        # 제외된 정보 표시
+        excluded_synergy = details.get("excluded_synergy", [])
+        excluded_counter = details.get("excluded_counter", [])
         
-        if not synergy_entries and not counter_entries:
+        if excluded_synergy or excluded_counter:
+            lines.append("[ 제외됨(데이터 부족) ]")
+            if excluded_synergy:
+                lines.append("  <시너지 제외>")
+                for name, lane, games, pick_rate, win_rate in excluded_synergy:
+                    lines.append(f"    - {name}({lane}): {games}판 / 픽률 {pick_rate:.1f}% (승률 {win_rate:.1f}%)")
+            
+            if excluded_counter:
+                lines.append("  <카운터 제외>")
+                for name, lane, games, pick_rate, win_rate in excluded_counter:
+                    lines.append(f"    - {name}({lane}): {games}판 / 픽률 {pick_rate:.1f}% (상대승률 {win_rate:.1f}%)")
+            lines.append("")
+        
+        if not synergy_entries and not counter_entries and not excluded_synergy and not excluded_counter:
             lines.append("(데이터 없음)")
             lines.append("")
         
@@ -2481,7 +2510,7 @@ class ChampionScraperApp:
                     "synergy_sources": [],
                     "counter_sources": [],
                     "has_low_sample": False,
-                    "has_low_pick_gap": False,
+                    "has_low_pick_gap": False, # deprecated but kept for compatibility
                     "tags": [],
                     "all_high_sample": True,
                     "all_counter_under_50": True,
@@ -2507,9 +2536,10 @@ class ChampionScraperApp:
             meets_pick_rate_override = pick_rate_value >= pick_rate_override
             include_entry = meets_games_requirement or meets_pick_rate_override
             low_sample = not meets_games_requirement
-            penalized_pick = (not include_entry) and (not meets_pick_rate_override)
+            # penalized_pick = (not include_entry) and (not meets_pick_rate_override) # No longer used to exclude
             high_sample = games >= BANPICK_HIGH_SAMPLE_THRESHOLD
-            return include_entry, low_sample, penalized_pick, high_sample
+            return include_entry, low_sample, high_sample, games, pick_rate_value
+
         selected_lowers = set()
         for slot_list in self.banpick_slots.values():
             for s in slot_list:
@@ -2538,12 +2568,17 @@ class ChampionScraperApp:
             source_lane = friend.get("selected_lane")
             lane_entries = dataset.get(target_lane, {})
             for champ_name, details in lane_entries.items():
-                include_entry, low_sample, penalized_pick, high_sample = should_use_entry(details)
-                if penalized_pick:
-                    components = ensure_score_entry(champ_name)
-                    components["has_low_pick_gap"] = True
+                include_entry, low_sample, high_sample, games, pick_rate_val = should_use_entry(details)
+                
+                source_name = friend.get("display_name") or friend.get("canonical_name") or "Unknown"
+                
                 if not include_entry:
+                    # 데이터 부족으로 제외됨 -> 점수 합산 X, 소스에만 표시
+                    components = ensure_score_entry(champ_name)
+                    label = f"{source_name}(제외: {games}판, {pick_rate_val:.1f}%)"
+                    components["synergy_sources"].append(label)
                     continue
+
                 value = self.parse_float(details.get("win_rate"))
                 weight = self.get_lane_weight(target_lane, source_lane, "synergy")
                 if weight <= 0:
@@ -2559,7 +2594,7 @@ class ChampionScraperApp:
                     components["all_high_sample"] = False
                 if value >= SYNERGY_OP_THRESHOLD:
                     components["has_op_synergy"] = True
-                source_name = friend.get("display_name") or friend.get("canonical_name") or "Unknown"
+                
                 label = f"{source_name}({value:.2f})"
                 if low_sample:
                     label = f"{WARNING_ICON} {label}"
@@ -2577,12 +2612,17 @@ class ChampionScraperApp:
             source_lane = enemy.get("selected_lane")
             lane_entries = dataset.get(target_lane, {})
             for champ_name, details in lane_entries.items():
-                include_entry, low_sample, penalized_pick, high_sample = should_use_entry(details)
-                if penalized_pick:
-                    components = ensure_score_entry(champ_name)
-                    components["has_low_pick_gap"] = True
+                include_entry, low_sample, high_sample, games, pick_rate_val = should_use_entry(details)
+                
+                source_name = enemy.get("display_name") or enemy.get("canonical_name") or "Unknown"
+
                 if not include_entry:
+                     # 데이터 부족으로 제외됨 -> 점수 합산 X, 소스에만 표시
+                    components = ensure_score_entry(champ_name)
+                    label = f"{source_name}(제외: {games}판, {pick_rate_val:.1f}%)"
+                    components["counter_sources"].append(label)
                     continue
+
                 win_rate_value = self.parse_float(details.get("win_rate"))
                 value = 100.0 - win_rate_value
                 weight = self.get_lane_weight(target_lane, source_lane, "counter")
@@ -2599,7 +2639,7 @@ class ChampionScraperApp:
                     components["all_high_sample"] = False
                 if win_rate_value >= 50.0:
                     components["all_counter_under_50"] = False
-                source_name = enemy.get("display_name") or enemy.get("canonical_name") or "Unknown"
+                
                 label = f"{source_name}({win_rate_value:.2f})"
                 if low_sample:
                     label = f"{WARNING_ICON} {label}"

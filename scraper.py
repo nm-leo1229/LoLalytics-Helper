@@ -313,7 +313,7 @@ def scrape_web(driver, url, current_lane):
                 time.sleep(random.uniform(1.0, 1.1))
                 
                 body.send_keys(Keys.PAGE_DOWN)
-                time.sleep(random.uniform(0.2, 0.3))
+                time.sleep(random.uniform(1.0, 1.1))
                 
                 # Collect synergy data for each lane (excluding current lane) - 동시 스크롤
                 lanes_to_check = [lane for lane in LANES if lane != current_lane]

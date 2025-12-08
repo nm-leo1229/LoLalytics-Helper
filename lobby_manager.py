@@ -1648,8 +1648,8 @@ class ChampionScraperApp:
         return entries
 
     def _populate_side_from_client(self, side_key, entries):
-        if side_key == "enemies":
-            entries = self._resolve_lane_conflicts_by_pick_rate(side_key, entries)
+        # Apply fallback logic for both allies and enemies if needed (e.g. custom games)
+        entries = self._resolve_lane_conflicts_by_pick_rate(side_key, entries)
 
         slots = self.banpick_slots.get(side_key, [])
         if not slots:
@@ -2074,124 +2074,13 @@ class ChampionScraperApp:
         if not full_name:
             return False
             
-        data_filename = f"{full_name}_{lane}.json".replace(" ", "_")
+        data_filename = f"{full_name.lower()}_{lane.lower()}.json".replace(" ", "_")
         filename = resolve_resource_path("data", data_filename)
         return os.path.exists(filename)
 
     def calculate_champion_score(self, champion_slot, target_lane=None):
-        """특정 챔피언의 점수를 계산합니다 (시너지 + 카운터)"""
-        if not champion_slot.get("canonical_name") or not champion_slot.get("selected_lane"):
-            return 0.0
-        
-        if champion_slot.get("exclude_var") and champion_slot["exclude_var"].get():
-            return 0.0
-        
-        side_key = champion_slot.get("side")
-        opponent_side = "enemies" if side_key == "allies" else "allies"
-        # target_lane이 지정되지 않았으면 챔피언의 라인을 사용
-        champion_lane = target_lane if target_lane else champion_slot.get("selected_lane")
-        
-        # 슬롯의 챔피언 이름 (정규화된 이름)
-        slot_champion_canonical = champion_slot.get("canonical_name", "")
-        
-        # 데이터 파일 존재 여부 확인
-        if not self._check_champion_data_exists(champion_slot.get("canonical_name"), champion_lane):
-            return 0.0
-        
-        synergy_sum = 0.0
-        synergy_weight_sum = 0.0  # 가중치 합 (정규화용)
-        counter_sum = 0.0
-        counter_weight_sum = 0.0  # 가중치 합 (정규화용)
-        
-        min_games = self.parse_int(self.recommend_min_games_entry.get()) if hasattr(self, "recommend_min_games_entry") else BANPICK_MIN_GAMES_DEFAULT
-        if min_games < 0:
-            min_games = 0
-        
-        pick_rate_override = (
-            self.parse_float(self.recommend_pick_rate_entry.get())
-            if hasattr(self, "recommend_pick_rate_entry") else BANPICK_PICK_RATE_OVERRIDE
-        )
-        if pick_rate_override < 0:
-            pick_rate_override = 0.0
-        
-        # 시너지 점수 계산 (같은 팀)
-        for friend in self.banpick_slots.get(side_key, []):
-            if friend is champion_slot:
-                continue
-            if friend.get("exclude_var") and friend["exclude_var"].get():
-                continue
-            dataset = friend.get("synergy_dataset")
-            if not dataset:
-                continue
-            source_lane = friend.get("selected_lane")
-            lane_entries = dataset.get(champion_lane, {})
-            for champ_name, details in lane_entries.items():
-                # 현재 슬롯의 챔피언과 일치하는 항목만 사용 (정규화된 이름으로 비교)
-                resolved_name = self.resolve_champion_name(champ_name)
-                if not resolved_name or resolved_name != slot_champion_canonical:
-                    continue
-                games = self.parse_int(details.get("games"))
-                pick_rate_value = 0.0
-                if "pick_rate" in details:
-                    pick_rate_value = self.parse_float(details.get("pick_rate"))
-                elif "popularity" in details:
-                    pick_rate_value = self.parse_float(details.get("popularity"))
-                meets_games_requirement = games >= min_games
-                meets_pick_rate_override = pick_rate_value >= pick_rate_override
-                include_entry = meets_games_requirement or meets_pick_rate_override
-                if not include_entry:
-                    continue
-                value = self.parse_float(details.get("win_rate"))
-                weight = self.get_lane_weight(champion_lane, source_lane, "synergy")
-                if weight <= 0:
-                    continue
-                synergy_sum += value * weight
-                synergy_weight_sum += weight  # 가중치 합산
-        
-        # 카운터 점수 계산 (상대팀)
-        for enemy in self.banpick_slots.get(opponent_side, []):
-            if enemy.get("exclude_var") and enemy["exclude_var"].get():
-                continue
-            dataset = enemy.get("counter_dataset")
-            if not dataset:
-                continue
-            source_lane = enemy.get("selected_lane")
-            lane_entries = dataset.get(champion_lane, {})
-            for champ_name, details in lane_entries.items():
-                # 현재 슬롯의 챔피언과 일치하는 항목만 사용 (정규화된 이름으로 비교)
-                resolved_name = self.resolve_champion_name(champ_name)
-                if not resolved_name or resolved_name != slot_champion_canonical:
-                    continue
-                games = self.parse_int(details.get("games"))
-                pick_rate_value = 0.0
-                if "pick_rate" in details:
-                    pick_rate_value = self.parse_float(details.get("pick_rate"))
-                elif "popularity" in details:
-                    pick_rate_value = self.parse_float(details.get("popularity"))
-                meets_games_requirement = games >= min_games
-                meets_pick_rate_override = pick_rate_value >= pick_rate_override
-                include_entry = meets_games_requirement or meets_pick_rate_override
-                if not include_entry:
-                    continue
-                win_rate_value = self.parse_float(details.get("win_rate"))
-                value = 100.0 - win_rate_value
-                weight = self.get_lane_weight(champion_lane, source_lane, "counter")
-                if weight <= 0:
-                    continue
-                counter_sum += value * weight
-                counter_weight_sum += weight  # 가중치 합산
-        
-        # 가중치 합으로 나눠서 정규화 (라인 간 비교 가능하게)
-        synergy_score = (
-            synergy_sum / synergy_weight_sum
-            if synergy_weight_sum > 0 else 0.0
-        )
-        counter_score = (
-            counter_sum / counter_weight_sum
-            if counter_weight_sum > 0 else 0.0
-        )
-        
-        return synergy_score + counter_score
+        score, _ = self.calculate_champion_score_with_details(champion_slot, target_lane)
+        return score
 
     def calculate_champion_score_with_details(self, champion_slot, target_lane=None):
         """점수 계산과 상세 정보를 함께 반환합니다"""
@@ -2243,80 +2132,200 @@ class ChampionScraperApp:
                 continue
             if friend.get("exclude_var") and friend["exclude_var"].get():
                 continue
-            dataset = friend.get("synergy_dataset")
-            if not dataset:
-                continue
+                
             source_lane = friend.get("selected_lane")
             friend_name = friend.get("display_name") or friend.get("canonical_name") or "Unknown"
-            lane_entries = dataset.get(champion_lane, {})
-            for champ_name, entry_details in lane_entries.items():
-                resolved_name = self.resolve_champion_name(champ_name)
-                if not resolved_name or resolved_name != slot_champion_canonical:
-                    continue
-                games = self.parse_int(entry_details.get("games"))
-                pick_rate_value = 0.0
-                if "pick_rate" in entry_details:
-                    pick_rate_value = self.parse_float(entry_details.get("pick_rate"))
-                elif "popularity" in entry_details:
-                    pick_rate_value = self.parse_float(entry_details.get("popularity"))
-                
-                value = self.parse_float(entry_details.get("win_rate"))
-                
-                meets_games_requirement = games >= min_games
-                meets_pick_rate_override = pick_rate_value >= pick_rate_override
-                include_entry = meets_games_requirement or meets_pick_rate_override
-                
-                if not include_entry:
-                    details["excluded_synergy"].append((friend_name, source_lane, games, pick_rate_value, value))
-                    continue
-                
-                weight = self.get_lane_weight(champion_lane, source_lane, "synergy")
-                if weight <= 0:
-                    continue
-                weighted_score = value * weight
-                synergy_sum += weighted_score
-                synergy_weight_sum += weight  # 가중치 합산
-                details["synergy_entries"].append((friend_name, source_lane, value, weight, weighted_score))
-        
+            friend_canonical = friend.get("canonical_name")
+
+            # 1. Look for ME in Friend's Dataset
+            entry_a = None
+            dataset_a = friend.get("synergy_dataset")
+            if dataset_a:
+                lane_entries = dataset_a.get(champion_lane, {})
+                # Normalize lookup - loop or direct? Loop is safer for resolving names matches
+                # But optimizing: Try resolve_champion_name match
+                for name, data in lane_entries.items():
+                    if self.resolve_champion_name(name) == slot_champion_canonical:
+                        entry_a = data
+                        break
+            
+            # 2. Look for Friend in MY Dataset
+            entry_b = None
+            dataset_b = champion_slot.get("synergy_dataset")
+            if dataset_b and friend_canonical:
+                lane_entries = dataset_b.get(source_lane, {})
+                for name, data in lane_entries.items():
+                    if self.resolve_champion_name(name) == friend_canonical:
+                        entry_b = data
+                        break
+            
+            # Select Best Entry
+            # Criteria: Meets requirements? Higher games?
+            selected_entry = None
+            is_valid_a = False
+            is_valid_b = False
+            
+            if entry_a:
+                games_a = self.parse_int(entry_a.get("games"))
+                pick_rate_a = self.parse_float(entry_a.get("pick_rate") or entry_a.get("popularity"))
+                is_valid_a = (games_a >= min_games) or (pick_rate_a >= pick_rate_override)
+            
+            if entry_b:
+                games_b = self.parse_int(entry_b.get("games"))
+                pick_rate_b = self.parse_float(entry_b.get("pick_rate") or entry_b.get("popularity"))
+                is_valid_b = (games_b >= min_games) or (pick_rate_b >= pick_rate_override)
+            
+            use_source = None # 'a' or 'b'
+            if is_valid_a and is_valid_b:
+                # Both valid, pick higher games
+                use_source = 'a' if self.parse_int(entry_a.get("games")) >= self.parse_int(entry_b.get("games")) else 'b'
+            elif is_valid_a:
+                use_source = 'a'
+            elif is_valid_b:
+                use_source = 'b'
+            elif entry_a: # Both invalid, but A exists (prefer A for consistency if both fail)
+                use_source = 'a'
+            elif entry_b:
+                use_source = 'b'
+            
+            final_entry = None
+            if use_source == 'a':
+                final_entry = entry_a
+            elif use_source == 'b':
+                final_entry = entry_b
+            
+            if not final_entry:
+                continue
+
+            # Process Final Entry
+            games = self.parse_int(final_entry.get("games"))
+            pick_rate = self.parse_float(final_entry.get("pick_rate") or final_entry.get("popularity"))
+            win_rate = self.parse_float(final_entry.get("win_rate"))
+            
+            # Check requirements again (for exclusion list)
+            is_valid = (games >= min_games) or (pick_rate >= pick_rate_override)
+            
+            if not is_valid:
+                details["excluded_synergy"].append((friend_name, source_lane, games, pick_rate, win_rate))
+                continue
+
+            weight = self.get_lane_weight(champion_lane, source_lane, "synergy")
+            if weight <= 0:
+                continue
+            
+            weighted_score = win_rate * weight
+            synergy_sum += weighted_score
+            synergy_weight_sum += weight
+            details["synergy_entries"].append((friend_name, source_lane, win_rate, weight, weighted_score))
+
         # 카운터 점수 계산 (상대팀)
         for enemy in self.banpick_slots.get(opponent_side, []):
             if enemy.get("exclude_var") and enemy["exclude_var"].get():
                 continue
-            dataset = enemy.get("counter_dataset")
-            if not dataset:
-                continue
+            
             source_lane = enemy.get("selected_lane")
             enemy_name = enemy.get("display_name") or enemy.get("canonical_name") or "Unknown"
-            lane_entries = dataset.get(champion_lane, {})
-            for champ_name, entry_details in lane_entries.items():
-                resolved_name = self.resolve_champion_name(champ_name)
-                if not resolved_name or resolved_name != slot_champion_canonical:
-                    continue
-                games = self.parse_int(entry_details.get("games"))
-                pick_rate_value = 0.0
-                if "pick_rate" in entry_details:
-                    pick_rate_value = self.parse_float(entry_details.get("pick_rate"))
-                elif "popularity" in entry_details:
-                    pick_rate_value = self.parse_float(entry_details.get("popularity"))
+            enemy_canonical = enemy.get("canonical_name")
+
+            # 1. Look for ME in Enemy's Dataset (Enemy vs Me)
+            entry_a = None
+            dataset_a = enemy.get("counter_dataset")
+            if dataset_a:
+                lane_entries = dataset_a.get(champion_lane, {})
+                for name, data in lane_entries.items():
+                    if self.resolve_champion_name(name) == slot_champion_canonical:
+                        entry_a = data
+                        break
+
+            # 2. Look for Enemy in MY Dataset (Me vs Enemy)
+            entry_b = None
+            dataset_b = champion_slot.get("counter_dataset")
+            if dataset_b and enemy_canonical:
+                lane_entries = dataset_b.get(source_lane, {})
+                for name, data in lane_entries.items():
+                    if self.resolve_champion_name(name) == enemy_canonical:
+                        entry_b = data
+                        break
+
+            # Select Best
+            selected_entry = None
+            is_valid_a = False
+            is_valid_b = False
+            
+            if entry_a:
+                games_a = self.parse_int(entry_a.get("games"))
+                pick_rate_a = self.parse_float(entry_a.get("pick_rate") or entry_a.get("popularity"))
+                is_valid_a = (games_a >= min_games) or (pick_rate_a >= pick_rate_override)
+            
+            if entry_b:
+                games_b = self.parse_int(entry_b.get("games"))
+                pick_rate_b = self.parse_float(entry_b.get("pick_rate") or entry_b.get("popularity"))
+                is_valid_b = (games_b >= min_games) or (pick_rate_b >= pick_rate_override)
+            
+            use_source = None
+            if is_valid_a and is_valid_b:
+                use_source = 'a' if self.parse_int(entry_a.get("games")) >= self.parse_int(entry_b.get("games")) else 'b'
+            elif is_valid_a:
+                use_source = 'a'
+            elif is_valid_b:
+                use_source = 'b'
+            elif entry_a:
+                use_source = 'a'
+            elif entry_b:
+                use_source = 'b'
+            
+            final_entry = None
+            is_inverted = False # True if using 'a' (Enemy vs Me), False if 'b' (Me vs Enemy)
+            
+            if use_source == 'a':
+                final_entry = entry_a
+                is_inverted = True # entry from enemy perspective
+            elif use_source == 'b':
+                final_entry = entry_b
+                is_inverted = False # entry from my perspective
+            
+            if not final_entry:
+                continue
                 
-                win_rate_value = self.parse_float(entry_details.get("win_rate"))
+            games = self.parse_int(final_entry.get("games"))
+            pick_rate = self.parse_float(final_entry.get("pick_rate") or final_entry.get("popularity"))
+            win_rate_raw = self.parse_float(final_entry.get("win_rate"))
+            
+            # Counter logic: If inverted (Enemy vs Me), My Win Rate = 100 - EnemyWinRate
+            # If not inverted (Me vs Enemy), My Win Rate = Raw WinRate
+            # Wait. "Counter Score" usually wants "How much do I counter them?".
+            # If win_rate_raw is "Me vs Enemy" (e.g. 52%), then Counter Value is usually defined as (WinRate - 50)?
+            # Or in this app: `100 - win_rate_value` (line 2312 of original) was used when source was Enemy (Enemy vs Me).
+            # If Enemy vs Me is 48% -> My Win Rate is 52%. Score is 52.
+            # So: if is_inverted (Enemy's data), Score = 100 - win_rate_raw.
+            #     if not inverted (My data), Score = win_rate_raw.
+            
+            if is_inverted:
+                my_win_rate = 100.0 - win_rate_raw
+            else:
+                my_win_rate = win_rate_raw
+
+            is_valid = (games >= min_games) or (pick_rate >= pick_rate_override)
+            
+            if not is_valid:
+                # For display, we might want to show the 'my_win_rate' equivalent
+                details["excluded_counter"].append((enemy_name, source_lane, games, pick_rate, my_win_rate))
+                continue
+            
+            weight = self.get_lane_weight(champion_lane, source_lane, "counter")
+            if weight <= 0:
+                continue
                 
-                meets_games_requirement = games >= min_games
-                meets_pick_rate_override = pick_rate_value >= pick_rate_override
-                include_entry = meets_games_requirement or meets_pick_rate_override
-                
-                if not include_entry:
-                    details["excluded_counter"].append((enemy_name, source_lane, games, pick_rate_value, win_rate_value))
-                    continue
-                
-                counter_value = 100.0 - win_rate_value
-                weight = self.get_lane_weight(champion_lane, source_lane, "counter")
-                if weight <= 0:
-                    continue
-                weighted_score = counter_value * weight
-                counter_sum += weighted_score
-                counter_weight_sum += weight  # 가중치 합산
-                details["counter_entries"].append((enemy_name, source_lane, win_rate_value, counter_value, weight, weighted_score))
+            # Counter Score Logic:
+            # Often apps measure "Counter" as "Advantage". 
+            # If My Win Rate is 55%, advantage is +5%.
+            # The original code did `weighted_score = counter_value * weight` where counter_value = 100 - enemy_win_rate.
+            # So it's just My Win Rate.
+            
+            weighted_score = my_win_rate * weight
+            counter_sum += weighted_score
+            counter_weight_sum += weight
+            details["counter_entries"].append((enemy_name, source_lane, win_rate_raw, my_win_rate, weight, weighted_score))
         
         # 가중치 합으로 나눠서 정규화 (라인 간 비교 가능하게)
         synergy_score = synergy_sum / synergy_weight_sum if synergy_weight_sum > 0 else 0.0

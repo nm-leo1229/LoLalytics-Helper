@@ -1318,9 +1318,23 @@ class ChampionScraperApp:
         for idx in range(5):
             slot_frame = tk.Frame(column, bd=1, relief="groove", padx=6, pady=6)
             slot_frame.pack(fill="x", pady=4)
+            
+            # 슬롯 프레임의 컬럼 가중치 설정 (가로 크기 최적화)
+            slot_frame.grid_columnconfigure(0, weight=1)  # entry 영역 확장
+            slot_frame.grid_columnconfigure(2, weight=0)  # lane_box 영역 (고정 크기)
+            slot_frame.grid_columnconfigure(4, weight=0)  # search_button 영역 (고정 크기)
 
             tk.Label(slot_frame, text=f"슬롯 {idx + 1}", font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w")
             
+            # Manual Checkbox
+            manual_var = tk.BooleanVar(value=False)
+            manual_check = tk.Checkbutton(
+                slot_frame,
+                text="수동",
+                variable=manual_var
+            )
+            manual_check.grid(row=0, column=1, padx=(10, 0), sticky="e")
+
             # Exclude Checkbox
             exclude_var = tk.BooleanVar(value=False)
             exclude_var.trace_add("write", lambda *args: (self.update_banpick_recommendations(), self.update_team_total_scores()))
@@ -1329,27 +1343,27 @@ class ChampionScraperApp:
                 text="데이터 제외",
                 variable=exclude_var
             )
-            exclude_check.grid(row=0, column=1, padx=(10, 0), sticky="e")
+            exclude_check.grid(row=0, column=2, padx=(2, 0), sticky="e")
 
             clear_button = tk.Button(slot_frame, text="데이터 제거", width=8)
-            clear_button.grid(row=0, column=2, padx=(6, 0), sticky="e")
+            clear_button.grid(row=0, column=3, padx=(6, 0), sticky="e")
 
             entry = tk.Entry(slot_frame, width=11)
             entry.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(4, 2))
 
             lane_box = ttk.Combobox(slot_frame, values=LANES, state="readonly", width=9)
-            lane_box.grid(row=1, column=2, padx=(6, 0), pady=(4, 2))
+            lane_box.grid(row=1, column=2, padx=(6, 0), pady=(4, 2), sticky="w")
             if idx < len(BANPICK_DEFAULT_LANES):
                 lane_box.set(BANPICK_DEFAULT_LANES[idx])
             else:
                 lane_box.set("라인 선택")
 
             search_button = tk.Button(slot_frame, text="검색", width=5)
-            search_button.grid(row=1, column=3, padx=(6, 0))
+            search_button.grid(row=1, column=3, padx=(6, 0), sticky="e")
 
             result_var = tk.StringVar(value="검색 결과 없음")
             result_label = tk.Label(slot_frame, textvariable=result_var, anchor="w")
-            result_label.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(6, 0))
+            result_label.grid(row=2, column=0, columnspan=5, sticky="ew", pady=(6, 0))
 
             slot = {
                 "side": side_key,
@@ -1361,6 +1375,7 @@ class ChampionScraperApp:
                 "result_var": result_var,
                 "result_label": result_label,  # 툴팁용
                 "exclude_var": exclude_var,
+                "manual_var": manual_var,
                 "display_name": None,
                 "canonical_name": None,
                 "selected_lane": None,
@@ -1713,7 +1728,10 @@ class ChampionScraperApp:
         # LCU assignedPosition handling
         assigned_position = entry.get("assignedPosition")
         target_lane = None
-        if assigned_position:
+        
+        is_manual = slot.get("manual_var") and slot.get("manual_var").get()
+        
+        if assigned_position and not is_manual:
             assigned_position = assigned_position.lower()
             if assigned_position == "utility":
                 assigned_position = "support"
@@ -1759,6 +1777,15 @@ class ChampionScraperApp:
                             val2 = conflicting_exclude.get()
                             slot_exclude.set(val2)
                             conflicting_exclude.set(val1)
+                        
+                        # Swap manual_var (optional but good for consistency)
+                        slot_manual = slot.get("manual_var")
+                        conflicting_manual = conflicting_slot.get("manual_var")
+                        if slot_manual and conflicting_manual:
+                            val1 = slot_manual.get()
+                            val2 = conflicting_manual.get()
+                            slot_manual.set(val2)
+                            conflicting_manual.set(val1)
                         
                         # Note: my_lane_var doesn't need to be swapped because it's lane-based, not slot-based
 
@@ -1864,10 +1891,13 @@ class ChampionScraperApp:
         slot["synergy_dataset"] = None
         slot["counter_dataset"] = None
         
-        # Reset exclude checkbox
+        # Reset exclude and manual checkbox
         exclude_var = slot.get("exclude_var")
         if exclude_var:
             exclude_var.set(False)
+        manual_var = slot.get("manual_var")
+        if manual_var:
+            manual_var.set(False)
         
         if not suppress_update:
             self.update_banpick_recommendations()
@@ -1923,6 +1953,11 @@ class ChampionScraperApp:
         synergy_dataset = None
         counter_dataset = None
         
+        is_manual = slot.get("manual_var") and slot.get("manual_var").get()
+        if is_manual and auto_trigger:
+            force_lane = lane
+
+        
         # Determine best lane based on games count (only for auto-trigger AND if no lane selected)
         target_lane = lane
         if auto_trigger:
@@ -1966,6 +2001,9 @@ class ChampionScraperApp:
         final_lane = synergy_lane or counter_lane or lane
 
         # Lane Swap Logic
+        if is_manual and auto_trigger:
+            final_lane = lane  # Force final lane to current lane if manual
+
         current_lane_val = lane_box.get()
         current_lane = current_lane_val.lower() if current_lane_val else ""
 

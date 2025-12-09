@@ -739,7 +739,7 @@ VERSION = "v1.3.0"
 class ChampionScraperApp:
     def __init__(self, root):
         self.root = root
-        self.root.title(f"LoLalytics Helper {VERSION}")
+        self.root.title(f"TtimoTtabbong {VERSION}")
         try:
             self.root.iconbitmap("icon.ico")
         except tk.TclError:

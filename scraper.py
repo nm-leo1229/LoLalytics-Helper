@@ -73,69 +73,29 @@ def format_data(element):
     }
 
 def format_synergy_data(element, debug=False):
-    """Format synergy data with Win Rate, Delta 1, Delta 2, Pick Rate, Games"""
+    """Format synergy data with Win Rate, Delta 1, Delta 2, Pick Rate, Games (경량화)"""
     img_alt = 'error'
-    
-    a_tags = element.find_elements(By.TAG_NAME, 'a')
-    if not a_tags:
-        return {
-            "Name": 'error',
-            "win_rate": 'N/A',
-            "delta_1": 'N/A',
-            "delta_2": 'N/A',
-            "pick_rate": 'N/A',
-            "games": 'N/A'
-        }
-    
-    a_tag = a_tags[0]
-    
+
+    # 이미지 1회 조회: champ src를 가진 첫 이미지
     try:
-        # Find the champion image
-        # Structure: <a><q:template>...</q:template><span><img alt="Karma" src="...champx46/karma.webp"></span></a>
-        # We want the image inside <span>, NOT inside <q:template> (tooltip)
-        
-        # First try: find img inside <span> tag (the actual champion image)
-        span_imgs = a_tag.find_elements(By.XPATH, ".//span//img[contains(@src, 'champ')]")
-        
-        if span_imgs:
-            # Use the first image from span (actual champion, not tooltip)
-            champ_img = span_imgs[0]
-        else:
-            # Fallback: find any img with 'champ' in src, but exclude tooltip
-            all_champ_imgs = a_tag.find_elements(By.XPATH, ".//img[contains(@src, 'champ')]")
-            # Filter out tooltip images (inside q:template)
-            champ_imgs = []
-            for img in all_champ_imgs:
-                # Check if image is NOT inside q:template
-                try:
-                    template = img.find_element(By.XPATH, "./ancestor::q:template")
-                    # If we find template, skip this image
-                    continue
-                except:
-                    # No template ancestor, this is the real image
-                    champ_imgs.append(img)
-            
-            if not champ_imgs:
-                return {
-                    "Name": 'error',
-                    "win_rate": 'N/A',
-                    "delta_1": 'N/A',
-                    "delta_2": 'N/A',
-                    "pick_rate": 'N/A',
-                    "games": 'N/A'
-                }
-            
-            champ_img = champ_imgs[0]
-        
-        alt = champ_img.get_attribute('alt') or ''
-        img_src = champ_img.get_attribute('src') or ''
-        
-        if 'champ' in img_src.lower() and alt:
-            if alt not in ['Flash', 'Cleanse', 'Exhaust', 'Ignite', 'Teleport', 'Ghost', 'Barrier', 'Heal', 'Smite']:
-                if 'lane' not in alt.lower():
-                    img_alt = alt
-        
-    except Exception as e:
+        champ_imgs = element.find_elements(By.CSS_SELECTOR, "img[src*='champ']")
+        for img in champ_imgs:
+            alt = (img.get_attribute('alt') or '').strip()
+            if not alt:
+                continue
+            lower_alt = alt.lower()
+            if lower_alt in ['flash', 'cleanse', 'exhaust', 'ignite', 'teleport', 'ghost', 'barrier', 'heal', 'smite']:
+                continue
+            if 'lane' in lower_alt:
+                continue
+            img_alt = alt
+            break
+    except Exception:
+        pass
+
+    if img_alt == 'error':
+        if debug:
+            print("[synergy-parse] img missing")
         return {
             "Name": 'error',
             "win_rate": 'N/A',
@@ -145,56 +105,23 @@ def format_synergy_data(element, debug=False):
             "games": 'N/A'
         }
 
-    # Extract data from div elements
-    # Structure: <div class="my-1">Win Rate</div>, <div class="my-1 text-[#bcc42a]">Delta 1</div>, etc.
+    # 텍스트를 단순 split (format_data와 동일한 방식)
     try:
-        # Find all div elements with class "my-1" (Win Rate, Delta 1, Delta 2, Pick Rate)
-        data_divs = element.find_elements(By.XPATH, ".//div[contains(@class, 'my-1')]")
-        # Find games div (has text-[9px] class)
-        games_divs = element.find_elements(By.XPATH, ".//div[contains(@class, 'text-[9px]')]")
-        
-        win_rate = 'N/A'
-        delta_1 = 'N/A'
-        delta_2 = 'N/A'
-        pick_rate = 'N/A'
-        games = 'N/A'
-        
-        # Win Rate is usually the first div with my-1 class (may have span inside)
-        if len(data_divs) >= 1:
-            win_rate_text = data_divs[0].text.strip()
-            # If there's a span inside, get its text
-            span = data_divs[0].find_elements(By.TAG_NAME, 'span')
-            if span:
-                win_rate_text = span[0].text.strip()
-            win_rate = win_rate_text if win_rate_text else 'N/A'
-        
-        # Delta 1 is usually the second div with my-1 class and text-[#bcc42a]
-        if len(data_divs) >= 2:
-            delta_1 = data_divs[1].text.strip() if data_divs[1].text.strip() else 'N/A'
-        
-        # Delta 2 is usually the third div with my-1 class and text-[#f6ff36]
-        if len(data_divs) >= 3:
-            delta_2 = data_divs[2].text.strip() if data_divs[2].text.strip() else 'N/A'
-        
-        # Pick Rate is usually the fourth div with my-1 class and text-[#939bf6]
-        if len(data_divs) >= 4:
-            pick_rate = data_divs[3].text.strip() if data_divs[3].text.strip() else 'N/A'
-        
-        # Games is in a div with text-[9px] class
-        if games_divs:
-            games = games_divs[0].text.strip() if games_divs[0].text.strip() else 'N/A'
-        
-    except (ValueError, IndexError, Exception) as e:
-        # Fallback: try to parse from text
-        try:
-            text = element.text.replace('\n', ' ').strip().split()
-            win_rate = text[0] if len(text) >= 1 else 'N/A'
-            delta_1 = text[1] if len(text) >= 2 else 'N/A'
-            delta_2 = text[2] if len(text) >= 3 else 'N/A'
-            pick_rate = text[3] if len(text) >= 4 else 'N/A'
-            games = text[4] if len(text) >= 5 else 'N/A'
-        except:
-            win_rate = delta_1 = delta_2 = pick_rate = games = 'N/A'
+        parts = element.text.replace('\n', ' ').strip().split()
+    except Exception:
+        parts = []
+
+    def pick(idx):
+        return parts[idx] if len(parts) > idx and parts[idx] else 'N/A'
+
+    win_rate = pick(0)
+    delta_1 = pick(1)
+    delta_2 = pick(2)
+    pick_rate = pick(3)
+    games = pick(4)
+
+    if debug:
+        print(f"[synergy-parse] alt={img_alt}, parts_len={len(parts)}")
 
     return {
         "Name": img_alt,
@@ -256,7 +183,7 @@ def scrape_web(driver, url, current_lane):
             print(f"Warning: {error_msg}")
             raise Exception(error_msg)
 
-    # 6번 반복하면서 모든 레인 동시 처리
+    # 4번 반복하면서 모든 레인 동시 처리
     for _ in range(4):
         # 모든 레인에서 데이터 수집
         for lane in LANES:

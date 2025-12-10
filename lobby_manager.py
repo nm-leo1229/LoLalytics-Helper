@@ -45,6 +45,7 @@ DATA_DIR = Path(resolve_resource_path("data"))
 LOG_DIR = Path(resolve_resource_path("logs"))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LCU_LOG_FILE = LOG_DIR / "lcu_responses.log"
+APP_ROOT = Path(__file__).resolve().parent
 
 LCU_LOGGER = logging.getLogger("lcu_trace")
 if not LCU_LOGGER.handlers:
@@ -59,6 +60,24 @@ RECOMMEND_HIGH_SAMPLE_TAG = "신뢰도 높음"
 RECOMMEND_FULL_COUNTER_TAG = "올카운터"
 RECOMMEND_OP_SYNERGY_TAG = "OP 시너지"
 RECOMMEND_PRE_PICK_TAG = "선픽 카드"
+
+def load_app_version() -> str:
+    """VERSION 파일을 읽어 앱 버전을 반환합니다."""
+    candidates = [
+        APP_ROOT / "VERSION",
+        Path(resolve_resource_path("VERSION")),
+    ]
+    for candidate in candidates:
+        try:
+            with open(candidate, "r", encoding="utf-8") as f:
+                version = f.read().strip()
+                if version:
+                    return version
+        except OSError:
+            continue
+    return "v0.0.0"
+
+APP_VERSION = load_app_version()
 
 # 테마 정의
 THEME_LIGHT = {
@@ -809,12 +828,10 @@ def diagnose_lcu_connection():
 
 
 
-VERSION = "v1.3.0"
-
 class ChampionScraperApp:
     def __init__(self, root):
         self.root = root
-        self.root.title(f"TtimoTtabbong {VERSION}")
+        self.root.title(f"TtimoTtabbong {APP_VERSION}")
         try:
             self.root.iconbitmap("icon.ico")
         except tk.TclError:

@@ -6,6 +6,7 @@ import re
 import sys
 import subprocess
 import copy
+import logging
 from pathlib import Path
 from collections import defaultdict
 from op_duos_tab import OpDuosTab
@@ -41,6 +42,17 @@ IGNORED_CHAMPIONS_FILE = resolve_resource_path("ignored_champions.json")
 UI_SETTINGS_FILE = resolve_resource_path("ui_settings.json")
 WEIGHT_SETTINGS_FILE = resolve_resource_path("weight_settings.json")
 DATA_DIR = Path(resolve_resource_path("data"))
+LOG_DIR = Path(resolve_resource_path("logs"))
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+LCU_LOG_FILE = LOG_DIR / "lcu_responses.log"
+
+LCU_LOGGER = logging.getLogger("lcu_trace")
+if not LCU_LOGGER.handlers:
+    LCU_LOGGER.setLevel(logging.DEBUG)
+    _file_handler = logging.FileHandler(LCU_LOG_FILE, encoding="utf-8")
+    _file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+    LCU_LOGGER.addHandler(_file_handler)
+    LCU_LOGGER.propagate = False
 
 RECOMMEND_LOW_SAMPLE_TAG = "데이터 부족"
 RECOMMEND_HIGH_SAMPLE_TAG = "신뢰도 높음"
@@ -148,6 +160,51 @@ def alias_variants(alias: str, include_initials: bool = True) -> set[str]:
 
 def contains_hangul_syllable(text: str) -> bool:
     return any(0xAC00 <= ord(ch) <= 0xD7A3 for ch in text)
+
+
+def log_lcu_response(method: str, path: str, response, source: str = "watcher"):
+    status = getattr(response, "status_code", "unknown")
+    try:
+        headers = dict(getattr(response, "headers", {}))
+    except Exception:
+        headers = {}
+    try:
+        body = response.text
+    except Exception as exc:  # pragma: no cover - defensive logging
+        body = f"<body 읽기 실패: {exc}>"
+    LCU_LOGGER.info(
+        "[source=%s] %s %s status=%s headers=%s body=%s",
+        source,
+        method,
+        path,
+        status,
+        headers,
+        body,
+    )
+
+
+def log_lcu_error(method: str, path: str, error: Exception, source: str = "watcher"):
+    LCU_LOGGER.error(
+        "[source=%s] %s %s error=%s", source, method, path, error, exc_info=True
+    )
+
+
+def reset_lcu_log():
+    """LCU 로그 파일을 초기화합니다. 새 게임 시작 시 호출됩니다."""
+    try:
+        # 기존 핸들러 제거
+        for handler in LCU_LOGGER.handlers[:]:
+            handler.close()
+            LCU_LOGGER.removeHandler(handler)
+        
+        # 파일을 덮어쓰기 모드로 다시 열기 (기존 내용 삭제)
+        _file_handler = logging.FileHandler(LCU_LOG_FILE, mode='w', encoding="utf-8")
+        _file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+        LCU_LOGGER.addHandler(_file_handler)
+        LCU_LOGGER.info("=== 새 게임 시작: 로그 초기화 ===")
+    except Exception as exc:
+        # 로그 초기화 실패해도 프로그램은 계속 실행
+        print(f"[WARN] LCU 로그 초기화 실패: {exc}")
 
 
 def load_alias_tables():
@@ -349,6 +406,7 @@ else:
             self._last_signature = None
             self._last_status = ""
             self._alias_refreshed = 0.0
+            self._had_session = False  # 이전에 세션이 있었는지 추적
             if urllib3 is not None:
                 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -359,6 +417,7 @@ else:
                 return
             self._last_signature = None
             self._last_status = ""
+            self._had_session = False  # 시작 시 세션 상태 초기화
             self._stop_event.clear()
             self._thread = threading.Thread(target=self._poll_loop, daemon=True)
             self._thread.start()
@@ -390,6 +449,11 @@ else:
             while not self._stop_event.is_set():
                 snapshot, message = self.fetch_snapshot()
                 if snapshot:
+                    # 세션이 없었다가 새로 나타난 경우 (새 게임 시작) 로그 초기화
+                    if not self._had_session:
+                        reset_lcu_log()
+                    self._had_session = True
+                    
                     signature = (
                         tuple(entry["championId"] for entry in snapshot.get("allies", [])),
                         tuple(entry["championId"] for entry in snapshot.get("enemies", []))
@@ -398,10 +462,14 @@ else:
                         self._last_signature = signature
                         if self._callback:
                             self._callback(snapshot, message)
-                elif message and message != self._last_status:
-                    self._last_status = message
-                    if self._status_callback:
-                        self._status_callback(message)
+                else:
+                    # 세션이 사라진 경우 (게임 종료 또는 픽창 종료)
+                    if self._had_session:
+                        self._had_session = False
+                    if message and message != self._last_status:
+                        self._last_status = message
+                        if self._status_callback:
+                            self._status_callback(message)
                 self._stop_event.wait(self.poll_interval)
 
         def _fetch_session(self):
@@ -609,7 +677,9 @@ else:
             try:
                 response = requests.get(url, auth=self._auth, timeout=timeout, verify=False)
             except requests.RequestException as exc:
+                log_lcu_error("GET", path, exc, source="watcher")
                 raise LeagueClientError(f"LCU 연결 실패: {exc}", temporary=True)
+            log_lcu_response("GET", path, response, source="watcher")
             if response.status_code == 401:
                 self._lockfile_mtime = None
                 raise LeagueClientError("LCU 인증에 실패했습니다. 잠시 후 다시 시도하세요.", temporary=True)
@@ -656,6 +726,7 @@ def diagnose_lcu_connection():
             timeout=2.0,
             verify=False
         )
+        log_lcu_response("GET", "/lol-summoner/v1/current-summoner", summoner_resp, source="diagnose")
         summoner_resp.raise_for_status()
         summoner_data = summoner_resp.json()
         display_name = None
@@ -671,6 +742,7 @@ def diagnose_lcu_connection():
         else:
             report_lines.append("소환사 정보를 불러왔지만 이름을 확인하지 못했습니다.")
     except requests.RequestException as exc:
+        log_lcu_error("GET", "/lol-summoner/v1/current-summoner", exc, source="diagnose")
         report_lines.append(f"소환사 정보를 불러오지 못했습니다 (계속 진행): {exc}")
     except ValueError:
         report_lines.append("소환사 정보 JSON 파싱 실패.")
@@ -685,7 +757,9 @@ def diagnose_lcu_connection():
                 timeout=1.5,
                 verify=False
             )
+            log_lcu_response("GET", endpoint, session_resp, source="diagnose")
         except requests.RequestException as exc:
+            log_lcu_error("GET", endpoint, exc, source="diagnose")
             report_lines.append(f"{endpoint} 호출 실패: {exc}")
             continue
         if session_resp.status_code == 404:
@@ -694,6 +768,7 @@ def diagnose_lcu_connection():
         try:
             session_resp.raise_for_status()
         except requests.RequestException as exc:
+            log_lcu_error("GET", endpoint, exc, source="diagnose")
             report_lines.append(f"{endpoint} 응답 오류: {exc}")
             continue
         try:

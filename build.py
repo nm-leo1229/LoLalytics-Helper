@@ -6,7 +6,7 @@ args = [
     'lobby_manager.py',
     '--onefile',
     '--noconsole',
-    '--name=LoLalyticsHelper_v1.3.0',
+    '--name=TtimoTtabbong_v1.4.0',
     '--add-data=data;data',
     '--add-data=champion_aliases.json;.',
     '--add-data=ignored_champions.json;.',

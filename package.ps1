@@ -1,10 +1,11 @@
-$version = "v1.3.0"
-$releaseDir = "LoLalyticsHelper_$version"
+# -ExecutionPolicy Bypass -File package.ps1
+$version = "v1.4.0"
+$releaseDir = "TtimoTtabbong_$version"
 if (Test-Path $releaseDir) { Remove-Item $releaseDir -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
 
 Write-Host "Copying files..."
-Copy-Item "dist\LoLalyticsHelper_v1.3.0.exe" -Destination $releaseDir
+Copy-Item "dist\TtimoTtabbong_v1.4.0.exe" -Destination $releaseDir
 Copy-Item "data" -Destination $releaseDir -Recurse
 Copy-Item "ignored_champions.json" -Destination $releaseDir
 Copy-Item "ui_settings.json" -Destination $releaseDir

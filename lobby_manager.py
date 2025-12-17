@@ -45,7 +45,11 @@ DATA_DIR = Path(resolve_resource_path("data"))
 LOG_DIR = Path(resolve_resource_path("logs"))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LCU_LOG_FILE = LOG_DIR / "lcu_responses.log"
+DEBUG_DATA_DIR = Path(resolve_resource_path("debug_data"))
+DEBUG_DATA_DIR.mkdir(parents=True, exist_ok=True)
 APP_ROOT = Path(__file__).resolve().parent
+DEBUG_LOG_PATH = APP_ROOT / ".cursor" / "debug.log"
+DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 LCU_LOGGER = logging.getLogger("lcu_trace")
 if not LCU_LOGGER.handlers:
@@ -182,24 +186,102 @@ def contains_hangul_syllable(text: str) -> bool:
 
 
 def log_lcu_response(method: str, path: str, response, source: str = "watcher"):
+    """LCU 응답을 필요한 정보만 추출해서 로깅합니다."""
     status = getattr(response, "status_code", "unknown")
+    
+    # 세션 엔드포인트인 경우 필요한 정보만 파싱
+    if "/session" in path:
+        try:
+            data = response.json()
+            # 필요한 정보만 추출
+            phase = data.get("phase")
+            timer_phase = data.get("timer", {}).get("phase") if isinstance(data.get("timer"), dict) else None
+            my_team = data.get("myTeam", [])
+            their_team = data.get("theirTeam", [])
+            
+            # 팀 정보 요약
+            allies_summary = []
+            for member in my_team[:5]:  # 최대 5명
+                champ_id = member.get("championId")
+                pos = member.get("assignedPosition", "")
+                allies_summary.append(f"champId={champ_id},pos={pos}")
+            
+            enemies_summary = []
+            for member in their_team[:5]:  # 최대 5명
+                champ_id = member.get("championId")
+                pos = member.get("assignedPosition", "")
+                enemies_summary.append(f"champId={champ_id},pos={pos}")
+            
+            LCU_LOGGER.info(
+                "[source=%s] %s %s status=%s phase=%s timer_phase=%s allies=[%s] enemies=[%s]",
+                source,
+                method,
+                path,
+                status,
+                phase,
+                timer_phase,
+                "|".join(allies_summary),
+                "|".join(enemies_summary),
+            )
+        except (ValueError, AttributeError, TypeError):
+            # JSON 파싱 실패 시 간단히 로깅
+            LCU_LOGGER.info(
+                "[source=%s] %s %s status=%s body=<JSON 파싱 실패>",
+                source,
+                method,
+                path,
+                status,
+            )
+    elif "/all-grid-champions" in path:
+        # 챔피언 그리드 엔드포인트는 간단히만 로깅
+        try:
+            data = response.json()
+            champ_count = len(data) if isinstance(data, list) else 0
+            LCU_LOGGER.info(
+                "[source=%s] %s %s status=%s champions_count=%d",
+                source,
+                method,
+                path,
+                status,
+                champ_count,
+            )
+        except (ValueError, AttributeError, TypeError):
+            LCU_LOGGER.info(
+                "[source=%s] %s %s status=%s",
+                source,
+                method,
+                path,
+                status,
+            )
+    else:
+        # 기타 엔드포인트는 간단히만 로깅
+        LCU_LOGGER.info(
+            "[source=%s] %s %s status=%s",
+            source,
+            method,
+            path,
+            status,
+        )
+
+
+#region agent log helper
+def agent_debug_log(hypothesis_id: str, location: str, message: str, data: dict | None = None, run_id: str = "pre-fix"):
+    payload = {
+        "sessionId": "debug-session",
+        "runId": run_id,
+        "hypothesisId": hypothesis_id,
+        "location": location,
+        "message": message,
+        "data": data or {},
+        "timestamp": int(time.time() * 1000)
+    }
     try:
-        headers = dict(getattr(response, "headers", {}))
+        with open(DEBUG_LOG_PATH, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
     except Exception:
-        headers = {}
-    try:
-        body = response.text
-    except Exception as exc:  # pragma: no cover - defensive logging
-        body = f"<body 읽기 실패: {exc}>"
-    LCU_LOGGER.info(
-        "[source=%s] %s %s status=%s headers=%s body=%s",
-        source,
-        method,
-        path,
-        status,
-        headers,
-        body,
-    )
+        # Debug logging 실패는 무시
+        pass
+#endregion
 
 
 def log_lcu_error(method: str, path: str, error: Exception, source: str = "watcher"):
@@ -224,6 +306,18 @@ def reset_lcu_log():
     except Exception as exc:
         # 로그 초기화 실패해도 프로그램은 계속 실행
         print(f"[WARN] LCU 로그 초기화 실패: {exc}")
+
+
+def save_game_snapshot(snapshot: dict):
+    """게임 시작 시 최종 스냅샷을 저장합니다."""
+    try:
+        timestamp = int(time.time())
+        snapshot_file = DEBUG_DATA_DIR / f"snapshot_{timestamp}.json"
+        with open(snapshot_file, "w", encoding="utf-8") as f:
+            json.dump(snapshot, f, ensure_ascii=False, indent=4)
+        LCU_LOGGER.info(f"게임 시작 스냅샷 저장: {snapshot_file.name}")
+    except Exception as exc:
+        LCU_LOGGER.error(f"스냅샷 저장 실패: {exc}", exc_info=True)
 
 
 def load_alias_tables():
@@ -426,6 +520,11 @@ else:
             self._last_status = ""
             self._alias_refreshed = 0.0
             self._had_session = False  # 이전에 세션이 있었는지 추적
+            self._last_phase = None  # 이전 phase 추적 (게임 시작 감지용)
+            self._snapshot_saved = False  # 이번 게임에서 스냅샷을 저장했는지
+            self._first_pick_side = None  # 첫 픽이 어느 진영인지
+            self._pick_counter = 0  # synthetic pickTurn 카운터
+            self._seen_picks: set[tuple[int, int]] = set()  # (cellId, championId)
             if urllib3 is not None:
                 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -437,6 +536,11 @@ else:
             self._last_signature = None
             self._last_status = ""
             self._had_session = False  # 시작 시 세션 상태 초기화
+            self._last_phase = None
+            self._snapshot_saved = False
+            self._first_pick_side = None
+            self._pick_counter = 0
+            self._seen_picks.clear()
             self._stop_event.clear()
             self._thread = threading.Thread(target=self._poll_loop, daemon=True)
             self._thread.start()
@@ -471,7 +575,59 @@ else:
                     # 세션이 없었다가 새로 나타난 경우 (새 게임 시작) 로그 초기화
                     if not self._had_session:
                         reset_lcu_log()
+                        self._snapshot_saved = False  # 새 게임 시작 시 스냅샷 저장 플래그 리셋
+                        self._first_pick_side = None
+                        self._pick_counter = 0
+                        self._seen_picks.clear()
                     self._had_session = True
+                    
+                    # 게임 시작 시점 감지 (FINALIZATION phase 또는 timer phase가 FINALIZATION)
+                    current_phase = snapshot.get("phase")
+                    timer = snapshot.get("timer", {})
+                    timer_phase = timer.get("phase") if isinstance(timer, dict) else None
+                    
+                    # FINALIZATION phase 감지 및 스냅샷 저장
+                    is_finalization = (
+                        current_phase == "FINALIZATION" or 
+                        timer_phase == "FINALIZATION"
+                    )
+                    
+                    # 모든 챔피언이 픽되었는지 확인 (allies와 enemies 모두 5명)
+                    allies = snapshot.get("allies", [])
+                    enemies = snapshot.get("enemies", [])
+                    all_picked = (
+                        len(allies) >= 5 and 
+                        len(enemies) >= 5 and
+                        all(entry.get("championId") for entry in allies) and
+                        all(entry.get("championId") for entry in enemies)
+                    )
+                    has_any_pick = bool(allies or enemies)
+                    #region agent log
+                    agent_debug_log(
+                        hypothesis_id="H7_save_gate",
+                        location="lobby_manager.py:_poll_loop",
+                        message="save_gate_state",
+                        data={
+                            "phase": current_phase,
+                            "timer_phase": timer_phase,
+                            "is_finalization": is_finalization,
+                            "allies_len": len(allies),
+                            "enemies_len": len(enemies),
+                            "allies_champs": [e.get("championId") for e in allies],
+                            "enemies_champs": [e.get("championId") for e in enemies],
+                            "all_picked": all_picked,
+                            "has_any_pick": has_any_pick,
+                            "snapshot_saved": self._snapshot_saved,
+                        }
+                    )
+                    #endregion
+                    
+                    # FINALIZATION phase이고 (모든 픽 완료 또는 일부라도 존재)하며 아직 스냅샷을 저장하지 않았으면 저장
+                    if is_finalization and (all_picked or has_any_pick) and not self._snapshot_saved:
+                        save_game_snapshot(snapshot)
+                        self._snapshot_saved = True
+                    
+                    self._last_phase = current_phase or timer_phase
                     
                     signature = (
                         tuple(entry["championId"] for entry in snapshot.get("allies", [])),
@@ -485,6 +641,11 @@ else:
                     # 세션이 사라진 경우 (게임 종료 또는 픽창 종료)
                     if self._had_session:
                         self._had_session = False
+                        self._snapshot_saved = False  # 세션 종료 시 스냅샷 저장 플래그 리셋
+                        self._last_phase = None
+                        self._first_pick_side = None
+                        self._pick_counter = 0
+                        self._seen_picks.clear()
                     if message and message != self._last_status:
                         self._last_status = message
                         if self._status_callback:
@@ -560,12 +721,31 @@ else:
             return None
 
         def _session_to_snapshot(self, session):
+            allies = self._collect_team_entries(session, allies=True)
+            enemies = self._collect_team_entries(session, allies=False)
+
+            # synthetic pickTurn 부여
+            allies, enemies = self._assign_synthetic_pickturn(allies, enemies)
+
+            # 첫 픽 진영 감지
+            if self._first_pick_side is None:
+                self._first_pick_side = self._detect_first_pick_side(allies, enemies)
+                #region agent log
+                agent_debug_log(
+                    hypothesis_id="H5_first_pick_side",
+                    location="lobby_manager.py:_session_to_snapshot",
+                    message="first_pick_side_detected",
+                    data={"firstPickSide": self._first_pick_side}
+                )
+                #endregion
+
             return {
                 "phase": session.get("phase"),
                 "timestamp": time.time(),
-                "allies": self._collect_team_entries(session, allies=True),
-                "enemies": self._collect_team_entries(session, allies=False),
-                "timer": session.get("timer")
+                "allies": allies,
+                "enemies": enemies,
+                "timer": session.get("timer"),
+                "firstPickSide": self._first_pick_side
             }
 
         def _collect_team_entries(self, session, allies: bool):
@@ -584,7 +764,7 @@ else:
                     "championId": member.get("championId"),
                     "assignedPosition": member.get("assignedPosition"),
                     "completed": True,  # 이미 완료된 픽으로 가정하되 actions로 덮어씌움
-                    "pickTurn": 0,
+                    "pickTurn": 0,  # 유지 (정렬용)
                     "isLocalPlayer": (cell_id == local_player_cell_id)
                 }
             
@@ -644,6 +824,58 @@ else:
                         continue
                     collected.append(action)
             return collected
+
+        def _detect_first_pick_side(self, allies: list, enemies: list):
+            """첫 픽이 어느 진영인지 allies/enemies에 처음 등장한 챔피언으로 판정"""
+            for entry in allies:
+                if entry.get("championId"):
+                    return "ally"
+            for entry in enemies:
+                if entry.get("championId"):
+                    return "enemy"
+            return None
+
+        def _assign_synthetic_pickturn(self, allies: list, enemies: list):
+            """LCU가 pickTurn을 주지 않는 경우를 대비해 완료된 순서대로 synthetic pickTurn을 부여"""
+            updated_allies = []
+            updated_enemies = []
+
+            def process_entries(src_list, target_list, is_ally: bool):
+                for entry in src_list:
+                    entry = entry.copy()
+                    champ_id = entry.get("championId")
+                    cell_id = entry.get("cellId")
+                    completed = entry.get("completed", False)
+                    if champ_id and cell_id is not None and completed:
+                        key = (cell_id, champ_id)
+                        if key not in self._seen_picks:
+                            self._pick_counter += 1
+                            self._seen_picks.add(key)
+                            #region agent log
+                            agent_debug_log(
+                                hypothesis_id="H6_synth_pickturn",
+                                location="lobby_manager.py:_assign_synthetic_pickturn",
+                                message="synthetic_pick_assigned",
+                                data={
+                                    "pickCounter": self._pick_counter,
+                                    "cellId": cell_id,
+                                    "championId": champ_id,
+                                    "isAlly": is_ally
+                                }
+                            )
+                            #endregion
+                        old_pick = entry.get("pickTurn")
+                        if not isinstance(old_pick, int) or old_pick <= 0:
+                            entry["pickTurn"] = self._pick_counter
+                        else:
+                            entry["pickTurn"] = old_pick
+                    target_list.append(entry)
+
+            # allies 먼저, 이후 enemies 순서 유지
+            process_entries(allies, updated_allies, is_ally=True)
+            process_entries(enemies, updated_enemies, is_ally=False)
+
+            return updated_allies, updated_enemies
 
         def _resolve_alias(self, champion_id: int):
             alias = self._champion_cache.get(champion_id)

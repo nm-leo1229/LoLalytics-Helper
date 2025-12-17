@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, ttk, filedialog
 import json
 import os
 import re
@@ -1286,6 +1286,13 @@ class ChampionScraperApp:
             state="disabled"
         )
         self.save_snapshot_button.pack(side="left", padx=(5, 0))
+
+        self.load_snapshot_button = tk.Button(
+            sync_frame,
+            text="스냅샷 불러오기",
+            command=self.load_snapshot
+        )
+        self.load_snapshot_button.pack(side="left", padx=(5, 0))
         
         # 테마 토글 버튼
         is_dark = self.current_theme["name"] == "dark"
@@ -1439,147 +1446,149 @@ class ChampionScraperApp:
         messagebox.showinfo("클라이언트 연동", info)
         self._set_client_status(info)
 
-    def on_client_sync_toggle(self):
-        if not self.client_sync_supported or not self.client_watcher:
-            self.client_sync_var.set(False)
-            if self.client_sync_error:
-                messagebox.showerror("클라이언트 연동", self.client_sync_error)
-            return
-        if self.client_sync_var.get():
-            self._start_client_sync()
-        else:
-            self._stop_client_sync()
-
-    def _start_client_sync(self):
-        if not self.client_watcher:
-            return
-        self._set_client_status("클라이언트 감지 중...")
-        self.client_watcher.start(self.handle_client_snapshot, self.handle_client_status)
-
-    def _stop_client_sync(self):
-        if self.client_watcher:
-            self.client_watcher.stop()
-        self._set_client_status("클라이언트 연동 꺼짐")
-
-    def handle_client_snapshot(self, snapshot, _message=None):
-        if not snapshot:
-            return
-        self.root.after(0, lambda: self._apply_snapshot_and_status(snapshot))
-
-    def handle_client_status(self, message):
-        self.root.after(0, lambda: self._set_client_status(message))
-
-    def _apply_snapshot_and_status(self, snapshot):
-        changed = self._apply_client_snapshot(snapshot)
-        phase = snapshot.get("phase")
+    def load_snapshot(self):
+        """저장된 스냅샷 파일을 불러와 시뮬레이션 모드로 재생합니다."""
+        initial_dir = DEBUG_DATA_DIR if os.path.exists(DEBUG_DATA_DIR) else os.getcwd()
+        filepath = filedialog.askopenfilename(
+            initialdir=initial_dir,
+            title="스냅샷 파일 선택",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
         
-        # 자동 동기화 상태에서도 phase가 없을 때 메시지 구체화
-        if not phase:
-            has_team_info = bool(snapshot.get("allies") or snapshot.get("enemies"))
-            timer_phase = snapshot.get("timer", {}).get("phase") if isinstance(snapshot, dict) else None
-            if timer_phase:
-                phase = f"Timer:{timer_phase}"
-            elif has_team_info:
-                phase = "Custom/Active"
-            else:
-                phase = "알 수 없음"
-                
-        status = f"{phase} - 자동 동기화"
-        if not changed:
-            status = f"{phase} - 업데이트 없음"
-        self._set_client_status(status)
+        if not filepath:
+            return
+            
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                snapshot = json.load(f)
+            
+            # 자동 동기화 끄기 (덮어쓰기 방지)
+            if self.client_sync_var.get():
+                self.client_sync_var.set(False)
+                self._stop_client_sync()
+            
+            self._set_client_status(f"스냅샷 로드됨: {os.path.basename(filepath)}")
+            
+            # 시뮬레이션 시작
+            self.start_replay_simulation(snapshot)
+            
+        except Exception as e:
+            messagebox.showerror("오류", f"스냅샷을 불러오는 중 오류가 발생했습니다:\n{e}")
 
-    def _apply_client_snapshot(self, snapshot):
-        allies = self._normalize_client_entries(snapshot.get("allies", []))
-        enemies = self._normalize_client_entries(snapshot.get("enemies", []))
+    def start_replay_simulation(self, snapshot):
+        """스냅샷 데이터를 기반으로 1-2-2-2-2-1 패턴의 픽 시뮬레이션을 시작합니다."""
+        # 1. 픽 데이터 준비 (유효한 챔피언 픽만)
+        raw_allies = self._normalize_client_entries(snapshot.get("allies", []))
+        items_allies = [
+            {"data": e, "is_ally": True, "pickTurn": e.get("pickTurn", 0)} 
+            for e in raw_allies if e.get("canonical")
+        ]
+        
+        raw_enemies = self._normalize_client_entries(snapshot.get("enemies", []))
+        items_enemies = [
+            {"data": e, "is_ally": False, "pickTurn": e.get("pickTurn", 0)} 
+            for e in raw_enemies if e.get("canonical")
+        ]
+        
+        # DEBUG: Check if items are loaded
+        # messagebox.showinfo("Debug", f"Allies: {len(items_allies)}, Enemies: {len(items_enemies)}")
+        if not items_allies and not items_enemies:
+             messagebox.showerror("Debug", "데이터 정규화 실패: 챔피언 이름을 인식할 수 없습니다.")
+             return
+        
+        # pickTurn이 있으면 정렬해서 순서 최대한 준수
+        items_allies.sort(key=lambda x: (x["pickTurn"] if x["pickTurn"] > 0 else 999))
+        items_enemies.sort(key=lambda x: (x["pickTurn"] if x["pickTurn"] > 0 else 999))
+        
+        # 2. 선픽 진영 확인
+        first_pick_side = snapshot.get("firstPickSide")
+        if not first_pick_side:
+            # pickTurn 최소값을 가진 진영이 선픽
+            min_ally = min((x["pickTurn"] for x in items_allies if x["pickTurn"] > 0), default=999)
+            min_enemy = min((x["pickTurn"] for x in items_enemies if x["pickTurn"] > 0), default=999)
+            if min_ally < min_enemy:
+                first_pick_side = "ally"
+            elif min_enemy < min_ally:
+                first_pick_side = "enemy"
+            else:
+                first_pick_side = "ally" # Default
+                
+        is_ally_first = (first_pick_side == "ally")
+        
+        # 3. 1-2-2-2-2-1 패턴으로 그룹 생성
+        # 전체 순서: [First(1), Second(2), First(2), Second(2), First(2), Second(1)]
+        pattern = [1, 2, 2, 2, 2, 1]
+        groups = []
+        
+        import collections
+        q_ally = collections.deque(items_allies)
+        q_enemy = collections.deque(items_enemies)
+        
+        # 현재 턴이 선픽팀인지 여부 (True면 Ally 차례, False면 Enemy 차례)
+        # 선픽이 Ally면 True부터 시작.
+        is_current_turn_ally = is_ally_first
+        
+        for count in pattern:
+            current_group = []
+            target_q = q_ally if is_current_turn_ally else q_enemy
+            
+            # 필요한 개수만큼 꺼내기
+            for _ in range(count):
+                if target_q:
+                    current_group.append(target_q.popleft())
+            
+            if current_group:
+                groups.append(current_group)
+            
+            # 다음 그룹을 위해 턴 교체
+            is_current_turn_ally = not is_current_turn_ally
+            
+        # 잔여 픽 처리 (혹시 패턴보다 데이터가 많거나 꼬인 경우)
+        while q_ally or q_enemy:
+            remnants = []
+            if q_ally: remnants.append(q_ally.popleft())
+            if q_enemy: remnants.append(q_enemy.popleft())
+            if remnants:
+                groups.append(remnants)
+
+        if not groups:
+            messagebox.showinfo("알림", "재생할 픽 데이터가 없습니다.")
+            return
+
+        # UI 초기화 (기존 슬롯 비우기)
+        self.reset_banpick_slots()
+        
+        # 시뮬레이션 실행 (재귀 호출)
+        self._replay_step(groups, 0, snapshot)
+
+    def _replay_step(self, groups, step_index, original_snapshot):
+        if step_index >= len(groups):
+            self._set_client_status("시뮬레이션 완료")
+            self.last_client_snapshot = original_snapshot
+            return
+            
+        current_group = groups[step_index]
+        self._set_client_status(f"시뮬레이션 중... 단계 {step_index + 1}/{len(groups)}")
+        
+        # 현재 단계까지의 모든 픽을 모아서 전체 스냅샷을 재구성
+        current_picks_flat = []
+        for i in range(step_index + 1):
+            current_picks_flat.extend(groups[i])
+            
+        # allies / enemies 분리
+        current_allies = [p["data"] for p in current_picks_flat if p["is_ally"]]
+        current_enemies = [p["data"] for p in current_picks_flat if not p["is_ally"]]
+        
+        # UI 업데이트 (기존 로직 활용, 단 정렬 끄기)
         changed = False
-        changed |= self._populate_side_from_client("allies", allies)
-        changed |= self._populate_side_from_client("enemies", enemies)
+        changed |= self._populate_side_from_client("allies", current_allies, sort_by_lane=False)
+        changed |= self._populate_side_from_client("enemies", current_enemies, sort_by_lane=False)
+        
         if changed:
             self.update_banpick_recommendations()
-        self.last_client_snapshot = snapshot
-        return changed
 
-    def _normalize_client_entries(self, entries):
-        normalized_entries = []
-        for entry in entries:
-            name = entry.get("name")
-            champion_id = entry.get("championId")
-            is_local_player = entry.get("isLocalPlayer", False)
-            
-            canonical = self.resolve_champion_name(name) if name else None
-            if not canonical and isinstance(champion_id, int) and self.client_watcher:
-                alias = self.client_watcher.resolve_champion_id(champion_id)
-                canonical = self.resolve_champion_name(alias) if alias else None
-                name = name or alias
-            display = name or str(champion_id)
-            normalized = None
-            if canonical:
-                normalized = canonical.lower()
-                display = self.display_lookup.get(canonical, canonical.title())
-            elif isinstance(name, str):
-                normalized = name.lower()
-            elif champion_id:
-                normalized = str(champion_id)
-            normalized_entries.append({
-                "display": display,
-                "canonical": canonical or name or str(champion_id),
-                "normalized": normalized,
-                "isLocalPlayer": is_local_player
-            })
-        return normalized_entries
-
-    def _populate_side_from_client(self, side_key, entries):
-        slots = self.banpick_slots.get(side_key, [])
-        if not slots:
-            return False
-        changed = False
-        for idx, slot in enumerate(slots):
-            if idx < len(entries):
-                changed |= self._populate_slot_from_client(slot, entries[idx])
-            else:
-                changed |= self._clear_slot_from_client(slot)
-        return changed
-
-    def _populate_slot_from_client(self, slot, entry):
-        normalized = entry.get("normalized")
-        canonical = entry.get("canonical")
-        display = entry.get("display")
-        is_local_player = entry.get("isLocalPlayer")
-        
-        if not canonical:
-            return False
-            
-        slot_canonical = slot.get("canonical_name")
-        
-        # 내 픽이면서 아직 슬롯이 내 차례가 아니거나 비어있다면 강제 입력
-        if is_local_player:
-            active_check = slot.get("active_check")
-            if active_check and not self.active_slot_var.get():
-                self.active_slot_var.set(f"{slot.get('side')}:{slot.get('index')}")
-        
-        if slot_canonical and normalized and slot_canonical.lower() == normalized:
-            slot["client_last_champion"] = normalized
-            return False
-        widget = slot.get("entry")
-        if widget:
-            widget.delete(0, tk.END)
-            widget.insert(0, display)
-        success = self.perform_banpick_search(slot, auto_trigger=True)
-        if success:
-            slot["client_last_champion"] = normalized or (canonical.lower() if isinstance(canonical, str) else canonical)
-        return success
-
-    def _clear_slot_from_client(self, slot):
-        if not slot.get("client_last_champion"):
-            return False
-        self.clear_banpick_slot(slot, reset_lane=False, suppress_update=True)
-        slot["client_last_champion"] = None
-        return True
-
-    def _set_client_status(self, message):
-        if hasattr(self, "client_status_var"):
-            self.client_status_var.set(message)
+        # 다음 단계 예약 (3초 후)
+        self.root.after(3000, lambda: self._replay_step(groups, step_index + 1, original_snapshot))
 
     def on_lcu_check_clicked(self):
         if requests is None:
@@ -1877,7 +1886,9 @@ class ChampionScraperApp:
                 "canonical": canonical or name or str(champion_id),
                 "normalized": normalized,
                 "isLocalPlayer": is_local_player,
-                "assignedPosition": entry.get("assignedPosition")
+                "pickTurn": entry.get("pickTurn", 0), # Preserve data
+                "cellId": entry.get("cellId"),       # Preserve data
+                "assignedPosition": entry.get("assignedPosition") # Preserve data
             })
         return normalized_entries
 
@@ -1986,7 +1997,7 @@ class ChampionScraperApp:
             
         return entries
 
-    def _populate_side_from_client(self, side_key, entries):
+    def _populate_side_from_client(self, side_key, entries, sort_by_lane=True):
         # Apply fallback logic for both allies and enemies if needed (e.g. custom games)
         entries = self._resolve_lane_conflicts_by_pick_rate(side_key, entries)
 
@@ -2009,7 +2020,7 @@ class ChampionScraperApp:
             return lane_priority.get(pos, 99)
 
         # Only sort if at least one entry has a valid assigned position
-        if any(entry.get("assignedPosition") for entry in entries):
+        if sort_by_lane and any(entry.get("assignedPosition") for entry in entries):
             entries = sorted(entries, key=get_sort_key)
 
         changed = False

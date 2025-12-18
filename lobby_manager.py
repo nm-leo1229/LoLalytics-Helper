@@ -740,13 +740,20 @@ else:
                 )
                 #endregion
 
+            # 밴 챔피언 수집 (우리팀 / 상대팀)
+            ally_bans = self._collect_ban_champions(session, allies=True)
+            enemy_bans = self._collect_ban_champions(session, allies=False)
+
             return {
                 "phase": session.get("phase"),
                 "timestamp": time.time(),
                 "allies": allies,
                 "enemies": enemies,
                 "timer": session.get("timer"),
-                "firstPickSide": self._first_pick_side
+                "firstPickSide": self._first_pick_side,
+                # raw championId 리스트 (밴 정보는 이후 단계에서 이름으로 해석)
+                "allyBans": ally_bans,
+                "enemyBans": enemy_bans,
             }
 
         def _collect_team_entries(self, session, allies: bool):
@@ -825,6 +832,38 @@ else:
                         continue
                     collected.append(action)
             return collected
+
+        def _collect_ban_champions(self, session, allies: bool) -> list[int]:
+            """세션에서 우리팀/상대팀 밴 챔피언 ID를 수집합니다."""
+            banned_ids: set[int] = set()
+
+            # 1) bans 구조 (표준 LCU 필드)
+            bans_struct = session.get("bans")
+            if isinstance(bans_struct, dict):
+                key = "myTeamBans" if allies else "theirTeamBans"
+                raw_ids = bans_struct.get(key) or []
+                for cid in raw_ids:
+                    if isinstance(cid, int) and cid > 0:
+                        banned_ids.add(cid)
+
+            # 2) actions 구조 안의 "ban" 타입 액션 (혹시 모를 변형/커스텀 모드 대비)
+            actions_struct = session.get("actions", [])
+            if isinstance(actions_struct, list):
+                for action_group in actions_struct:
+                    if not isinstance(action_group, list):
+                        continue
+                    for action in action_group:
+                        if action.get("type") != "ban":
+                            continue
+                        is_ally_action = action.get("isAllyAction")
+                        if is_ally_action is not None and is_ally_action != allies:
+                            continue
+                        cid = action.get("championId")
+                        if isinstance(cid, int) and cid > 0:
+                            banned_ids.add(cid)
+
+            # 정렬된 리스트로 반환 (디버깅용 가독성 향상)
+            return sorted(banned_ids)
 
         def _detect_first_pick_side(self, allies: list, enemies: list):
             """첫 픽이 어느 진영인지 allies/enemies에 처음 등장한 챔피언으로 판정"""
@@ -1096,6 +1135,10 @@ class ChampionScraperApp:
         self.client_sync_supported = True
         self.client_sync_error = None
         self.last_client_snapshot = None
+        # 현재 게임에서 밴된 챔피언 (canonical/alias 기준, 모두 소문자)
+        self.banned_champions: set[str] = set()
+        # 팀별 밴 표시용 레이블 ({"allies": Label, "enemies": Label})
+        self.ban_labels: dict[str, tk.Label] = {}
         
         (
             self.canonical_lookup,
@@ -1311,14 +1354,6 @@ class ChampionScraperApp:
         )
         self.client_fetch_button.pack(side="left", padx=(5, 0))
 
-        self.save_snapshot_button = tk.Button(
-            sync_frame,
-            text="스냅샷 저장",
-            command=self.save_snapshot,
-            state="disabled"
-        )
-        self.save_snapshot_button.pack(side="left", padx=(5, 0))
-
         self.load_snapshot_button = tk.Button(
             sync_frame,
             text="스냅샷 불러오기",
@@ -1385,15 +1420,21 @@ class ChampionScraperApp:
             command=self.reset_dashboard_tab
         ).pack(anchor="ne", padx=0, pady=(5, 0))
 
-        left_column, left_total_label = self._create_banpick_column(container, "우리팀", "allies")
+        left_column, left_total_label, left_ban_label = self._create_banpick_column(container, "우리팀", "allies")
         left_column.grid(row=0, column=0, sticky="nsw", padx=(0, 5))
         
-        right_column, right_total_label = self._create_banpick_column(container, "상대팀", "enemies")
+        right_column, right_total_label, right_ban_label = self._create_banpick_column(container, "상대팀", "enemies")
         right_column.grid(row=0, column=1, sticky="nse", padx=(5, 0))
         
         self.team_total_labels = {
             "allies": left_total_label,
             "enemies": right_total_label
+        }
+
+        # 팀별 밴 챔피언 레이블 참조 저장
+        self.ban_labels = {
+            "allies": left_ban_label,
+            "enemies": right_ban_label,
         }
 
         # Bottom pane: recommendations
@@ -1635,14 +1676,12 @@ class ChampionScraperApp:
         if success:
             self.client_sync_checkbox.config(state="normal")
             self.client_fetch_button.config(state="normal")
-            self.save_snapshot_button.config(state="normal")
             messagebox.showinfo("클라이언트 연결 점검", report)
             if self.client_sync_var.get():
                 self._start_client_sync()
         else:
             self.client_sync_checkbox.config(state="disabled")
             self.client_fetch_button.config(state="disabled")
-            self.save_snapshot_button.config(state="disabled")
             messagebox.showerror("클라이언트 연결 점검", report)
 
     def ignore_selected_recommendations(self):
@@ -1771,12 +1810,20 @@ class ChampionScraperApp:
             self._update_slot_lane_cache(slot)
             self.banpick_slots[side_key].append(slot)
 
+        # 밴 챔피언 표시 레이블 (각 팀 컬럼 상단)
+        ban_label = tk.Label(
+            column,
+            text="밴: -",
+            anchor="w",
+        )
+        ban_label.pack(fill="x", pady=(10, 2))
+
         # 조합 점수 레이블을 컬럼 내부 하단에 추가
         default_color = self.current_theme.get("score_default", "blue")
         total_label = tk.Label(column, text="조합 점수: 0.00", font=("Segoe UI", 10, "bold"), fg=default_color)
-        total_label.pack(fill="x", pady=(10, 5))
+        total_label.pack(fill="x", pady=(0, 5))
 
-        return column, total_label
+        return column, total_label, ban_label
 
     def manual_client_import(self):
         if not self.client_sync_supported or not self.client_watcher:
@@ -1887,6 +1934,10 @@ class ChampionScraperApp:
         changed = False
         changed |= self._populate_side_from_client("allies", allies)
         changed |= self._populate_side_from_client("enemies", enemies)
+
+        # 밴 정보 업데이트
+        self._update_banned_champions_from_snapshot(snapshot)
+
         if changed:
             self.update_banpick_recommendations()
         self.last_client_snapshot = snapshot
@@ -1923,6 +1974,85 @@ class ChampionScraperApp:
                 "assignedPosition": entry.get("assignedPosition") # Preserve data
             })
         return normalized_entries
+
+    def _update_banned_champions_from_snapshot(self, snapshot: dict | None):
+        """LCU 스냅샷에서 밴된 챔피언 목록을 추출해 self.banned_champions 및 UI를 갱신합니다."""
+        if not snapshot:
+            self.banned_champions = set()
+            self._update_ban_labels([], [])
+            return
+
+        def _extract_ids(snapshot_dict, primary_key: str, fallback_key: str) -> list[int]:
+            """allyBans/enemyBans → 없으면 bans.myTeamBans/theirTeamBans 순으로 ID 리스트 추출."""
+            ids = snapshot_dict.get(primary_key)
+            if not isinstance(ids, list):
+                ids = []
+                bans_struct = snapshot_dict.get("bans")
+                if isinstance(bans_struct, dict):
+                    raw_ids = bans_struct.get(fallback_key) or []
+                    if isinstance(raw_ids, list):
+                        ids = raw_ids
+            # 정수 ID만 필터링
+            return [cid for cid in ids if isinstance(cid, int) and cid > 0]
+
+        ally_ids = _extract_ids(snapshot, "allyBans", "myTeamBans")
+        enemy_ids = _extract_ids(snapshot, "enemyBans", "theirTeamBans")
+
+        if not ally_ids and not enemy_ids:
+            self.banned_champions = set()
+            self._update_ban_labels([], [])
+            return
+
+        def _resolve_ids(id_list: list[int]) -> tuple[set[str], list[str]]:
+            lowered_set: set[str] = set()
+            display_names: list[str] = []
+            for cid in id_list:
+                alias = None
+                if getattr(self, "client_watcher", None) is not None:
+                    try:
+                        alias = self.client_watcher.resolve_champion_id(cid)
+                    except Exception:
+                        alias = None
+
+                name_candidate = alias or str(cid)
+                canonical = self.resolve_champion_name(name_candidate)
+                if canonical:
+                    lowered = canonical.strip().lower()
+                    lowered_set.add(lowered)
+                    display_names.append(self.format_display_name(canonical))
+                else:
+                    lowered = str(name_candidate).strip().lower()
+                    lowered_set.add(lowered)
+                    display_names.append(str(name_candidate))
+            return lowered_set, display_names
+
+        ally_set, ally_names = _resolve_ids(ally_ids)
+        enemy_set, enemy_names = _resolve_ids(enemy_ids)
+
+        # 추천 필터링용: 양 팀 밴을 모두 합친 집합
+        self.banned_champions = ally_set.union(enemy_set)
+
+        # UI 텍스트 갱신
+        self._update_ban_labels(ally_names, enemy_names)
+
+    def _update_ban_labels(self, ally_names: list[str], enemy_names: list[str]):
+        """팀별 밴 챔피언 레이블 텍스트를 갱신합니다."""
+        labels = getattr(self, "ban_labels", None)
+        if not isinstance(labels, dict):
+            return
+
+        def _format(names: list[str]) -> str:
+            if not names:
+                return "밴: -"
+            return "밴: " + ", ".join(names)
+
+        ally_label = labels.get("allies")
+        if ally_label:
+            ally_label.config(text=_format(ally_names))
+
+        enemy_label = labels.get("enemies")
+        if enemy_label:
+            enemy_label.config(text=_format(enemy_names))
 
     def _get_champion_lane_pick_rates(self, champion_name):
         """
@@ -2811,34 +2941,29 @@ class ChampionScraperApp:
         """우리팀과 상대팀의 총 조합 점수를 업데이트합니다"""
         if not hasattr(self, "team_total_labels"):
             return
-        
-        allies_total = 0.0
-        allies_count = 0
-        enemies_total = 0.0
-        enemies_count = 0
-        
-        # 각 챔피언의 슬롯에 표시된 점수를 그대로 사용
-        for slot in self.banpick_slots.get("allies", []):
-            if slot.get("canonical_name") and slot.get("selected_lane"):
-                score = self.calculate_champion_score(slot)
-                if score > 0:
-                    allies_total += score
-                    allies_count += 1
-        
-        for slot in self.banpick_slots.get("enemies", []):
-            if slot.get("canonical_name") and slot.get("selected_lane"):
-                score = self.calculate_champion_score(slot)
-                if score > 0:
-                    enemies_total += score
-                    enemies_count += 1
-        
-        # 점수 계산
-        allies_avg = allies_total / allies_count if allies_count > 0 else 0.0
-        enemies_avg = enemies_total / enemies_count if enemies_count > 0 else 0.0
-        
-        # 예상 승률 계산: 50% + (우리팀 점수 - 상대팀 점수) / 2
-        # 범위 제한: 5% ~ 95%
-        if allies_avg > 0 and enemies_avg > 0:
+
+        # 팀별 유효 슬롯(점수 > 0) 기준으로 "모든 슬롯이 채워졌는지" 판단
+        def _team_stats(side_key: str):
+            slots = self.banpick_slots.get(side_key, [])
+            total = 0.0
+            valid_scores: list[float] = []
+            for slot in slots:
+                if slot.get("canonical_name") and slot.get("selected_lane"):
+                    score = self.calculate_champion_score(slot)
+                    if score > 0:
+                        total += score
+                        valid_scores.append(score)
+            # 5개 슬롯 모두 유효 점수(>0)를 가진 경우에만 완성 상태로 간주
+            is_complete = len(slots) == 5 and len(valid_scores) == 5
+            avg = total / len(valid_scores) if is_complete and valid_scores else 0.0
+            return total, avg, is_complete
+
+        _allies_total, allies_avg, allies_complete = _team_stats("allies")
+        _enemies_total, enemies_avg, enemies_complete = _team_stats("enemies")
+
+        # 예상 승률 계산: 두 팀 모두 완성되었을 때만 계산
+        # 50% + (우리팀 점수 - 상대팀 점수) / 2, 범위 제한: 5% ~ 95%
+        if allies_complete and enemies_complete and allies_avg > 0 and enemies_avg > 0:
             allies_win_rate = 50 + (allies_avg - enemies_avg) / 2
             allies_win_rate = max(5, min(95, allies_win_rate))  # 5~95% 범위 제한
             enemies_win_rate = 100 - allies_win_rate
@@ -2859,7 +2984,7 @@ class ChampionScraperApp:
         enemies_label = self.team_total_labels.get("enemies")
         
         if allies_label:
-            if allies_avg > 0:
+            if allies_complete and allies_avg > 0:
                 emoji, color = get_score_style(allies_avg)
                 if allies_win_rate is not None:
                     allies_label.config(text=f"{emoji} 조합 점수: {allies_avg:.2f} (승률 {allies_win_rate:.1f}%)", fg=color)
@@ -2867,9 +2992,10 @@ class ChampionScraperApp:
                     allies_label.config(text=f"{emoji} 조합 점수: {allies_avg:.2f}", fg=color)
             else:
                 default_color = self.current_theme.get("score_default", "blue")
-                allies_label.config(text="조합 점수: 0.00", fg=default_color)
+                # 모든 슬롯이 채워지지 않았다면 점수 대신 기본 표기만 노출
+                allies_label.config(text="조합 점수: -", fg=default_color)
         if enemies_label:
-            if enemies_avg > 0:
+            if enemies_complete and enemies_avg > 0:
                 emoji, color = get_score_style(enemies_avg)
                 if enemies_win_rate is not None:
                     enemies_label.config(text=f"{emoji} 조합 점수: {enemies_avg:.2f} (승률 {enemies_win_rate:.1f}%)", fg=color)
@@ -2877,7 +3003,7 @@ class ChampionScraperApp:
                     enemies_label.config(text=f"{emoji} 조합 점수: {enemies_avg:.2f}", fg=color)
             else:
                 default_color = self.current_theme.get("score_default", "blue")
-                enemies_label.config(text="조합 점수: 0.00", fg=default_color)
+                enemies_label.config(text="조합 점수: -", fg=default_color)
 
     def update_banpick_recommendations(self):
         tree = getattr(self, "recommend_tree", None)
@@ -3210,6 +3336,9 @@ class ChampionScraperApp:
         for champ_name, components in scores.items():
             if champ_name.lower() in selected_lowers:
                 continue
+            # 밴된 챔피언은 추천 목록에서 제외
+            if self.is_champion_banned(champ_name):
+                continue
             if self.is_champion_ignored(champ_name):
                 continue
             if components["has_low_pick_gap"]:
@@ -3496,6 +3625,9 @@ class ChampionScraperApp:
         self.reset_banpick_slots()
         self.recommend_min_games_entry.delete(0, tk.END)
         self.recommend_min_games_entry.insert(0, str(BANPICK_MIN_GAMES_DEFAULT))
+        # 밴 정보 및 표시 초기화
+        self.banned_champions = set()
+        self._update_ban_labels([], [])
         self.update_banpick_recommendations()
 
     def reset_banpick_slots(self):
@@ -3576,6 +3708,21 @@ class ChampionScraperApp:
             return True
         resolved = self.resolve_champion_name(name)
         if resolved and resolved.lower() in self.ignored_champions:
+            return True
+        return False
+
+    def is_champion_banned(self, name: str) -> bool:
+        """현재 게임에서 밴된 챔피언인지 여부를 반환합니다."""
+        if not name or not getattr(self, "banned_champions", None):
+            return False
+        lowered = str(name).strip().lower()
+        if lowered in self.banned_champions:
+            return True
+        canonical = self.canonical_lookup.get(lowered)
+        if canonical and canonical.lower() in self.banned_champions:
+            return True
+        resolved = self.resolve_champion_name(name)
+        if resolved and resolved.lower() in self.banned_champions:
             return True
         return False
 

@@ -1,4 +1,5 @@
 import tkinter as tk
+import threading
 from tkinter import messagebox, ttk, filedialog
 import json
 import os
@@ -1078,6 +1079,10 @@ class ChampionScraperApp:
         self.notebook.add(self.dashboard_tab, text="챔피언 추천")
         self.recommend_counter_cache = {}
         
+        # 챔피언 데이터 캐시 및 사전 로딩
+        self.champion_data_cache = {}
+        threading.Thread(target=self.preload_all_champion_data, daemon=True).start()
+        
         self._lane_swap_guard = False
         self.paned_window = None  # Will be set in build_dashboard_tab
         self.ui_settings = self._load_ui_settings()  # Load UI settings
@@ -1098,6 +1103,33 @@ class ChampionScraperApp:
             self.display_lookup,
             self.autocomplete_candidates
         ) = load_alias_tables()
+
+    def preload_all_champion_data(self):
+        """
+        data 디렉토리의 모든 JSON 파일을 읽어 메모리에 캐싱합니다.
+        백그라운드 스레드에서 실행됩니다.
+        """
+        data_dir = resolve_resource_path("data")
+        if not os.path.exists(data_dir):
+            return
+            
+        try:
+            for filename in os.listdir(data_dir):
+                if not filename.endswith(".json"):
+                    continue
+                    
+                path = os.path.join(data_dir, filename)
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        self.champion_data_cache[filename] = data
+                except Exception as e:
+                    print(f"Failed to load {filename}: {e}")
+        except Exception as e:
+            print(f"Error during data preload: {e}")
+            
+        print(f"Preloaded {len(self.champion_data_cache)} champion data files.")
+
         self.ignored_champions = self._initialize_ignored_champions()
         
         try:
@@ -2948,27 +2980,75 @@ class ChampionScraperApp:
             if not dataset:
                 continue
             source_lane = friend.get("selected_lane")
+            friend_canonical = friend.get("canonical_name")
             lane_entries = dataset.get(target_lane, {})
+            
             for champ_name, details in lane_entries.items():
-                include_entry, low_sample, high_sample, games, pick_rate_val = should_use_entry(details)
+                # 1. Prepare Entry A (Friend vs Candidate)
+                entry_a = details
                 
+                # 2. Prepare Entry B (Candidate vs Friend)
+                entry_b = None
+                candidate_canon = self.resolve_champion_name(champ_name)
+                if candidate_canon and friend_canonical:
+                    cand_filename = f"{candidate_canon.lower()}_{target_lane.lower()}.json".replace(" ", "_")
+                    cand_raw = self.champion_data_cache.get(cand_filename)
+                    if cand_raw:
+                        cand_payload = cand_raw.get("synergy", {})
+                        if isinstance(cand_payload, dict):
+                            cand_lane_entries = cand_payload.get(source_lane, {})
+                            for k, v in cand_lane_entries.items():
+                                if self.resolve_champion_name(k) == friend_canonical:
+                                    entry_b = self.sanitize_synergy_entry(v)
+                                    break
+                
+                # 3. Select Best Entry
+                is_valid_a = False
+                is_valid_b = False
+                
+                if entry_a:
+                    games_a = self.parse_int(entry_a.get("games"))
+                    pick_rate_a = self.parse_float(entry_a.get("pick_rate") or entry_a.get("popularity"))
+                    is_valid_a = (games_a >= min_games) or (pick_rate_a >= pick_rate_override)
+                
+                if entry_b:
+                    games_b = self.parse_int(entry_b.get("games"))
+                    pick_rate_b = self.parse_float(entry_b.get("pick_rate") or entry_b.get("popularity"))
+                    is_valid_b = (games_b >= min_games) or (pick_rate_b >= pick_rate_override)
+                
+                use_source = None
+                if is_valid_a and is_valid_b:
+                    use_source = 'a' if self.parse_int(entry_a.get("games")) >= self.parse_int(entry_b.get("games")) else 'b'
+                elif is_valid_a:
+                    use_source = 'a'
+                elif is_valid_b:
+                    use_source = 'b'
+                elif entry_a:
+                    use_source = 'a'
+                elif entry_b:
+                    use_source = 'b'
+                
+                final_entry = entry_a if use_source == 'a' else entry_b
+                if not final_entry:
+                    continue
+                
+                include_entry, low_sample, high_sample, games, pick_rate_val = should_use_entry(final_entry)
                 source_name = friend.get("display_name") or friend.get("canonical_name") or "Unknown"
                 
                 if not include_entry:
-                    # 데이터 부족으로 제외됨 -> 점수 합산 X, 소스에만 표시
                     components = ensure_score_entry(champ_name)
                     label = f"{source_name}(제외: {games}판, {pick_rate_val:.1f}%)"
                     components["synergy_sources"].append(label)
                     continue
 
-                value = self.parse_float(details.get("win_rate"))
+                value = self.parse_float(final_entry.get("win_rate"))
                 weight = self.get_lane_weight(target_lane, source_lane, "synergy")
                 if weight <= 0:
                     continue
                 components = ensure_score_entry(champ_name)
                 components["synergy_sum"] += value * weight
-                components["synergy_weight_sum"] += weight  # 가중치 합산
-                components["synergy_slots_with_data"].add(friend_idx)  # 데이터가 있는 슬롯 추적
+                components["synergy_weight_sum"] += weight
+                components["synergy_slots_with_data"].add(friend_idx)
                 if low_sample:
                     components["has_low_sample"] = True
                     append_tag(components, RECOMMEND_LOW_SAMPLE_TAG)
@@ -2985,84 +3065,145 @@ class ChampionScraperApp:
         # Counter contributions from opposing side
         opponent_side = "enemies" if side_key == "allies" else "allies"
         for enemy_idx, enemy in enumerate(self.banpick_slots.get(opponent_side, [])):
-            is_excluded = enemy.get("exclude_var") and enemy["exclude_var"].get()
-            if is_excluded:
+            if enemy.get("exclude_var") and enemy["exclude_var"].get():
                 continue
             dataset = enemy.get("counter_dataset")
             if not dataset:
                 continue
             source_lane = enemy.get("selected_lane")
+            enemy_canonical = enemy.get("canonical_name")
             lane_entries = dataset.get(target_lane, {})
+            
             for champ_name, details in lane_entries.items():
-                include_entry, low_sample, high_sample, games, pick_rate_val = should_use_entry(details)
+                # 1. Prepare Entry A (Enemy vs Candidate)
+                entry_a = details
                 
-                source_name = enemy.get("display_name") or enemy.get("canonical_name") or "Unknown"
+                # 2. Prepare Entry B (Candidate vs Enemy)
+                entry_b = None
+                candidate_canon = self.resolve_champion_name(champ_name)
+                if candidate_canon and enemy_canonical:
+                    cand_filename = f"{candidate_canon.lower()}_{target_lane.lower()}.json".replace(" ", "_")
+                    cand_raw = self.champion_data_cache.get(cand_filename)
+                    if cand_raw:
+                        cand_payload = cand_raw.get("counters")
+                        # Handle case where file is flat or payload missing
+                        if cand_payload is None:
+                             cand_payload = cand_raw
+                        
+                        if isinstance(cand_payload, dict):
+                            cand_lane_entries = cand_payload.get(source_lane, {})
+                            for k, v in cand_lane_entries.items():
+                                if self.resolve_champion_name(k) == enemy_canonical:
+                                    entry_b = self.sanitize_counter_entry(v)
+                                    break
 
+                # 3. Select Best Entry
+                is_valid_a = False
+                is_valid_b = False
+                
+                if entry_a:
+                    games_a = self.parse_int(entry_a.get("games"))
+                    pick_rate_a = self.parse_float(entry_a.get("pick_rate") or entry_a.get("popularity"))
+                    is_valid_a = (games_a >= min_games) or (pick_rate_a >= pick_rate_override)
+                
+                if entry_b:
+                    games_b = self.parse_int(entry_b.get("games"))
+                    pick_rate_b = self.parse_float(entry_b.get("pick_rate") or entry_b.get("popularity"))
+                    is_valid_b = (games_b >= min_games) or (pick_rate_b >= pick_rate_override)
+                
+                use_source = None
+                if is_valid_a and is_valid_b:
+                    use_source = 'a' if self.parse_int(entry_a.get("games")) >= self.parse_int(entry_b.get("games")) else 'b'
+                elif is_valid_a:
+                    use_source = 'a'
+                elif is_valid_b:
+                    use_source = 'b'
+                elif entry_a:
+                    use_source = 'a'
+                elif entry_b:
+                    use_source = 'b'
+                
+                final_entry = entry_a if use_source == 'a' else entry_b
+                if not final_entry:
+                    continue
+                
+                include_entry, low_sample, high_sample, games, pick_rate_val = should_use_entry(final_entry)
+                source_name = enemy.get("display_name") or enemy.get("canonical_name") or "Unknown"
+                
                 if not include_entry:
-                     # 데이터 부족으로 제외됨 -> 점수 합산 X, 소스에만 표시
                     components = ensure_score_entry(champ_name)
                     label = f"{source_name}(제외: {games}판, {pick_rate_val:.1f}%)"
                     components["counter_sources"].append(label)
                     continue
 
-                win_rate_value = self.parse_float(details.get("win_rate"))
-                value = 100.0 - win_rate_value
+                # Calculate Score
+                win_rate_value = self.parse_float(final_entry.get("win_rate"))
+                
+                # Inversion Logic
+                # If use_source == 'a' (Enemy vs Candidate), Score = 100 - EnemyWinRate
+                # If use_source == 'b' (Candidate vs Enemy), Score = CandidateWinRate
+                if use_source == 'a':
+                    value = 100.0 - win_rate_value
+                else:
+                    value = win_rate_value
+                
                 weight = self.get_lane_weight(target_lane, source_lane, "counter")
                 if weight <= 0:
                     continue
                 components = ensure_score_entry(champ_name)
                 components["counter_sum"] += value * weight
-                components["counter_weight_sum"] += weight  # 가중치 합산
-                components["counter_slots_with_data"].add(enemy_idx)  # 데이터가 있는 슬롯 추적
+                components["counter_weight_sum"] += weight
+                components["counter_slots_with_data"].add(enemy_idx)
                 if low_sample:
                     components["has_low_sample"] = True
                     append_tag(components, RECOMMEND_LOW_SAMPLE_TAG)
                 if not high_sample:
                     components["all_high_sample"] = False
                 if win_rate_value >= 50.0:
+                    # Note: this check is slightly ambiguous.
+                    # It probably means "Is Candidate Win Rate >= 50?"
+                    # If 'a', win_rate_value is Enemy Win Rate. So if EnemyWinRate <= 50, then Cand >= 50.
+                    # If 'b', win_rate_value is Cand Win Rate.
+                    # Original code: `if win_rate_value >= 50.0: components["all_counter_under_50"] = False`
+                    # Original `win_rate_value` came from `details` (Enemy vs Candidate).
+                    # So it checked "Did Enemy win > 50%?". If so, then "All counters NOT under 50".
+                    # Wait, "all_counter_under_50" usually means "Is my win rate always < 50?".
+                    # If Enemy Win Rate >= 50, My Win Rate <= 50.
+                    # This tag logic seems to check "Did the ENEMY have >= 50% win rate?".
+                    # If so, it sets `all_counter_under_50 = False`.
+                    # This implies the tag means "Do ALL enemies have < 50% win rate against me?" i.e. "Am I always winning?"
+                    # If Enemy WR >= 50, then I am NOT always winning.
+                    # Correct.
+                    
+                    # For `entry_b` (Cand vs Enemy), win_rate is My Win Rate.
+                    # So if My Win Rate <= 50, then Enemy WR >= 50.
+                    # Logic needs adjustment?
+                    # "all_counter_under_50" name is confusing.
+                    # Let's assume it means "Does any counter exist that beats me?"
+                    pass
+
+                # Re-evaluating tag logic
+                # Original: `if win_rate_value >= 50.0: components["all_counter_under_50"] = False`
+                # where win_rate_value was Enemy WR.
+                # So if Enemy WR >= 50 (Enemy favored), then 'all_counter_under_50' becomes False.
+                # So `all_counter_under_50` tracks if "All enemy WRs are < 50" (i.e. I win > 50 against everyone).
+                
+                # New Logic:
+                # We need "Enemy Win Rate".
+                # If 'a': Enemy WR = win_rate_value.
+                # If 'b': Enemy WR = 100 - win_rate_value.
+                
+                enemy_win_rate = win_rate_value if use_source == 'a' else (100.0 - win_rate_value)
+                if enemy_win_rate >= 50.0:
                     components["all_counter_under_50"] = False
                 
-                label = f"{source_name}({win_rate_value:.2f})"
+                display_val = value # This is My Score
+                label = f"{source_name}({display_val:.2f})"
                 if low_sample:
                     label = f"{WARNING_ICON} {label}"
                 components["counter_sources"].append(label)
 
-        # 평균 회귀: 데이터가 없는 슬롯에 대해 중립 점수(50점) 추가
-        # 등록되고 제외되지 않은 슬롯 목록 수집
-        active_friend_slots = []  # (slot_idx, source_lane)
-        for friend_idx, friend in enumerate(self.banpick_slots.get(side_key, [])):
-            if friend is target_slot:  # 내 슬롯은 제외
-                continue
-            if friend.get("exclude_var") and friend["exclude_var"].get():
-                continue
-            if friend.get("synergy_dataset") and friend.get("selected_lane"):
-                active_friend_slots.append((friend_idx, friend.get("selected_lane")))
-        
-        active_enemy_slots = []  # (slot_idx, source_lane)
-        for enemy_idx, enemy in enumerate(self.banpick_slots.get(opponent_side, [])):
-            if enemy.get("exclude_var") and enemy["exclude_var"].get():
-                continue
-            if enemy.get("counter_dataset") and enemy.get("selected_lane"):
-                active_enemy_slots.append((enemy_idx, enemy.get("selected_lane")))
-        
-        # 각 추천 챔피언에 대해 누락된 슬롯의 중립 점수 추가
-        NEUTRAL_SCORE = 50.0
-        for champ_name, components in scores.items():
-            # 시너지: 데이터가 없는 아군 슬롯에 대해 50점 추가
-            for friend_idx, source_lane in active_friend_slots:
-                if friend_idx not in components["synergy_slots_with_data"]:
-                    weight = self.get_lane_weight(target_lane, source_lane, "synergy")
-                    if weight > 0:
-                        components["synergy_sum"] += NEUTRAL_SCORE * weight
-                        components["synergy_weight_sum"] += weight  # 가중치 합산
-            
-            # 카운터: 데이터가 없는 적군 슬롯에 대해 50점 추가
-            for enemy_idx, source_lane in active_enemy_slots:
-                if enemy_idx not in components["counter_slots_with_data"]:
-                    weight = self.get_lane_weight(target_lane, source_lane, "counter")
-                    if weight > 0:
-                        components["counter_sum"] += NEUTRAL_SCORE * weight
-                        components["counter_weight_sum"] += weight  # 가중치 합산
+
 
         recommendations = []
 
@@ -3278,26 +3419,31 @@ class ChampionScraperApp:
 
         for lane_candidate in lanes_to_try:
             data_filename = f"{full_name}_{lane_candidate}.json".replace(" ", "_")
-            filename = resolve_resource_path("data", data_filename)
-            try:
-                with open(filename, "r", encoding="utf-8") as file:
-                    raw_data = json.load(file)
-            except FileNotFoundError:
-                continue
-            except json.JSONDecodeError as e:
-                if not suppress_errors:
-                    messagebox.showerror(
-                        "Error",
-                        f"{data_label} 데이터 파일 '{data_filename}'을 읽을 수 없습니다.\n에러: {e}"
-                    )
-                return None, None, False
-            except OSError as e:
-                if not suppress_errors:
-                    messagebox.showerror(
-                        "Error",
-                        f"{data_label} 데이터 파일 '{data_filename}'을 여는 중 오류가 발생했습니다.\n경로: {filename}\n에러: {e}"
-                    )
-                return None, None, False
+            
+            # Check cache first
+            raw_data = self.champion_data_cache.get(data_filename)
+            
+            if raw_data is None:
+                filename = resolve_resource_path("data", data_filename)
+                try:
+                    with open(filename, "r", encoding="utf-8") as file:
+                        raw_data = json.load(file)
+                except FileNotFoundError:
+                    continue
+                except json.JSONDecodeError as e:
+                    if not suppress_errors:
+                        messagebox.showerror(
+                            "Error",
+                            f"{data_label} 데이터 파일 '{data_filename}'을 읽을 수 없습니다.\n에러: {e}"
+                        )
+                    return None, None, False
+                except OSError as e:
+                    if not suppress_errors:
+                        messagebox.showerror(
+                            "Error",
+                            f"{data_label} 데이터 파일 '{data_filename}'을 여는 중 오류가 발생했습니다.\n경로: {filename}\n에러: {e}"
+                        )
+                    return None, None, False
 
             payload = raw_data.get(data_key)
             if payload is None and data_key == "counters":

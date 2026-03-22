@@ -176,7 +176,7 @@ python build.py
 
 ### 스크래퍼가 작동하지 않을 때
 
-- Chrome 브라우저가 최신 버전인지 확인하세요 (driver 142 버전으로 테스트 됨)
+- Chrome 브라우저가 설치되어 있으면 undetected-chromedriver가 해당 버전에 맞는 드라이버를 자동으로 사용합니다
 - 인터넷 연결을 확인하세요
 - LoLalytics 웹사이트가 접근 가능한지 확인하세요
 

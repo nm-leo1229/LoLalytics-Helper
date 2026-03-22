@@ -7,7 +7,6 @@ from selenium.common.exceptions import TimeoutException, WebDriverException
 import time
 import json
 import os
-import argparse
 import urllib3
 
 
@@ -352,8 +351,16 @@ def create_driver():
     
     # 자동재생 비활성화
     options.add_argument('--autoplay-policy=user-gesture-required')
-    
-    driver = uc.Chrome(options=options, version_main=142)
+
+    # 원격 서버의 Chrome 메이저 버전에 맞추려면 SCRAPER_CHROME_VERSION_MAIN=134 처럼 설정
+    chrome_kwargs = {"options": options}
+    vm = os.environ.get("SCRAPER_CHROME_VERSION_MAIN")
+    if vm and vm.strip().isdigit():
+        chrome_kwargs["version_main"] = int(vm.strip())
+    else:
+        chrome_kwargs["version_main"] = 145
+
+    driver = uc.Chrome(**chrome_kwargs)
     driver.set_page_load_timeout(60)
     driver.set_script_timeout(30)  # execute_script 타임아웃 단축
     driver.implicitly_wait(10)

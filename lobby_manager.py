@@ -2098,64 +2098,127 @@ class ChampionScraperApp:
     def _resolve_lane_conflicts_by_pick_rate(self, side_key, entries):
         """
         Resolve lane conflicts using pick rate data.
-        Assigns lanes to champions based on highest pick rate first.
+        Uses optimal matching algorithm to maximize total pick rate sum.
         """
         # Only process if any entry is missing assignedPosition
         if all(e.get("assignedPosition") for e in entries):
             return entries
 
-        champion_pick_rates = []
+        # Separate entries with and without assigned positions
+        fixed_assignments = {}  # {index: lane}
+        unassigned_champions = []  # [(index, entry, rates)]
+        
         for i, entry in enumerate(entries):
             name = entry.get("canonical") or entry.get("display")
             rates = self._get_champion_lane_pick_rates(name)
-            champion_pick_rates.append({
-                "index": i,
-                "entry": entry,
-                "rates": rates
-            })
-            
-        potential_assignments = []
-        for item in champion_pick_rates:
-            entry = item["entry"]
             current_pos = entry.get("assignedPosition")
             
-            # If entry already has a valid position, treat it as a very high priority assignment
+            # If entry already has a valid position, fix it
             if current_pos and current_pos.lower() in LANES:
-                potential_assignments.append({
-                    "count": 999999999,
-                    "index": item["index"],
-                    "lane": current_pos.lower()
+                fixed_assignments[i] = current_pos.lower()
+            else:
+                unassigned_champions.append({
+                    "index": i,
+                    "entry": entry,
+                    "rates": rates
                 })
-                continue
-
-            rates = item["rates"]
-            if not rates:
-                continue
-            for lane, count in rates.items():
-                potential_assignments.append({
-                    "count": count,
-                    "index": item["index"],
-                    "lane": lane
-                })
-                
-        # Sort by count descending (greedy assignment)
-        potential_assignments.sort(key=lambda x: x["count"], reverse=True)
         
-        assigned_lanes = set()
-        champion_assigned = set()
+        # If all are fixed, return early
+        if not unassigned_champions:
+            return entries
         
-        for assign in potential_assignments:
-            idx = assign["index"]
-            lane = assign["lane"]
+        # Get fixed lanes to avoid conflicts
+        fixed_lanes = set(fixed_assignments.values())
+        available_lanes = set(LANES) - fixed_lanes
+        
+        # If no available lanes, can't assign anything
+        if not available_lanes:
+            return entries
+        
+        # Find optimal assignment for unassigned champions using backtracking
+        best_assignment = {}
+        best_score = -1
+        
+        def backtrack(champion_idx, used_lanes, current_score):
+            nonlocal best_assignment, best_score
             
-            if idx in champion_assigned:
-                continue
-            if lane in assigned_lanes:
-                continue
+            if champion_idx >= len(unassigned_champions):
+                # All champions assigned, check if this is better
+                if current_score > best_score:
+                    best_score = current_score
+                    best_assignment = used_lanes.copy()
+                return
+            
+            champ = unassigned_champions[champion_idx]
+            champ_index = champ["index"]
+            rates = champ["rates"]
+            
+            # Get possible lanes for this champion (lanes with pick rate > 0)
+            possible_lanes = [lane for lane in available_lanes if rates.get(lane, 0) > 0]
+            
+            # If no rates available, try all available lanes
+            if not rates:
+                possible_lanes = list(available_lanes)
+            
+            # Try each possible lane for this champion
+            for lane in possible_lanes:
+                if lane in used_lanes.values():
+                    continue  # Lane already used
                 
-            entries[idx]["assignedPosition"] = lane
-            champion_assigned.add(idx)
-            assigned_lanes.add(lane)
+                # Get pick rate for this lane
+                pick_rate = rates.get(lane, 0)
+                
+                used_lanes[champ_index] = lane
+                backtrack(champion_idx + 1, used_lanes, current_score + pick_rate)
+                del used_lanes[champ_index]
+            
+            # Also try not assigning this champion (if it has no valid rates or all lanes are taken)
+            if not possible_lanes:
+                backtrack(champion_idx + 1, used_lanes, current_score)
+        
+        # Start backtracking
+        backtrack(0, {}, 0)
+        
+        # Apply the best assignment found
+        for champ_index, lane in best_assignment.items():
+            entries[champ_index]["assignedPosition"] = lane
+        
+        # If some champions weren't assigned, try greedy fallback for remaining
+        remaining_champions = [
+            champ for champ in unassigned_champions 
+            if champ["index"] not in best_assignment
+        ]
+        remaining_lanes = available_lanes - set(best_assignment.values())
+        
+        if remaining_champions and remaining_lanes:
+            # Greedy assignment for remaining
+            remaining_assignments = []
+            for champ in remaining_champions:
+                rates = champ["rates"]
+                for lane in remaining_lanes:
+                    if lane in rates:
+                        remaining_assignments.append({
+                            "index": champ["index"],
+                            "lane": lane,
+                            "count": rates[lane]
+                        })
+            
+            remaining_assignments.sort(key=lambda x: x["count"], reverse=True)
+            used_lanes = set(best_assignment.values())
+            assigned_champions = set(best_assignment.keys())
+            
+            for assign in remaining_assignments:
+                idx = assign["index"]
+                lane = assign["lane"]
+                
+                if idx in assigned_champions:
+                    continue
+                if lane in used_lanes:
+                    continue
+                
+                entries[idx]["assignedPosition"] = lane
+                assigned_champions.add(idx)
+                used_lanes.add(lane)
             
         return entries
 

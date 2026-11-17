@@ -8,6 +8,7 @@ import sys
 import subprocess
 import copy
 import logging
+import webbrowser
 from pathlib import Path
 from collections import defaultdict
 from op_duos_tab import OpDuosTab
@@ -1765,9 +1766,12 @@ class ChampionScraperApp:
             search_button = tk.Button(slot_frame, text="검색", width=5)
             search_button.grid(row=1, column=3, padx=(6, 0), sticky="e")
 
+            stats_button = tk.Button(slot_frame, text="통계 확인", width=8)
+            stats_button.grid(row=2, column=3, padx=(6, 0), pady=(4, 0), sticky="e")
+
             result_var = tk.StringVar(value="검색 결과 없음")
             result_label = tk.Label(slot_frame, textvariable=result_var, anchor="w")
-            result_label.grid(row=2, column=0, columnspan=5, sticky="ew", pady=(6, 0))
+            result_label.grid(row=3, column=0, columnspan=4, sticky="ew", pady=(6, 0))
 
             slot = {
                 "side": side_key,
@@ -1775,6 +1779,7 @@ class ChampionScraperApp:
                 "entry": entry,
                 "lane": lane_box,
                 "button": search_button,
+                "stats_button": stats_button,
                 "clear_button": clear_button,
                 "result_var": result_var,
                 "result_label": result_label,  # 툴팁용
@@ -1791,6 +1796,7 @@ class ChampionScraperApp:
             }
 
             search_button.configure(command=lambda s=slot: self.perform_banpick_search(s))
+            stats_button.configure(command=lambda s=slot: self.open_champion_stats(s))
             entry.bind("<Return>", lambda event, s=slot: self.perform_banpick_search(s))
             lane_box.bind("<<ComboboxSelected>>", lambda _event, s=slot: self.on_banpick_lane_changed(s))
             clear_button.configure(command=lambda s=slot: self.clear_banpick_slot(s))
@@ -2467,6 +2473,26 @@ class ChampionScraperApp:
 
     def get_autocomplete_candidates(self):
         return self.autocomplete_candidates
+
+    def open_champion_stats(self, slot):
+        """슬롯 챔피언의 LoLalytics 빌드 페이지를 연다."""
+        if not slot:
+            return
+
+        canonical = slot.get("canonical_name")
+        if not canonical:
+            entry_widget = slot.get("entry")
+            champion_name = entry_widget.get().strip() if entry_widget else ""
+            if champion_name:
+                canonical = self.resolve_champion_name(champion_name)
+
+        if not canonical:
+            messagebox.showerror("통계 확인", "챔피언을 먼저 입력하거나 검색하세요.")
+            return
+
+        slug = canonical.lower().replace("'", "").replace(".", "").replace(" ", "")
+        url = f"https://lolalytics.com/ko/lol/{slug}/build/?tier=master_plus&patch=30"
+        webbrowser.open(url)
 
     def perform_banpick_search(self, slot, auto_trigger=False, force_lane=None):
         if not slot:

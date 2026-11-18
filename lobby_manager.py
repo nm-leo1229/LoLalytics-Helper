@@ -2798,32 +2798,8 @@ class ChampionScraperApp:
             
             # Select Best Entry
             # Criteria: Meets requirements? Higher games?
-            selected_entry = None
-            is_valid_a = False
-            is_valid_b = False
-            
-            if entry_a:
-                games_a = self.parse_int(entry_a.get("games"))
-                pick_rate_a = self.parse_float(entry_a.get("pick_rate") or entry_a.get("popularity"))
-                is_valid_a = (games_a >= min_games) or (pick_rate_a >= pick_rate_override)
-            
-            if entry_b:
-                games_b = self.parse_int(entry_b.get("games"))
-                pick_rate_b = self.parse_float(entry_b.get("pick_rate") or entry_b.get("popularity"))
-                is_valid_b = (games_b >= min_games) or (pick_rate_b >= pick_rate_override)
-            
-            use_source = None # 'a' or 'b'
-            if is_valid_a and is_valid_b:
-                # Both valid, pick higher games
-                use_source = 'a' if self.parse_int(entry_a.get("games")) >= self.parse_int(entry_b.get("games")) else 'b'
-            elif is_valid_a:
-                use_source = 'a'
-            elif is_valid_b:
-                use_source = 'b'
-            elif entry_a: # Both invalid, but A exists (prefer A for consistency if both fail)
-                use_source = 'a'
-            elif entry_b:
-                use_source = 'b'
+            # 올려둔 챔피언(아군/상대)의 통계를 쓴다. 후보 쪽 파일은 기준선이 달라(카운터는 평균 약 5점) 섞으면 순서가 뒤집힌다.
+            use_source = 'a' if entry_a else ('b' if entry_b else None)
             
             final_entry = None
             if use_source == 'a':
@@ -2885,31 +2861,8 @@ class ChampionScraperApp:
                         break
 
             # Select Best
-            selected_entry = None
-            is_valid_a = False
-            is_valid_b = False
-            
-            if entry_a:
-                games_a = self.parse_int(entry_a.get("games"))
-                pick_rate_a = self.parse_float(entry_a.get("pick_rate") or entry_a.get("popularity"))
-                is_valid_a = (games_a >= min_games) or (pick_rate_a >= pick_rate_override)
-            
-            if entry_b:
-                games_b = self.parse_int(entry_b.get("games"))
-                pick_rate_b = self.parse_float(entry_b.get("pick_rate") or entry_b.get("popularity"))
-                is_valid_b = (games_b >= min_games) or (pick_rate_b >= pick_rate_override)
-            
-            use_source = None
-            if is_valid_a and is_valid_b:
-                use_source = 'a' if self.parse_int(entry_a.get("games")) >= self.parse_int(entry_b.get("games")) else 'b'
-            elif is_valid_a:
-                use_source = 'a'
-            elif is_valid_b:
-                use_source = 'b'
-            elif entry_a:
-                use_source = 'a'
-            elif entry_b:
-                use_source = 'b'
+            # 올려둔 챔피언(아군/상대)의 통계를 쓴다. 후보 쪽 파일은 기준선이 달라(카운터는 평균 약 5점) 섞으면 순서가 뒤집힌다.
+            use_source = 'a' if entry_a else ('b' if entry_b else None)
             
             final_entry = None
             is_inverted = False # True if using 'a' (Enemy vs Me), False if 'b' (Me vs Enemy)
@@ -3227,44 +3180,10 @@ class ChampionScraperApp:
                 
                 # 2. Prepare Entry B (Candidate vs Friend)
                 entry_b = None
-                candidate_canon = self.resolve_champion_name(champ_name)
-                if candidate_canon and friend_canonical:
-                    cand_filename = f"{candidate_canon.lower()}_{target_lane.lower()}.json".replace(" ", "_")
-                    cand_raw = self.champion_data_cache.get(cand_filename)
-                    if cand_raw:
-                        cand_payload = cand_raw.get("synergy", {})
-                        if isinstance(cand_payload, dict):
-                            cand_lane_entries = cand_payload.get(source_lane, {})
-                            for k, v in cand_lane_entries.items():
-                                if self.resolve_champion_name(k) == friend_canonical:
-                                    entry_b = self.sanitize_synergy_entry(v)
-                                    break
                 
                 # 3. Select Best Entry
-                is_valid_a = False
-                is_valid_b = False
-                
-                if entry_a:
-                    games_a = self.parse_int(entry_a.get("games"))
-                    pick_rate_a = self.parse_float(entry_a.get("pick_rate") or entry_a.get("popularity"))
-                    is_valid_a = (games_a >= min_games) or (pick_rate_a >= pick_rate_override)
-                
-                if entry_b:
-                    games_b = self.parse_int(entry_b.get("games"))
-                    pick_rate_b = self.parse_float(entry_b.get("pick_rate") or entry_b.get("popularity"))
-                    is_valid_b = (games_b >= min_games) or (pick_rate_b >= pick_rate_override)
-                
-                use_source = None
-                if is_valid_a and is_valid_b:
-                    use_source = 'a' if self.parse_int(entry_a.get("games")) >= self.parse_int(entry_b.get("games")) else 'b'
-                elif is_valid_a:
-                    use_source = 'a'
-                elif is_valid_b:
-                    use_source = 'b'
-                elif entry_a:
-                    use_source = 'a'
-                elif entry_b:
-                    use_source = 'b'
+                # 올려둔 챔피언(아군/상대)의 통계를 쓴다. 후보 쪽 파일은 기준선이 달라(카운터는 평균 약 5점) 섞으면 순서가 뒤집힌다.
+                use_source = 'a' if entry_a else ('b' if entry_b else None)
                 
                 final_entry = entry_a if use_source == 'a' else entry_b
                 if not final_entry:
@@ -3322,48 +3241,10 @@ class ChampionScraperApp:
                 
                 # 2. Prepare Entry B (Candidate vs Enemy)
                 entry_b = None
-                candidate_canon = self.resolve_champion_name(champ_name)
-                if candidate_canon and enemy_canonical:
-                    cand_filename = f"{candidate_canon.lower()}_{target_lane.lower()}.json".replace(" ", "_")
-                    cand_raw = self.champion_data_cache.get(cand_filename)
-                    if cand_raw:
-                        cand_payload = cand_raw.get("counters")
-                        # Handle case where file is flat or payload missing
-                        if cand_payload is None:
-                             cand_payload = cand_raw
-                        
-                        if isinstance(cand_payload, dict):
-                            cand_lane_entries = cand_payload.get(source_lane, {})
-                            for k, v in cand_lane_entries.items():
-                                if self.resolve_champion_name(k) == enemy_canonical:
-                                    entry_b = self.sanitize_counter_entry(v)
-                                    break
 
                 # 3. Select Best Entry
-                is_valid_a = False
-                is_valid_b = False
-                
-                if entry_a:
-                    games_a = self.parse_int(entry_a.get("games"))
-                    pick_rate_a = self.parse_float(entry_a.get("pick_rate") or entry_a.get("popularity"))
-                    is_valid_a = (games_a >= min_games) or (pick_rate_a >= pick_rate_override)
-                
-                if entry_b:
-                    games_b = self.parse_int(entry_b.get("games"))
-                    pick_rate_b = self.parse_float(entry_b.get("pick_rate") or entry_b.get("popularity"))
-                    is_valid_b = (games_b >= min_games) or (pick_rate_b >= pick_rate_override)
-                
-                use_source = None
-                if is_valid_a and is_valid_b:
-                    use_source = 'a' if self.parse_int(entry_a.get("games")) >= self.parse_int(entry_b.get("games")) else 'b'
-                elif is_valid_a:
-                    use_source = 'a'
-                elif is_valid_b:
-                    use_source = 'b'
-                elif entry_a:
-                    use_source = 'a'
-                elif entry_b:
-                    use_source = 'b'
+                # 올려둔 챔피언(아군/상대)의 통계를 쓴다. 후보 쪽 파일은 기준선이 달라(카운터는 평균 약 5점) 섞으면 순서가 뒤집힌다.
+                use_source = 'a' if entry_a else ('b' if entry_b else None)
                 
                 final_entry = entry_a if use_source == 'a' else entry_b
                 if not final_entry:

@@ -15,7 +15,7 @@ from op_duos_tab import OpDuosTab
 from ignore_tab import IgnoreTab
 from counter_synergy_tab import CounterSynergyTab
 from credits_tab import CreditsTab
-from weight_settings_tab import WeightSettingsTab, load_weight_settings
+from weight_settings_tab import LANE_DISPLAY_NAMES, WeightSettingsTab, load_weight_settings
 from common import (
     resolve_resource_path,
     AutocompletePopup,
@@ -66,6 +66,8 @@ RECOMMEND_HIGH_SAMPLE_TAG = "신뢰도 높음"
 RECOMMEND_FULL_COUNTER_TAG = "올카운터"
 RECOMMEND_OP_SYNERGY_TAG = "OP 시너지"
 RECOMMEND_PRE_PICK_TAG = "선픽 카드"
+RECOMMEND_COUNTER_RANK_TAG = "카운터 {}위"
+RECOMMEND_SYNERGY_RANK_TAG = "시너지 {}위"
 
 def load_app_version() -> str:
     """VERSION 파일을 읽어 앱 버전을 반환합니다."""
@@ -140,6 +142,17 @@ BANPICK_PICK_RATE_OVERRIDE = 1.5
 BANPICK_HIGH_SAMPLE_THRESHOLD = 10000
 BANPICK_PRE_PICK_POPULARITY_THRESHOLD = 1.5
 SYNERGY_OP_THRESHOLD = 55.0
+COUNTER_RANK_MIN_PICK_RATE = 1.0  # 카운터 순위는 픽률(%)이 이 이상인 챔피언끼리만 매긴다
+SYNERGY_RANK_MIN_PICK_RATE = 3.0  # 시너지 순위는 픽률(%)이 이 이상인 챔피언끼리만 매긴다
+# 내 라인 -> 시너지 순위를 매길 아군 라인
+SYNERGY_RANK_PARTNER_LANES = {
+    "bottom": ["support"],
+    "support": ["bottom"],
+    "middle": ["jungle"],
+    "jungle": ["middle", "top"],
+    "top": ["jungle"],
+}
+RANK_TAG_LIMIT = 3  # 이 순위까지만 태그로 보여준다
 CHOSEONG_LIST = [
     "ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ", "ㅅ",
     "ㅆ", "ㅇ", "ㅈ", "ㅉ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"
@@ -3187,7 +3200,14 @@ class ChampionScraperApp:
         if min_games < 0:
             min_games = 0
 
+        def is_shown_in(slot, lane):
+            """보드에 그 라인으로 보이고, 불러온 데이터도 그 라인 것인 슬롯인지 (라인만 바꾸고 다시 검색하지 않은 슬롯은 아니다)."""
+            lane_box = slot.get("lane")
+            return slot.get("selected_lane") == lane and bool(lane_box) and lane_box.get().lower() == lane
+
         # Synergy contributions from same side
+        partner_lanes = SYNERGY_RANK_PARTNER_LANES.get(target_lane, [])
+        synergy_rank_entries = {}  # 짝 라인 -> 그 아군의 시너지 목록
         for friend_idx, friend in enumerate(self.banpick_slots.get(side_key, [])):
             if friend.get("exclude_var") and friend["exclude_var"].get():
                 continue
@@ -3197,6 +3217,9 @@ class ChampionScraperApp:
             source_lane = friend.get("selected_lane")
             friend_canonical = friend.get("canonical_name")
             lane_entries = dataset.get(target_lane, {})
+            if friend is not target_slot and source_lane in partner_lanes and is_shown_in(friend, source_lane):
+                # 내 라인과 짝인 아군과 잘 맞는 순위를 태그로 보여준다
+                synergy_rank_entries[source_lane] = lane_entries
             
             for champ_name, details in lane_entries.items():
                 # 1. Prepare Entry A (Friend vs Candidate)
@@ -3279,6 +3302,7 @@ class ChampionScraperApp:
 
         # Counter contributions from opposing side
         opponent_side = "enemies" if side_key == "allies" else "allies"
+        counter_rank_entries = {}
         for enemy_idx, enemy in enumerate(self.banpick_slots.get(opponent_side, [])):
             if enemy.get("exclude_var") and enemy["exclude_var"].get():
                 continue
@@ -3288,6 +3312,9 @@ class ChampionScraperApp:
             source_lane = enemy.get("selected_lane")
             enemy_canonical = enemy.get("canonical_name")
             lane_entries = dataset.get(target_lane, {})
+            if is_shown_in(enemy, target_lane):
+                # 같은 라인 상대를 잘 잡는 순위를 태그로 보여준다
+                counter_rank_entries = lane_entries
             
             for champ_name, details in lane_entries.items():
                 # 1. Prepare Entry A (Enemy vs Candidate)
@@ -3469,7 +3496,23 @@ class ChampionScraperApp:
             ))
 
         recommendations.sort(key=lambda item: item[1], reverse=True)
-        for champ_name, total, synergy_score, counter_score, synergy_sources, counter_sources, has_low_sample, tags in recommendations[:20]:
+        shown = recommendations[:20]
+        # 순위 태그: 표에 보이는 챔피언끼리만 순위를 매겨 태그 맨 앞에 둔다 (카운터, 시너지 순)
+        candidates = {item[0] for item in shown}
+        counter_ranks = self.rank_counters(counter_rank_entries, candidates)
+        synergy_ranks = [
+            (
+                # 짝이 둘인 라인(정글)은 어느 라인과의 순위인지 앞에 붙인다
+                RECOMMEND_SYNERGY_RANK_TAG if len(partner_lanes) == 1
+                else f"{LANE_DISPLAY_NAMES[lane]} {RECOMMEND_SYNERGY_RANK_TAG}",
+                self.rank_synergies(synergy_rank_entries[lane], candidates),
+            )
+            for lane in partner_lanes if lane in synergy_rank_entries
+        ]
+        for champ_name, total, synergy_score, counter_score, synergy_sources, counter_sources, has_low_sample, tags in shown:
+            rank_tags = [RECOMMEND_COUNTER_RANK_TAG.format(counter_ranks[champ_name])] if champ_name in counter_ranks else []
+            rank_tags += [label.format(ranks[champ_name]) for label, ranks in synergy_ranks if champ_name in ranks]
+            tags[:0] = rank_tags
             display_name = f"{WARNING_ICON} {champ_name}" if has_low_sample else champ_name
             synergy_label = " / ".join(synergy_sources) if synergy_sources else "-"
             counter_label = " / ".join(counter_sources) if counter_sources else "-"
@@ -3843,6 +3886,31 @@ class ChampionScraperApp:
         except (TypeError, ValueError):
             return 0.0
     
+    @staticmethod
+    def _rank_by_win_rate(lane_entries, candidates, pick_rate_key, min_pick_rate, highest_first):
+        """candidates 중 픽률 기준을 넘는 챔피언을 승률순으로 세워 {챔피언: 순위} 로 돌려준다 (RANK_TAG_LIMIT 위까지)."""
+        parse = ChampionScraperApp.parse_float
+        eligible = [
+            (parse(details.get("win_rate")), name)
+            for name, details in lane_entries.items()
+            if name in candidates and parse(details.get(pick_rate_key)) >= min_pick_rate
+        ]
+        # 승률이 같으면 목록에 있던 순서(픽률이 높은 순)를 그대로 둔다
+        eligible.sort(key=lambda entry: entry[0], reverse=highest_first)
+        return {name: rank for rank, (_, name) in enumerate(eligible[:RANK_TAG_LIMIT], start=1)}
+
+    @staticmethod
+    def rank_counters(lane_entries, candidates):
+        """상대의 카운터 목록에서 그 상대를 잘 잡는(상대 승률이 낮은) 순위."""
+        return ChampionScraperApp._rank_by_win_rate(
+            lane_entries, candidates, "popularity", COUNTER_RANK_MIN_PICK_RATE, False)
+
+    @staticmethod
+    def rank_synergies(lane_entries, candidates):
+        """아군의 시너지 목록에서 함께했을 때 승률이 높은 순위."""
+        return ChampionScraperApp._rank_by_win_rate(
+            lane_entries, candidates, "pick_rate", SYNERGY_RANK_MIN_PICK_RATE, True)
+
     def toggle_theme(self):
         """다크모드/라이트모드 전환"""
         if self.current_theme["name"] == "dark":

@@ -2811,7 +2811,7 @@ class ChampionScraperApp:
             
             # Select Best Entry
             # Criteria: Meets requirements? Higher games?
-            # 올려둔 챔피언(아군/상대)의 통계를 쓴다. 후보 쪽 파일은 기준선이 달라(카운터는 평균 약 5점) 섞으면 순서가 뒤집힌다.
+            # 올려둔 아군의 통계를 먼저 쓰고, 거기에 이 매치업이 없을 때만 내 파일을 쓴다 (추천 표는 그런 매치업을 빼고 계산한다).
             use_source = 'a' if entry_a else ('b' if entry_b else None)
             
             final_entry = None
@@ -2874,7 +2874,7 @@ class ChampionScraperApp:
                         break
 
             # Select Best
-            # 올려둔 챔피언(아군/상대)의 통계를 쓴다. 후보 쪽 파일은 기준선이 달라(카운터는 평균 약 5점) 섞으면 순서가 뒤집힌다.
+            # 올려둔 상대의 통계를 먼저 쓰고, 거기에 이 매치업이 없을 때만 내 파일을 쓴다. 내 파일 값은 기준선이 달라 평균 약 5점 높게 나오고, 추천 표는 그런 매치업을 빼고 계산한다.
             use_source = 'a' if entry_a else ('b' if entry_b else None)
             
             final_entry = None
@@ -3183,26 +3183,14 @@ class ChampionScraperApp:
             if not dataset:
                 continue
             source_lane = friend.get("selected_lane")
-            friend_canonical = friend.get("canonical_name")
             lane_entries = dataset.get(target_lane, {})
             if friend is not target_slot and source_lane in partner_lanes and is_shown_in(friend, source_lane):
                 # 내 라인과 짝인 아군과 잘 맞는 순위를 태그로 보여준다
                 synergy_rank_entries[source_lane] = lane_entries
             
             for champ_name, details in lane_entries.items():
-                # 1. Prepare Entry A (Friend vs Candidate)
-                entry_a = details
-                
-                # 2. Prepare Entry B (Candidate vs Friend)
-                entry_b = None
-                
-                # 3. Select Best Entry
                 # 올려둔 챔피언(아군/상대)의 통계를 쓴다. 후보 쪽 파일은 기준선이 달라(카운터는 평균 약 5점) 섞으면 순서가 뒤집힌다.
-                use_source = 'a' if entry_a else ('b' if entry_b else None)
-                
-                final_entry = entry_a if use_source == 'a' else entry_b
-                if not final_entry:
-                    continue
+                final_entry = details
                 
                 include_entry, low_sample, high_sample, games, pick_rate_val = should_use_entry(final_entry)
                 source_name = friend.get("display_name") or friend.get("canonical_name") or "Unknown"
@@ -3244,26 +3232,14 @@ class ChampionScraperApp:
             if not dataset:
                 continue
             source_lane = enemy.get("selected_lane")
-            enemy_canonical = enemy.get("canonical_name")
             lane_entries = dataset.get(target_lane, {})
             if is_shown_in(enemy, target_lane):
                 # 같은 라인 상대를 잘 잡는 순위를 태그로 보여준다
                 counter_rank_entries = lane_entries
             
             for champ_name, details in lane_entries.items():
-                # 1. Prepare Entry A (Enemy vs Candidate)
-                entry_a = details
-                
-                # 2. Prepare Entry B (Candidate vs Enemy)
-                entry_b = None
-
-                # 3. Select Best Entry
                 # 올려둔 챔피언(아군/상대)의 통계를 쓴다. 후보 쪽 파일은 기준선이 달라(카운터는 평균 약 5점) 섞으면 순서가 뒤집힌다.
-                use_source = 'a' if entry_a else ('b' if entry_b else None)
-                
-                final_entry = entry_a if use_source == 'a' else entry_b
-                if not final_entry:
-                    continue
+                final_entry = details
                 
                 include_entry, low_sample, high_sample, games, pick_rate_val = should_use_entry(final_entry)
                 source_name = enemy.get("display_name") or enemy.get("canonical_name") or "Unknown"
@@ -3277,13 +3253,7 @@ class ChampionScraperApp:
                 # Calculate Score
                 win_rate_value = self.parse_float(final_entry.get("win_rate"))
                 
-                # Inversion Logic
-                # If use_source == 'a' (Enemy vs Candidate), Score = 100 - EnemyWinRate
-                # If use_source == 'b' (Candidate vs Enemy), Score = CandidateWinRate
-                if use_source == 'a':
-                    value = 100.0 - win_rate_value
-                else:
-                    value = win_rate_value
+                value = 100.0 - win_rate_value  # 상대 파일의 승률은 상대 쪽 승률이다
                 
                 weight = self.get_lane_weight(target_lane, source_lane, "counter")
                 if weight <= 0:
@@ -3297,42 +3267,8 @@ class ChampionScraperApp:
                     append_tag(components, RECOMMEND_LOW_SAMPLE_TAG)
                 if not high_sample:
                     components["all_high_sample"] = False
+                # 상대 승률이 50% 이상인 상대가 하나라도 있으면 올카운터가 아니다
                 if win_rate_value >= 50.0:
-                    # Note: this check is slightly ambiguous.
-                    # It probably means "Is Candidate Win Rate >= 50?"
-                    # If 'a', win_rate_value is Enemy Win Rate. So if EnemyWinRate <= 50, then Cand >= 50.
-                    # If 'b', win_rate_value is Cand Win Rate.
-                    # Original code: `if win_rate_value >= 50.0: components["all_counter_under_50"] = False`
-                    # Original `win_rate_value` came from `details` (Enemy vs Candidate).
-                    # So it checked "Did Enemy win > 50%?". If so, then "All counters NOT under 50".
-                    # Wait, "all_counter_under_50" usually means "Is my win rate always < 50?".
-                    # If Enemy Win Rate >= 50, My Win Rate <= 50.
-                    # This tag logic seems to check "Did the ENEMY have >= 50% win rate?".
-                    # If so, it sets `all_counter_under_50 = False`.
-                    # This implies the tag means "Do ALL enemies have < 50% win rate against me?" i.e. "Am I always winning?"
-                    # If Enemy WR >= 50, then I am NOT always winning.
-                    # Correct.
-                    
-                    # For `entry_b` (Cand vs Enemy), win_rate is My Win Rate.
-                    # So if My Win Rate <= 50, then Enemy WR >= 50.
-                    # Logic needs adjustment?
-                    # "all_counter_under_50" name is confusing.
-                    # Let's assume it means "Does any counter exist that beats me?"
-                    pass
-
-                # Re-evaluating tag logic
-                # Original: `if win_rate_value >= 50.0: components["all_counter_under_50"] = False`
-                # where win_rate_value was Enemy WR.
-                # So if Enemy WR >= 50 (Enemy favored), then 'all_counter_under_50' becomes False.
-                # So `all_counter_under_50` tracks if "All enemy WRs are < 50" (i.e. I win > 50 against everyone).
-                
-                # New Logic:
-                # We need "Enemy Win Rate".
-                # If 'a': Enemy WR = win_rate_value.
-                # If 'b': Enemy WR = 100 - win_rate_value.
-                
-                enemy_win_rate = win_rate_value if use_source == 'a' else (100.0 - win_rate_value)
-                if enemy_win_rate >= 50.0:
                     components["all_counter_under_50"] = False
                 
                 display_val = value # This is My Score

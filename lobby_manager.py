@@ -2809,8 +2809,6 @@ class ChampionScraperApp:
                         entry_b = data
                         break
             
-            # Select Best Entry
-            # Criteria: Meets requirements? Higher games?
             # 올려둔 아군의 통계를 먼저 쓰고, 거기에 이 매치업이 없을 때만 내 파일을 쓴다 (추천 표는 그런 매치업을 빼고 계산한다).
             use_source = 'a' if entry_a else ('b' if entry_b else None)
             
@@ -2873,7 +2871,6 @@ class ChampionScraperApp:
                         entry_b = data
                         break
 
-            # Select Best
             # 올려둔 상대의 통계를 먼저 쓰고, 거기에 이 매치업이 없을 때만 내 파일을 쓴다. 내 파일 값은 기준선이 달라 평균 약 5점 높게 나오고, 추천 표는 그런 매치업을 빼고 계산한다.
             use_source = 'a' if entry_a else ('b' if entry_b else None)
             

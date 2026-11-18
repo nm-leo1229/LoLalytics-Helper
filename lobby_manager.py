@@ -13,6 +13,7 @@ from pathlib import Path
 from collections import defaultdict
 from op_duos_tab import OpDuosTab
 from ignore_tab import IgnoreTab
+from my_champions_tab import MyChampionsTab, load_my_champions
 from counter_synergy_tab import CounterSynergyTab
 from credits_tab import CreditsTab
 from weight_settings_tab import LANE_DISPLAY_NAMES, WeightSettingsTab, load_weight_settings
@@ -1200,6 +1201,8 @@ class ChampionScraperApp:
         print(f"Preloaded {len(self.champion_data_cache)} champion data files.")
 
         self.ignored_champions = self._initialize_ignored_champions()
+        my_champions_only, self.my_champions = load_my_champions()
+        self.my_champions_only_var = tk.BooleanVar(value=my_champions_only)
         
         try:
             self.client_watcher = LeagueClientWatcher()
@@ -1221,6 +1224,7 @@ class ChampionScraperApp:
         self.counter_synergy_tab = CounterSynergyTab(self.notebook, self)
         self.op_duos_tab = OpDuosTab(self.notebook, self, DATA_DIR)
         self.ignore_tab = IgnoreTab(self.notebook, self)
+        self.my_champions_tab = MyChampionsTab(self.notebook, self)
         self.credits_tab = CreditsTab(self.notebook, self)
         self.notebook.add(self.credits_tab, text="고마운 분들")
         
@@ -1489,6 +1493,8 @@ class ChampionScraperApp:
         self.recommend_pick_rate_entry.pack(side="left", padx=(4, 0))
         self.recommend_pick_rate_entry.bind("<KeyRelease>", lambda _e: self.update_banpick_recommendations())
         self.recommend_pick_rate_entry.bind("<FocusOut>", lambda _e: self.update_banpick_recommendations())
+        # 켜고 끄면 내 챔피언 탭이 저장하고 추천을 다시 계산한다
+        tk.Checkbutton(filter_frame, text="내 챔피언만", variable=self.my_champions_only_var).pack(side="left", padx=(10, 0))
 
         columns = ("챔피언", "태그", "최종 점수", "시너지", "카운터")
         self.recommend_tree = ttk.Treeview(recommend_frame, columns=columns, show="headings", height=8)
@@ -3286,7 +3292,11 @@ class ChampionScraperApp:
             # 밴된 챔피언은 추천 목록에서 제외
             if self.is_champion_banned(champ_name):
                 continue
-            if self.is_champion_ignored(champ_name):
+            if self.my_champions_only_var.get():
+                # 내 챔피언만 추천: 내 챔피언 탭에서 이 라인에 넣어 둔 챔피언만 남긴다 (직접 넣었으니 제외 목록보다 우선)
+                if (canonical_name or champ_name).lower() not in self.my_champions[target_lane]:
+                    continue
+            elif self.is_champion_ignored(champ_name):
                 continue
             if components["has_low_pick_gap"]:
                 continue

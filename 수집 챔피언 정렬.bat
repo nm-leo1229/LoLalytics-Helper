@@ -1,1 +1,0 @@
-call python C:\Users\user\Documents\LoLalytics-Helper\LoLalytics-Helper\parse_champion_data.py

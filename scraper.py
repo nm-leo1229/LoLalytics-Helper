@@ -29,6 +29,43 @@ CHAMPION_NAMES = load_champion_names()
 
 LANES = ['top', 'jungle', 'middle', 'bottom', 'support']
 
+MIN_PICK_RATE = 0.5  # 픽률(%)이 이보다 낮은 챔피언은 수집하지 않는다
+
+# 티어 목록의 모든 행을 [챔피언 링크, 픽률] 로 돌려준다. 아직 그려지지 않은 빈 행이 있으면 null.
+# 빈 행은 스크롤로 화면에 들어오는 순간에만 채워지므로, 호출마다 맨 위와 빈 행을 번갈아 오간다.
+TIER_ROWS_JS = """
+const link = document.querySelector("main a[href*='/build/']");
+if (!link) return null;
+const rows = [...link.parentElement.parentElement.parentElement.children];
+const empty = rows.find(row => !row.children.length);
+if (empty) {
+    if (arguments[0]) window.scrollTo(0, 0); else empty.scrollIntoView();
+    return null;
+}
+return rows.flatMap(row => {
+    const champion = row.querySelector("a[href*='/build/']");
+    return champion ? [[champion.getAttribute('href'), row.children[6].textContent.trim()]] : [];
+});
+"""
+
+def filter_by_pick_rate(rows):
+    """티어 목록 행 [[챔피언 링크, 픽률], ...] 에서 수집할 챔피언의 URL 이름만 남긴다."""
+    return [href.split('/build/')[0].rsplit('/', 1)[-1]
+            for href, pick_rate in rows if float(pick_rate) >= MIN_PICK_RATE]
+
+def fetch_lane_champions(driver, lane):
+    """LoLalytics 티어 목록에서 해당 레인의 수집 대상 챔피언을 읽어 온다."""
+    driver.get(f"https://lolalytics.com/lol/tierlist/?lane={lane}&tier=master_plus&patch=30")
+    deadline = time.time() + 120
+    scroll_to_top = False
+    while time.time() < deadline:
+        rows = driver.execute_script(TIER_ROWS_JS, scroll_to_top)
+        if rows is not None:
+            return filter_by_pick_rate(rows)
+        scroll_to_top = not scroll_to_top
+        time.sleep(0.2)
+    raise TimeoutException(f"Tier list for {lane} did not finish loading")
+
 def normalize_champion_name(name):
     """Normalize champion name for URL generation."""
     # Special cases
@@ -50,7 +87,7 @@ def normalize_champion_name(name):
 
 def generate_url(name, lane):
     formatted_name = normalize_champion_name(name)
-    return f"https://lolalytics.com/lol/{formatted_name}/build/?lane={lane}&patch=30"
+    return f"https://lolalytics.com/lol/{formatted_name}/build/?lane={lane}&tier=master_plus&patch=30"
 
 def format_data(element):
     text = element.text.replace('\n', ' ').strip().split()
@@ -162,7 +199,7 @@ def scrape_web(driver, url, current_lane):
         print(f"Error finding pick rate")
 
     # If pick rate is not found or is low, skip
-    if pick_rate_value is None or pick_rate_value < 0.5:
+    if pick_rate_value is None or pick_rate_value < MIN_PICK_RATE:
         print(f"Skip, {url}")
         return None
 
@@ -361,6 +398,8 @@ def create_driver():
         chrome_kwargs["version_main"] = 152
 
     driver = uc.Chrome(**chrome_kwargs)
+    # 창이 다른 창에 가려져도 페이지가 계속 그려지게 한다 (안 하면 스크롤로 채워지는 목록이 멈추거나 일부만 수집된다)
+    driver.execute_cdp_cmd("Emulation.setFocusEmulationEnabled", {"enabled": True})
     driver.set_page_load_timeout(60)
     driver.set_script_timeout(30)  # execute_script 타임아웃 단축
     driver.implicitly_wait(10)
@@ -438,8 +477,7 @@ def scrape_and_save_subset(champion_lane_list):
     # Group by champion to minimize browser restarts
     champion_lanes = {}
     for lane, champions in champion_lane_list.items():
-        for champ in champions:
-            name = champ['name']
+        for name in champions:
             if name not in champion_lanes:
                 champion_lanes[name] = []
             champion_lanes[name].append(lane)
@@ -521,15 +559,15 @@ def main():
         os.environ["WDM_SSL_VERIFY"] = "0"
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-    # Load champion lane list
+    print("Fetching champion list from the tier list...")
+    driver = create_driver()
     try:
-        with open('champion_lane_list.json', 'r', encoding='utf-8') as f:
-            champion_lane_list = json.load(f)
-    except FileNotFoundError:
-        print("Error: champion_lane_list.json not found. Please run parse_champion_data.py first.")
-        return
+        champion_lane_list = {lane: fetch_lane_champions(driver, lane) for lane in LANES}
+    finally:
+        quit_driver(driver)
+    print({lane: len(names) for lane, names in champion_lane_list.items()})
 
-    print("Loaded champion list. Starting optimized scrape...")
+    print("Starting optimized scrape...")
     scrape_and_save_subset(champion_lane_list)
 
 if __name__ == "__main__":

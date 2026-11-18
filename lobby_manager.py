@@ -3450,7 +3450,9 @@ class ChampionScraperApp:
         recommendations = []
 
         for champ_name, components in scores.items():
-            if champ_name.lower() in selected_lowers:
+            # 목록 이름과 슬롯 이름이 다른 챔피언(Renata Glasc/renata, Nunu & Willump/nunu)도 걸러지게 정식 이름으로도 비교한다
+            canonical_name = self.resolve_champion_name(champ_name)
+            if champ_name.lower() in selected_lowers or (canonical_name and canonical_name.lower() in selected_lowers):
                 continue
             # 밴된 챔피언은 추천 목록에서 제외
             if self.is_champion_banned(champ_name):

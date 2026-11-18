@@ -68,6 +68,19 @@ RECOMMEND_PRE_PICK_TAG = "선픽 카드"
 RECOMMEND_COUNTER_RANK_TAG = "카운터 {}위"
 RECOMMEND_SYNERGY_RANK_TAG = "시너지 {}위"
 
+def combine_scores(synergy_sum, synergy_weight_sum, counter_sum, counter_weight_sum):
+    """(시너지 점수, 카운터 점수, 최종 점수). 점수는 가중치 합으로 나눈 평균이다."""
+    synergy_score = synergy_sum / synergy_weight_sum if synergy_weight_sum > 0 else 0.0
+    counter_score = counter_sum / counter_weight_sum if counter_weight_sum > 0 else 0.0
+    if synergy_score and counter_score:
+        # 둘 다 있으면 가중치를 한 저울에 올려 합친다: 가중치가 작은 쪽(시너지)이 최종 점수에 덜 반영된다.
+        # 점수대는 그대로 두려고 2를 곱한다 (가중치 합이 같으면 시너지 점수 + 카운터 점수와 같은 값).
+        total = 2 * (synergy_sum + counter_sum) / (synergy_weight_sum + counter_weight_sum)
+    else:
+        total = synergy_score + counter_score
+    return synergy_score, counter_score, total
+
+
 def load_app_version() -> str:
     """VERSION 파일을 읽어 앱 버전을 반환합니다."""
     candidates = [
@@ -2918,9 +2931,8 @@ class ChampionScraperApp:
             details["counter_entries"].append((enemy_name, source_lane, win_rate_raw, my_win_rate, weight, weighted_score))
         
         # 가중치 합으로 나눠서 정규화 (라인 간 비교 가능하게)
-        synergy_score = synergy_sum / synergy_weight_sum if synergy_weight_sum > 0 else 0.0
-        counter_score = counter_sum / counter_weight_sum if counter_weight_sum > 0 else 0.0
-        total_score = synergy_score + counter_score
+        synergy_score, counter_score, total_score = combine_scores(
+            synergy_sum, synergy_weight_sum, counter_sum, counter_weight_sum)
         
         details["synergy_score"] = synergy_score
         details["counter_score"] = counter_score
@@ -2988,7 +3000,10 @@ class ChampionScraperApp:
             lines.append("(데이터 없음)")
             lines.append("")
         
-        lines.append(f"총점: {details['synergy_score']:.2f} + {details['counter_score']:.2f} = {details['total_score']:.2f}")
+        if details["synergy_score"] and details["counter_score"]:
+            lines.append(f"총점: 2 × (시너지 합계 + 카운터 합계) / (가중치합의 합) = {details['total_score']:.2f}")
+        else:
+            lines.append(f"총점: {details['total_score']:.2f}")
         
         return "\n".join(lines)
 
@@ -3348,15 +3363,9 @@ class ChampionScraperApp:
                 continue
 
             # 가중치 합으로 나눠서 정규화 (라인 간 비교 가능하게)
-            synergy_score = (
-                components["synergy_sum"] / components["synergy_weight_sum"]
-                if components["synergy_weight_sum"] > 0 else 0.0
-            )
-            counter_score = (
-                components["counter_sum"] / components["counter_weight_sum"]
-                if components["counter_weight_sum"] > 0 else 0.0
-            )
-            total = synergy_score + counter_score
+            synergy_score, counter_score, total = combine_scores(
+                components["synergy_sum"], components["synergy_weight_sum"],
+                components["counter_sum"], components["counter_weight_sum"])
             if total == 0:
                 continue
             if components["counter_weight_sum"] > 0 and components["all_counter_under_50"]:

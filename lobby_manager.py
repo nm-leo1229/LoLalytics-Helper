@@ -1779,11 +1779,12 @@ class ChampionScraperApp:
             search_button.grid(row=1, column=3, padx=(6, 0), sticky="e")
 
             stats_button = tk.Button(slot_frame, text="통계 확인", width=8)
-            stats_button.grid(row=2, column=3, padx=(6, 0), pady=(4, 0), sticky="e")
+            stats_button.grid(row=2, column=3, padx=(6, 0), pady=(1, 0), sticky="e")
 
             result_var = tk.StringVar(value="검색 결과 없음")
             result_label = tk.Label(slot_frame, textvariable=result_var, anchor="w")
-            result_label.grid(row=3, column=0, columnspan=4, sticky="ew", pady=(6, 0))
+            # 통계 확인 버튼과 같은 줄에 둔다 (줄을 따로 쓰면 슬롯이 한 줄씩 높아진다)
+            result_label.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
 
             slot = {
                 "side": side_key,

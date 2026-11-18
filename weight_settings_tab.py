@@ -1,18 +1,8 @@
 import tkinter as tk
-import json
-import os
-import copy
-from common import LANES, resolve_resource_path
-
-WEIGHT_SETTINGS_FILE = resolve_resource_path("weight_settings.json")
+from common import LANES
 
 # 가중치 상수
-LANE_WEIGHT_DEEP = 1.0
-LANE_WEIGHT_LOW_DEEP = 0.7
-LANE_WEIGHT_SHALLOW = 0.5
 LANE_WEIGHT_DEFAULT = 0.35
-
-SYNERGY_WEIGHT_PENALTY = 0.3
 
 LANE_DISPLAY_NAMES = {
     "top": "탑",
@@ -22,138 +12,33 @@ LANE_DISPLAY_NAMES = {
     "support": "서포터"
 }
 
-def normalize_float_values(data):
-    """딕셔너리 내의 모든 float 값을 소수점 2자리로 반올림합니다"""
-    if isinstance(data, dict):
-        return {key: normalize_float_values(value) for key, value in data.items()}
-    elif isinstance(data, list):
-        return [normalize_float_values(item) for item in data]
-    elif isinstance(data, float):
-        return round(data, 2)
-    else:
-        return data
-
 def load_weight_settings():
-    """가중치 설정 파일을 불러옵니다. 없으면 기본값으로 생성합니다."""
-    if os.path.exists(WEIGHT_SETTINGS_FILE):
-        try:
-            with open(WEIGHT_SETTINGS_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                # 기존 형식 마이그레이션 (lane_weight_map이 최상위에 있는 경우)
-                if "lane_weight_map" in data and "counter" not in data:
-                    old_map = data.get("lane_weight_map", {})
-                    data = {
-                        "counter": {
-                            "lane_weight_map": copy.deepcopy(old_map)
-                        },
-                        "synergy": {
-                            "lane_weight_map": copy.deepcopy(old_map)
-                        }
-                    }
-                    # 마이그레이션된 데이터 저장 (부동소수점 정규화)
-                    try:
-                        normalized_data = normalize_float_values(data)
-                        with open(WEIGHT_SETTINGS_FILE, "w", encoding="utf-8") as f:
-                            json.dump(normalized_data, f, indent=2, ensure_ascii=False)
-                    except OSError:
-                        pass
-                return data
-        except (OSError, json.JSONDecodeError):
-            pass
-    
-    # 기본값 생성
+    """라인 가중치 기본값을 돌려줍니다. 사용자가 고친 값은 ui_settings.json 의 lane_weights 에 따로 저장됩니다."""
+    # 기본값: 라인 조합별 상성 효과의 크기와 표본 수로 정한 값 (맞라인 카운터 1.0 기준의 한 저울, 시너지는 카운터보다 낮다).
     counter_base_map = {
-        "bottom": {
-            "bottom": LANE_WEIGHT_DEEP,
-            "support": LANE_WEIGHT_DEEP,
-            "jungle": LANE_WEIGHT_SHALLOW,
-            "middle": LANE_WEIGHT_DEFAULT,
-            "top": LANE_WEIGHT_DEFAULT
-        },
-        "support": {
-            "support": LANE_WEIGHT_DEEP,
-            "bottom": LANE_WEIGHT_LOW_DEEP,
-            "jungle": LANE_WEIGHT_SHALLOW,
-            "middle": LANE_WEIGHT_SHALLOW,
-            "top": LANE_WEIGHT_SHALLOW
-        },
-        "jungle": {
-            "jungle": LANE_WEIGHT_DEEP,
-            "middle": LANE_WEIGHT_DEEP,
-            "top": LANE_WEIGHT_DEEP,
-            "bottom": LANE_WEIGHT_SHALLOW,
-            "support": LANE_WEIGHT_SHALLOW
-        },
-        "middle": {
-            "middle": LANE_WEIGHT_DEEP,
-            "jungle": LANE_WEIGHT_DEEP,
-            "top": LANE_WEIGHT_SHALLOW,
-            "bottom": LANE_WEIGHT_DEFAULT,
-            "support": LANE_WEIGHT_SHALLOW
-        },
-        "top": {
-            "top": LANE_WEIGHT_DEEP,
-            "jungle": LANE_WEIGHT_DEEP,
-            "middle": LANE_WEIGHT_SHALLOW,
-            "bottom": LANE_WEIGHT_DEFAULT,
-            "support": LANE_WEIGHT_SHALLOW
-        }
+        "bottom": {"bottom": 1.0, "support": 0.75, "jungle": 0.4, "middle": 0.3, "top": 0.2},
+        "support": {"support": 1.0, "bottom": 0.75, "jungle": 0.45, "middle": 0.35, "top": 0.2},
+        "jungle": {"jungle": 1.0, "middle": 0.6, "top": 0.5, "bottom": 0.4, "support": 0.45},
+        "middle": {"middle": 1.0, "jungle": 0.6, "top": 0.4, "bottom": 0.3, "support": 0.35},
+        "top": {"top": 1.0, "jungle": 0.5, "middle": 0.4, "bottom": 0.2, "support": 0.2},
     }
-    
+
     synergy_base_map = {
-        "bottom": {
-            "bottom": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-            "support": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-            "jungle": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
-            "middle": round(LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY, 2),
-            "top": round(LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY, 2)
-        },
-        "support": {
-            "support": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-            "bottom": round(LANE_WEIGHT_LOW_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-            "jungle": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
-            "middle": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
-            "top": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2)
-        },
-        "jungle": {
-            "jungle": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-            "middle": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-            "top": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-            "bottom": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
-            "support": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2)
-        },
-        "middle": {
-            "middle": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-            "jungle": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-            "top": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
-            "bottom": round(LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY, 2),
-            "support": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2)
-        },
-        "top": {
-            "top": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-            "jungle": round(LANE_WEIGHT_DEEP - SYNERGY_WEIGHT_PENALTY, 2),
-            "middle": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2),
-            "bottom": round(LANE_WEIGHT_DEFAULT - SYNERGY_WEIGHT_PENALTY, 2),
-            "support": round(LANE_WEIGHT_SHALLOW - SYNERGY_WEIGHT_PENALTY, 2)
-        }
+        "bottom": {"bottom": 0.7, "support": 0.5, "jungle": 0.2, "middle": 0.2, "top": 0.1},
+        "support": {"support": 0.7, "bottom": 0.5, "jungle": 0.2, "middle": 0.15, "top": 0.1},
+        "jungle": {"jungle": 0.7, "middle": 0.3, "top": 0.25, "bottom": 0.2, "support": 0.2},
+        "middle": {"middle": 0.7, "jungle": 0.3, "top": 0.15, "bottom": 0.2, "support": 0.15},
+        "top": {"top": 0.7, "jungle": 0.25, "middle": 0.15, "bottom": 0.1, "support": 0.1},
     }
 
     default_weights = {
         "counter": {
-            "lane_weight_map": copy.deepcopy(counter_base_map)
+            "lane_weight_map": counter_base_map
         },
         "synergy": {
-            "lane_weight_map": copy.deepcopy(synergy_base_map)
+            "lane_weight_map": synergy_base_map
         }
     }
-    
-    # 파일 저장 (부동소수점 정규화)
-    try:
-        normalized_weights = normalize_float_values(default_weights)
-        with open(WEIGHT_SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(normalized_weights, f, indent=2, ensure_ascii=False)
-    except OSError:
-        pass
     
     return default_weights
 

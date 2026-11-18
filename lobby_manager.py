@@ -42,7 +42,6 @@ except ImportError:  # requests는 선택적 의존성
 ALIAS_FILE = resolve_resource_path("champion_aliases.json")
 IGNORED_CHAMPIONS_FILE = resolve_resource_path("ignored_champions.json")
 UI_SETTINGS_FILE = resolve_resource_path("ui_settings.json")
-WEIGHT_SETTINGS_FILE = resolve_resource_path("weight_settings.json")
 DATA_DIR = Path(resolve_resource_path("data"))
 LOG_DIR = Path(resolve_resource_path("logs"))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -2996,9 +2995,9 @@ class ChampionScraperApp:
         if synergy_entries:
             lines.append("[ 시너지 ]")
             for name, lane, win_rate, weight, weighted in synergy_entries:
-                lines.append(f"  {name}({lane}): {win_rate:.1f}% × {weight:.1f} = {weighted:.1f}")
+                lines.append(f"  {name}({lane}): {win_rate:.1f}% × {weight:g} = {weighted:.1f}")
             synergy_sum = sum(w for _, _, _, _, w in synergy_entries)
-            lines.append(f"  합계: {synergy_sum:.1f} / 가중치합: {synergy_weight_sum:.1f}")
+            lines.append(f"  합계: {synergy_sum:.1f} / 가중치합: {synergy_weight_sum:g}")
             lines.append(f"  → 시너지 점수: {details['synergy_score']:.2f}")
             lines.append("")
         
@@ -3008,9 +3007,9 @@ class ChampionScraperApp:
         if counter_entries:
             lines.append("[ 카운터 ]")
             for name, lane, win_rate, counter_val, weight, weighted in counter_entries:
-                lines.append(f"  {name}({lane}): 100-{win_rate:.1f}={counter_val:.1f} × {weight:.1f} = {weighted:.1f}")
+                lines.append(f"  {name}({lane}): 100-{win_rate:.1f}={counter_val:.1f} × {weight:g} = {weighted:.1f}")
             counter_sum = sum(w for _, _, _, _, _, w in counter_entries)
-            lines.append(f"  합계: {counter_sum:.1f} / 가중치합: {counter_weight_sum:.1f}")
+            lines.append(f"  합계: {counter_sum:.1f} / 가중치합: {counter_weight_sum:g}")
             lines.append(f"  → 카운터 점수: {details['counter_score']:.2f}")
             lines.append("")
             
@@ -3592,7 +3591,7 @@ class ChampionScraperApp:
         """
         라인 가중치를 반환합니다.
         weight_type: "synergy" 또는 "counter"
-        저장된 값이 있으면 그것을 사용하고, 없으면 weight_settings.json의 기본값을 사용합니다.
+        저장된 값이 있으면 그것을 사용하고, 없으면 코드의 기본값을 사용합니다.
         """
         if not target_lane or not source_lane:
             from weight_settings_tab import LANE_WEIGHT_DEFAULT
@@ -3607,7 +3606,7 @@ class ChampionScraperApp:
         if saved_weight is not None:
             return float(saved_weight)
         
-        # 기본값 사용 (weight_settings.json에서)
+        # 기본값 사용
         from weight_settings_tab import LANE_WEIGHT_DEFAULT
         weight_settings = load_weight_settings()
         weight_type_settings = weight_settings.get(weight_type, {})

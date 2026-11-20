@@ -14,6 +14,7 @@ from collections import defaultdict
 from op_duos_tab import OpDuosTab
 from ignore_tab import IgnoreTab
 from my_champions_tab import MyChampionsTab, load_my_champions
+from pre_pick_tab import PRE_PICK_MIN_POPULARITY, PRE_PICK_MIN_WIN_RATE, PrePickTab
 from counter_synergy_tab import CounterSynergyTab
 from credits_tab import CreditsTab
 from weight_settings_tab import LANE_DISPLAY_NAMES, WeightSettingsTab, load_weight_settings
@@ -153,7 +154,6 @@ BANPICK_DEFAULT_LANES = ['jungle', 'bottom', 'support', 'middle', 'top']
 BANPICK_MIN_GAMES_DEFAULT = 150  # 마스터 이상·최근 30일 데이터 기준 (에메랄드 이상 데이터에서는 900)
 BANPICK_PICK_RATE_OVERRIDE = 1.5
 BANPICK_HIGH_SAMPLE_THRESHOLD = 2000  # 마스터 이상·최근 30일 데이터 기준 (에메랄드 이상 데이터에서는 10000)
-BANPICK_PRE_PICK_POPULARITY_THRESHOLD = 1.5
 SYNERGY_OP_THRESHOLD = 55.0
 COUNTER_RANK_MIN_PICK_RATE = 1.0  # 카운터 순위는 픽률(%)이 이 이상인 챔피언끼리만 매긴다
 SYNERGY_RANK_MIN_PICK_RATE = 3.0  # 시너지 순위는 픽률(%)이 이 이상인 챔피언끼리만 매긴다
@@ -1225,6 +1225,7 @@ class ChampionScraperApp:
         self.op_duos_tab = OpDuosTab(self.notebook, self, DATA_DIR)
         self.ignore_tab = IgnoreTab(self.notebook, self)
         self.my_champions_tab = MyChampionsTab(self.notebook, self)
+        self.pre_pick_tab = PrePickTab(self.notebook, self, DATA_DIR)
         self.credits_tab = CreditsTab(self.notebook, self)
         self.notebook.add(self.credits_tab, text="고마운 분들")
         
@@ -3411,17 +3412,15 @@ class ChampionScraperApp:
         dataset = self._get_recommend_counter_dataset(canonical, lane)
         if not dataset:
             return False
-        lane_entries = dataset.get(lane, {})
-        if not lane_entries:
-            return False
-        for details in lane_entries.values():
-            popularity = self.parse_float(details.get("popularity"))
-            if popularity <= BANPICK_PRE_PICK_POPULARITY_THRESHOLD:
-                continue
-            win_rate = self.parse_float(details.get("win_rate"))
-            if win_rate < 50.0:
-                return False
-        return True
+        worst = self.worst_matchup_win_rate(dataset.get(lane, {}))
+        return worst is not None and worst >= PRE_PICK_MIN_WIN_RATE
+
+    @staticmethod
+    def worst_matchup_win_rate(lane_entries):
+        """같은 라인에서 픽률이 PRE_PICK_MIN_POPULARITY 를 넘는 상대들에게 거둔 승률 중 가장 낮은 값 (그런 상대가 없으면 None)."""
+        parse = ChampionScraperApp.parse_float
+        return min((parse(details.get("win_rate")) for details in lane_entries.values()
+                    if parse(details.get("popularity")) > PRE_PICK_MIN_POPULARITY), default=None)
 
     def get_lane_weight(self, target_lane, source_lane, weight_type="counter"):
         """
@@ -3526,7 +3525,7 @@ class ChampionScraperApp:
                         raw_data = json.load(file)
                 except FileNotFoundError:
                     continue
-                except json.JSONDecodeError as e:
+                except ValueError as e:  # JSON 문법 오류와 UTF-8 이 아닌 파일 둘 다
                     if not suppress_errors:
                         messagebox.showerror(
                             "Error",
@@ -3541,6 +3540,8 @@ class ChampionScraperApp:
                         )
                     return None, None, False
 
+            if not isinstance(raw_data, dict):
+                continue
             payload = raw_data.get(data_key)
             if payload is None and data_key == "counters":
                 payload = raw_data

@@ -14,7 +14,9 @@ from collections import defaultdict
 from op_duos_tab import OpDuosTab
 from ignore_tab import IgnoreTab
 from my_champions_tab import MyChampionsTab, load_my_champions
-from pre_pick_tab import PRE_PICK_MIN_POPULARITY, PRE_PICK_MIN_WIN_RATE, PrePickTab
+from banpick_stats import table_inflations, worst_matchups
+from pre_pick_tab import PRE_PICK_MIN_WIN_RATE, PrePickTab
+from stats_tab import add_stats_tab
 from counter_synergy_tab import CounterSynergyTab
 from credits_tab import CreditsTab
 from weight_settings_tab import LANE_DISPLAY_NAMES, WeightSettingsTab, load_weight_settings
@@ -1145,7 +1147,8 @@ class ChampionScraperApp:
         
         self.dashboard_tab = tk.Frame(self.notebook)
         self.notebook.add(self.dashboard_tab, text="챔피언 추천")
-        self.recommend_counter_cache = {}
+        self.inflation = {}  # {(kind, 파일의 라인, 칸의 라인): 승률에서 뺄 부풀림}. 데이터를 다 읽은 뒤 채운다
+        self.pre_pick_worst = {}  # {라인: {챔피언: (가장 불리한 상대에게 거두는 승률, 그 상대)}}
         
         # 챔피언 데이터 캐시 및 사전 로딩
         self.champion_data_cache = {}
@@ -1201,6 +1204,13 @@ class ChampionScraperApp:
             print(f"Error during data preload: {e}")
             
         print(f"Preloaded {len(self.champion_data_cache)} champion data files.")
+        self.lane_files = {tuple(filename[:-len(".json")].rsplit("_", 1)): content
+                           for filename, content in self.champion_data_cache.items()}
+        try:
+            self.inflation = table_inflations(self.lane_files)
+            self.pre_pick_worst = {lane: worst_matchups(self.lane_files, lane) for lane in LANES}
+        except Exception as error:  # 데이터가 없거나 깨져도 앱은 떠야 한다 (부풀림 보정과 선픽 카드 없이 뜬다)
+            print(f"[WARN] Failed to prepare win rate correction: {error!r}")
 
         self.ignored_champions = self._initialize_ignored_champions()
         try:
@@ -1236,12 +1246,13 @@ class ChampionScraperApp:
         self.op_duos_tab = OpDuosTab(self.notebook, self, DATA_DIR)
         self.ignore_tab = IgnoreTab(self.notebook, self)
         self.my_champions_tab = MyChampionsTab(self.notebook, self)
-        self.pre_pick_tab = PrePickTab(self.notebook, self, DATA_DIR)
+        self.pre_pick_tab = PrePickTab(self.notebook, self)
         self.credits_tab = CreditsTab(self.notebook, self)
         self.notebook.add(self.credits_tab, text="고마운 분들")
         
         # Weight settings tab
         self.weight_settings_tab = WeightSettingsTab(self.notebook, self)
+        add_stats_tab(self.notebook, self)  # 계산에 몇 초 걸려서 다른 탭이 다 뜬 뒤에 붙인다
 
     def apply_theme(self, theme=None):
         """현재 테마 또는 지정된 테마를 적용합니다."""
@@ -1758,8 +1769,6 @@ class ChampionScraperApp:
             self.counter_synergy_tab.update_GUI()
             self.counter_synergy_tab.update_synergy_GUI()
 
-        self.recommend_counter_cache.clear()
-        
         self.update_banpick_recommendations()
         if self.op_duos_tab:
             self.op_duos_tab.populate_synergy_highlights()
@@ -3435,42 +3444,10 @@ class ChampionScraperApp:
             return resolved
         return stripped
 
-    def _get_recommend_counter_dataset(self, canonical_name: str, lane: str):
-        if not canonical_name or lane not in LANES:
-            return None
-        cache_key = (canonical_name, lane)
-        if cache_key in self.recommend_counter_cache:
-            return self.recommend_counter_cache[cache_key]
-        dataset, _resolved_lane, _ = self._load_lane_dataset(
-            canonical_name,
-            lane,
-            "Counter",
-            "counters",
-            self.sanitize_counter_entry,
-            suppress_errors=True,
-            apply_ignore_filter=False
-        )
-        self.recommend_counter_cache[cache_key] = dataset
-        return dataset
-
     def _qualifies_for_pre_pick_tag(self, champion_name: str, lane: str) -> bool:
-        if lane not in LANES:
-            return False
         canonical = self._resolve_canonical_for_dataset(champion_name)
-        if not canonical:
-            return False
-        dataset = self._get_recommend_counter_dataset(canonical, lane)
-        if not dataset:
-            return False
-        worst = self.worst_matchup_win_rate(dataset.get(lane, {}))
-        return worst is not None and worst >= PRE_PICK_MIN_WIN_RATE
-
-    @staticmethod
-    def worst_matchup_win_rate(lane_entries):
-        """같은 라인에서 픽률이 PRE_PICK_MIN_POPULARITY 를 넘는 상대들에게 거둔 승률 중 가장 낮은 값 (그런 상대가 없으면 None)."""
-        parse = ChampionScraperApp.parse_float
-        return min((parse(details.get("win_rate")) for details in lane_entries.values()
-                    if parse(details.get("popularity")) > PRE_PICK_MIN_POPULARITY), default=None)
+        worst = self.pre_pick_worst.get(lane, {}).get((canonical or "").lower())
+        return worst is not None and worst[0] >= PRE_PICK_MIN_WIN_RATE
 
     def get_lane_weight(self, target_lane, source_lane, weight_type="counter"):
         """
@@ -3606,7 +3583,14 @@ class ChampionScraperApp:
                 for name, entry in lane_payload.items():
                     if not isinstance(entry, dict):
                         continue
-                    sanitized_dataset[lane_name][name] = sanitize_entry(entry)
+                    sanitized = sanitize_entry(entry)
+                    win_rate = self.parse_float(sanitized["win_rate"])
+                    if win_rate:  # 수집한 승률에 얹힌 부풀림(마스터 이상 필터 때문에 약 2.5%p)을 뺀다
+                        win_rate -= self.inflation.get((data_key, lane_candidate, lane_name), 0.0)
+                        sanitized["win_rate"] = f"{win_rate:.2f}"
+                        if "win_rate_diff" in sanitized:
+                            sanitized["win_rate_diff"] = f"{win_rate - 50:.2f}"
+                    sanitized_dataset[lane_name][name] = sanitized
 
             if apply_ignore_filter:
                 self._apply_ignore_filter(sanitized_dataset)

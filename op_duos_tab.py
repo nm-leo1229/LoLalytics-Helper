@@ -177,6 +177,7 @@ class OpDuosTab:
                 
                 # Accessing app static methods (or methods)
                 win_rate = self.app.parse_float(str(entry.get("win_rate", "")).replace("%", ""))
+                win_rate -= self.app.inflation.get(("synergy", my_lane, partner_lane), 0.0)  # 다른 탭처럼 부풀림을 뺀 승률로 본다
                 pick_rate = self.app.parse_float(str(entry.get("pick_rate", "")).replace("%", ""))
                 games = self.app.parse_int(entry.get("games"))
 

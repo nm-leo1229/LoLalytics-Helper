@@ -18,13 +18,12 @@ def test_solo_lane_plan_removes_inflation_and_bans_the_counter():
     plan = lane_plan(data, "top")
 
     assert plan["first"] == "strong"
-    assert abs(plan["blind"]["strong"] - 52.0) < 0.2  # (40 + 56 * 3) / 4, 부풀린 2.5 는 빠져야 한다
-    assert plan["ban"] == "counter"
-    assert plan["worst"][0] == "other1" and abs(plan["worst"][1] - 56.0) < 0.2  # 밴한 counter 를 빼고 남은 상대 중에서 고른다
+    assert plan["ban"] == "counter"  # 선픽이 가장 불리한 상대
+    # 선픽 점수: counter 를 밴하고 남은 상대 중 최저 승률 56. 부풀린 2.5 는 빠져야 한다
+    assert plan["pick"]["strong"][2] == "counter" and abs(plan["pick"]["strong"][0] - 56.0) < 0.2
     assert lane_plan(data, "top", ignored={"other1"})["second"] != "other1"
     assert abs(table_inflations(data)["counters", "top", "top"] - 2.5) < 1e-9
-    win, _, ban = worst_matchups(data, "top")["strong"]  # 선픽 카드 판정에 쓰는 값: counter 를 밴하고 남은 상대 중 최저 승률
-    assert ban == "counter" and abs(win - 56.0) < 0.2
+    assert worst_matchups(data, "top") == plan["pick"]  # 선픽 카드 탭과 통계 분석 탭은 같은 점수를 쓴다
     # 종류별 선픽: AP 목록에 있는 챔피언 중 1위와 없는 챔피언 중 1위
     assert lane_plan(data, "top", ap={"counter", "other2"})["by_damage"] == [("AD", "strong"), ("AP", "other2")]
 
@@ -51,6 +50,6 @@ def test_duo_lane_plan_undoes_partner_skew():
 
     plan = lane_plan(data, "bottom")
 
-    assert plan["first"] == "solid"  # 맞라인 평균 (49 + 56 * 3) / 4 = 54.25
-    # paired: 맞라인 평균 (51 + 56 * 3) / 4 = 54.75 에 서포터 분포를 반반으로 되돌린 차이 (60 + 48) / 2 - (60 * 0.9 + 48 * 0.1) = -4.8 을 더한다
-    assert abs(plan["blind"]["paired"] - 49.95) < 0.3
+    assert plan["first"] == "solid"  # 선픽 점수 56: paired 를 밴하고 남은 상대(filler) 에게 56
+    # paired: solid 를 밴하고 남은 상대에게 56, 여기에 서포터 분포를 반반으로 되돌린 차이 (60 + 48) / 2 - (60 * 0.9 + 48 * 0.1) = -4.8 을 더한다
+    assert abs(plan["pick"]["paired"][0] - 51.2) < 0.3

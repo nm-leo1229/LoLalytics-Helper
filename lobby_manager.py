@@ -1148,7 +1148,7 @@ class ChampionScraperApp:
         self.dashboard_tab = tk.Frame(self.notebook)
         self.notebook.add(self.dashboard_tab, text="챔피언 추천")
         self.inflation = {}  # {(kind, 파일의 라인, 칸의 라인): 승률에서 뺄 부풀림}. 데이터를 다 읽은 뒤 채운다
-        self.pre_pick_worst = {}  # {라인: {챔피언: (밴 하나를 쓴 뒤 가장 불리한 상대에게 거두는 승률, 그 상대, 밴할 상대)}}
+        self.pre_pick_worst = {}  # {라인: {챔피언: (선픽 점수, 그 점수를 정한 상대, 밴할 상대)}}
         
         # 챔피언 데이터 캐시 및 사전 로딩
         self.champion_data_cache = {}

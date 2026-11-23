@@ -78,19 +78,8 @@ def table_inflations(data):
 
 
 def worst_matchups(data, lane):
-    """{챔피언: (밴 하나를 쓴 뒤 가장 불리한 상대에게 거두는 승률, 그 상대, 밴할 상대)}: 선픽 카드 판정에 쓴다.
-
-    가장 불리한 상대는 내가 밴한다고 보고 그다음으로 불리한 상대를 본다. 챔피언·상대의 범위는 통계 분석과 같다."""
-    same = _table(data, lane, "counters", lane)
-    share = _shares(same)
-    versus = _shrunk(_corrected(same, same, False))
-    popular = [b for b in share if share[b] >= MIN_OPPONENT_SHARE]
-    worst = {}
-    for a in share:
-        if share[a] >= MIN_CANDIDATE_SHARE:
-            (_, ban), (win, opponent) = sorted((versus(a, b), b) for b in popular if b != a)[:2]
-            worst[a] = (win, opponent, ban)
-    return worst
+    """{챔피언: (선픽 점수, 그 점수를 정한 상대, 밴할 상대)}: 선픽 카드 탭에 쓴다. 추천 제외 목록의 챔피언도 넣는다."""
+    return _Lane(data, lane, set()).pick
 
 
 def _corrected(mine, theirs, same_team):
@@ -187,8 +176,17 @@ class _Lane:
                     self.base[a] += usual - _mean(wins, met or partner_share)
                     gaps[a] = {x: value - usual for x, value in wins.items()}
                 self.factors.append(self._factor(enemy, partner, partner_share, gaps))
+        # 선픽 점수: 가장 불리한 상대 하나는 내가 밴한다고 보고, 그다음으로 불리한 상대에게 거두는 승률 (짝 편중 보정 포함).
+        # 선픽 카드 탭의 순위와 통계 분석 탭의 선픽·대안·밴이 모두 이 값을 쓴다.
+        self.pick = {}
+        for a in self.candidates:
+            versus_a = self.factors[0][3][a]
+            (_, ban), (win, opponent) = sorted((versus_a[b], b) for b in versus_a if b not in (OTHERS, a))[:2]
+            self.pick[a] = (win + self.base[a], opponent, ban)
+
+    def _prepare(self):
+        """상태(무엇이 보이는지)마다 가능한 문맥(보이는 챔피언의 조합)과, 그 문맥에서 후보가 얻는 승률 기여를 만들어 둔다"""
         self.states = _state_chances([factor[0] for factor in self.factors])
-        # 상태(무엇이 보이는지)마다 가능한 문맥(보이는 챔피언의 조합)과, 그 문맥에서 후보가 얻는 승률 기여
         self.contexts, self.scores = {}, {}
         for state in self.states:
             known = [factor for factor, seen in zip(self.factors, state) if seen]
@@ -242,21 +240,10 @@ class _Lane:
             best[state] = [top if top > -math.inf else 50.0 for top in map(max, zip(*rows))]
         return best
 
-    def _blind(self, world, a):
-        """상대 쪽이 아무도 안 보일 때 a 를 고르는 승률 (아군 짝은 픽 순서에 따라 보이기도 한다)"""
-        total = chance = 0.0
-        for state, (odds, offsets) in world.items():
-            if not any(seen and factor[0] for seen, factor in zip(state, self.factors)):
-                total += sum(odd * (offsets[a] + score) for odd, score in zip(odds, self.scores[state][a]))
-                chance += sum(odds)
-        return total / chance
-
-    def plan(self, first, ban=None, cards=None):
-        """first 를 선픽으로 둔 설계. cards 를 주면 후픽 카드를 새로 고르지 않고 그대로 쓴다 (밴 후보끼리 비교할 때)."""
-        banned = {ban} - {None}
+    def plan(self, first, second, ban):
+        """선픽 first, 대안 second, 밴 ban 으로 둔 설계: 준비할 후픽 카드와 꺼낼 상황을 고른다."""
         # 선픽을 쓸 수 있는 판과, 선픽이 밴되거나 뺏겨 대안으로 가는 판
-        worlds = [(1 - FIRST_PICK_GONE, self._world(banned)), (FIRST_PICK_GONE, self._world(banned | {first}))]
-        second = max((a for a in self.candidates if a not in banned | {first}), key=lambda a: self._blind(worlds[1][1], a))
+        worlds = [(1 - FIRST_PICK_GONE, self._world({ban})), (FIRST_PICK_GONE, self._world({ban, first}))]
         bests = [self._best(worlds[0][1], [first, second]), self._best(worlds[1][1], [second])]
 
         def gain(card):
@@ -267,21 +254,17 @@ class _Lane:
 
         picked = []
         for _ in range(MAX_CARDS):
-            rest = [a for a in (self.candidates if cards is None else cards)
-                    if a not in banned | {first, second} and a not in dict(picked)]
+            rest = [a for a in self.candidates if a not in (first, second, ban) and a not in dict(picked)]
             if not rest:
                 break
             value, card = max((gain(a), a) for a in rest)
-            if cards is None and value < CARD_COST:
+            if value < CARD_COST:
                 break
             picked.append((card, value))
             for (_, world), best in zip(worlds, bests):
                 for state, (_, offsets) in world.items():
                     best[state] = [max(pair) for pair in zip(best[state], (offsets[card] + score for score in self.scores[state][card]))]
-        value = sum(weight * odd * top for (weight, world), best in zip(worlds, bests)
-                    for state, (odds, _) in world.items() for odd, top in zip(odds, best[state]))
         return {"first": first, "second": second, "ban": ban, "cards": picked,
-                "score": value - CARD_COST * len(picked),  # 카드 수가 다른 설계끼리 견줄 때 쓰는 값
                 "uses": self._uses(worlds[0][1], [first, second] + [card for card, _ in picked])}
 
     def _uses(self, world, pool):
@@ -299,37 +282,36 @@ class _Lane:
         return {a: [use for _, use in sorted(uses, reverse=True)[:3]] for a, uses in found.items()}
 
     def solve(self):
-        world = self._world(set())
-        ranking = sorted(((self._blind(world, a), a) for a in self.candidates), reverse=True)
-        first = ranking[0][1]
-        cards = [card for card, _ in self.plan(first)["cards"]]
-        bans = sorted({x for _, _, champions, _ in self.factors for x in champions} - {first, OTHERS})
-        ban = max(bans, key=lambda x: self.plan(first, x, cards)["score"])
-        versus = self.factors[0][3][first]
-        worst = min((b for b in versus if b not in (OTHERS, ban, first)), key=versus.get)
-        return {**self.plan(first, ban), "blind": {a: blind for blind, a in ranking}, "worst": (worst, versus[worst]),
-                "ranking": [(a, blind, self.share[a]) for blind, a in ranking[:5]]}
+        self._prepare()
+        ranking = sorted(self.pick, key=lambda a: -self.pick[a][0])
+        first = ranking[0]
+        ban = self.pick[first][2]
+        second = next(a for a in ranking[1:] if a != ban)
+        return {**self.plan(first, second, ban), "pick": self.pick,
+                "ranking": [(a, self.pick[a][0], self.share[a]) for a in ranking[:5]]}
 
 
 def lane_plan(data, lane, ignored=(), ap=()):
-    """한 라인의 설계: 선픽 first(가장 불리한 상대 worst), 대안 second, 밴 ban, 후픽 cards[(챔피언, 올리는 승률)], 꺼낼 때 uses, 선픽 순위 ranking.
+    """한 라인의 설계: 선픽 first, 대안 second, 밴 ban, 후픽 cards[(챔피언, 올리는 승률)], 꺼낼 때 uses, 선픽 순위 ranking,
+    챔피언별 선픽 점수 pick{챔피언: (점수, 그 점수를 정한 상대, 밴할 상대)}.
 
     딜러 라인은 by_damage[("AD", 챔피언), ("AP", 챔피언)] 도 준다: 아군 조합이 한쪽으로 쏠릴 때 고를 종류별 선픽 1위. ap 는 AP 딜러 이름들."""
     plan = _Lane(data, lane, set(ignored)).solve()
     if lane != "support":  # 딜러 라인은 팀의 AD·AP 균형을 맞춰 골라야 한다
         # ponytail: AP 딜러 목록에 없으면 AD 로 본다 (탱커도 AD 쪽에 낀다). AD 딜러 목록이 생기면 그것으로 가른다
-        plan["by_damage"] = [(label, next((a for a in plan["blind"] if (a in ap) == is_ap), None))  # blind 는 승률이 높은 순
+        plan["by_damage"] = [(label, next((a for a, *_ in sorted(plan["pick"].items(), key=lambda item: -item[1][0]) if (a in ap) == is_ap), None))
                              for label, is_ap in (("AD", False), ("AP", True))]
     return plan
 
 
 def plan_rows(plan, lane_names, name=str):
     """설계를 화면에 한 줄씩 보여줄 글로 바꾼다. lane_names 는 {라인: 표시 이름}, name 은 챔피언 표시 이름 함수"""
-    rows = [f"선픽  {name(plan['first'])}  {plan['blind'][plan['first']]:.1f}",
-            f"  불리한 상대 {name(plan['worst'][0])}  {plan['worst'][1]:.1f}",
-            f"대안  {name(plan['second'])}  {plan['blind'][plan['second']]:.1f}",
+    score = {champion: value for champion, (value, _, _) in plan["pick"].items()}
+    rows = [f"선픽  {name(plan['first'])}  {score[plan['first']]:.1f}",
+            f"  밴 뒤 불리한 상대 {name(plan['pick'][plan['first']][1])}",
+            f"대안  {name(plan['second'])}  {score[plan['second']]:.1f}",
             f"밴  {name(plan['ban'])}"]
-    rows += [f"{label} 선픽  {name(champion)}  {plan['blind'][champion]:.1f}" for label, champion in plan.get("by_damage", []) if champion]
+    rows += [f"{label} 선픽  {name(champion)}  {score[champion]:.1f}" for label, champion in plan.get("by_damage", []) if champion]
     gains = dict(plan["cards"])
     for champion in [plan["second"]] + list(gains):
         uses = plan["uses"].get(champion)
@@ -340,7 +322,7 @@ def plan_rows(plan, lane_names, name=str):
         for enemy, lane, x, win in uses or []:
             rows.append(f"  {'상대' if enemy else '아군'} {lane_names[lane]} {name(x)}  {win:.1f}")
     rows += ["", "선픽 순위 (픽 점유율)"]
-    rows += [f"  {name(champion)}  {blind:.1f}  ({share * 100:.1f}%)" for champion, blind, share in plan["ranking"]]
+    rows += [f"  {name(champion)}  {value:.1f}  ({share * 100:.1f}%)" for champion, value, share in plan["ranking"]]
     return rows
 
 

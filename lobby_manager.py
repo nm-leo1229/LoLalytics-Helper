@@ -43,6 +43,8 @@ except ImportError:  # requests는 선택적 의존성
 
 ALIAS_FILE = resolve_resource_path("champion_aliases.json")
 IGNORED_CHAMPIONS_FILE = resolve_resource_path("ignored_champions.json")
+AP_CHAMPIONS_FILE = resolve_resource_path("ap_champions.json")  # 주 피해가 마법 피해인 딜러
+AP_WARNING_COUNT = 2  # 아군 AP 딜러가 이만큼 이상이면 경고
 UI_SETTINGS_FILE = resolve_resource_path("ui_settings.json")
 DATA_DIR = Path(resolve_resource_path("data"))
 LOG_DIR = Path(resolve_resource_path("logs"))
@@ -1201,6 +1203,15 @@ class ChampionScraperApp:
         print(f"Preloaded {len(self.champion_data_cache)} champion data files.")
 
         self.ignored_champions = self._initialize_ignored_champions()
+        try:
+            with open(AP_CHAMPIONS_FILE, "r", encoding="utf-8") as handle:
+                ap_names = json.load(handle)
+        except (OSError, ValueError):
+            ap_names = []
+        if not isinstance(ap_names, list):  # 손으로 고친 파일이 목록이 아니어도 앱은 떠야 한다
+            ap_names = []
+        self.ap_champions = {resolved.lower() for name in ap_names if isinstance(name, str)
+                             for resolved in [self.resolve_champion_name(name)] if resolved}
         my_champions_only, self.my_champions = load_my_champions()
         self.my_champions_only_var = tk.BooleanVar(value=my_champions_only)
         
@@ -1349,7 +1360,7 @@ class ChampionScraperApp:
     def build_dashboard_tab(self):
         self.banpick_slots = {"allies": [], "enemies": []}
         self.my_lane_var = tk.StringVar(value="")
-        self.my_lane_var.trace_add("write", lambda *_: self.update_banpick_recommendations())
+        self.my_lane_var.trace_add("write", lambda *_: (self.update_banpick_recommendations(), self.update_team_total_scores()))
         lcu_frame = tk.LabelFrame(self.dashboard_tab, text="클라이언트 연결 상태")
         lcu_frame.pack(fill="x", padx=10, pady=(0, 5))
         tk.Label(
@@ -1496,6 +1507,11 @@ class ChampionScraperApp:
         self.recommend_pick_rate_entry.bind("<FocusOut>", lambda _e: self.update_banpick_recommendations())
         # 켜고 끄면 내 챔피언 탭이 저장하고 추천을 다시 계산한다
         tk.Checkbutton(filter_frame, text="내 챔피언만", variable=self.my_champions_only_var).pack(side="left", padx=(10, 0))
+        # 나를 뺀 아군 AP 딜러가 AP_WARNING_COUNT 명 이상이면(경고와 같은 조건) 추천에서 AP 딜러를 뺀다
+        self.exclude_ap_var = tk.BooleanVar(value=self.ui_settings.get("exclude_ap_when_team_ap") is True)
+        self.exclude_ap_var.trace_add("write", lambda *_: self._on_exclude_ap_changed())
+        tk.Checkbutton(filter_frame, text=f"아군 AP {AP_WARNING_COUNT}명 이상이면 AP 제외",
+                       variable=self.exclude_ap_var).pack(side="left", padx=(10, 0))
 
         columns = ("챔피언", "태그", "최종 점수", "시너지", "카운터")
         self.recommend_tree = ttk.Treeview(recommend_frame, columns=columns, show="headings", height=8)
@@ -1861,6 +1877,16 @@ class ChampionScraperApp:
         default_color = self.current_theme.get("score_default", "blue")
         total_label = tk.Label(column, text="조합 점수: 0.00", font=("Segoe UI", 10, "bold"), fg=default_color)
         total_label.pack(fill="x", pady=(0, 5))
+
+        if side_key == "allies":
+            # AP 딜러 경고(나를 뺀 아군 AP 딜러가 2명 이상)는 "우리팀" 제목 줄 옆에 둔다: 줄을 새로 쓰면 열이 높아져 아래 버튼이 눌린다
+            title_row = tk.Frame(column)
+            tk.Label(title_row, text=title).pack(side="left")
+            self.ap_warning_label = tk.Label(title_row, font=("Segoe UI", 9, "bold"),
+                                             fg=self.current_theme.get("score_low", "#C62828"))
+            self.ap_warning_names = []
+            ScoreTooltip(self.ap_warning_label, lambda: "AP 딜러: " + ", ".join(self.ap_warning_names))
+            column.configure(labelwidget=title_row)
 
         return column, total_label, ban_label
 
@@ -3011,6 +3037,18 @@ class ChampionScraperApp:
         
         return "\n".join(lines)
 
+    def _ally_ap_names(self):
+        """나를 뺀 아군 AP 딜러 이름들. 내 슬롯(나의 라인 칸)은 내가 AP 를 고를지 정하는 자리라 세지 않는다."""
+        my_lane = self.my_lane_var.get()
+        return [slot.get("display_name") or slot["canonical_name"] for slot in self.banpick_slots.get("allies", [])
+                if slot.get("canonical_name") and slot["canonical_name"].lower() in self.ap_champions
+                and not (my_lane and (slot["lane"].get() or "").lower() == my_lane)]
+
+    def _on_exclude_ap_changed(self):
+        self.ui_settings["exclude_ap_when_team_ap"] = self.exclude_ap_var.get()
+        self._save_ui_settings()
+        self.update_banpick_recommendations()
+
     def update_team_total_scores(self):
         """우리팀과 상대팀의 총 조합 점수를 업데이트합니다"""
         if not hasattr(self, "team_total_labels"):
@@ -3056,6 +3094,15 @@ class ChampionScraperApp:
         
         allies_label = self.team_total_labels.get("allies")
         enemies_label = self.team_total_labels.get("enemies")
+
+        ap_names = self._ally_ap_names()
+        if len(ap_names) >= AP_WARNING_COUNT:
+            self.ap_warning_names = ap_names  # 이름은 툴팁으로 (제목 줄이 넓어지지 않게)
+            self.ap_warning_label.config(text=f"⚠ AP 딜러 {len(ap_names)}명",
+                                         fg=self.current_theme.get("score_low", "#C62828"))
+            self.ap_warning_label.pack(side="left", padx=(8, 0))
+        else:
+            self.ap_warning_label.pack_forget()
         
         if allies_label:
             if allies_complete and allies_avg > 0:
@@ -3284,6 +3331,7 @@ class ChampionScraperApp:
 
 
         recommendations = []
+        exclude_ap = self.exclude_ap_var.get() and len(self._ally_ap_names()) >= AP_WARNING_COUNT
 
         for champ_name, components in scores.items():
             # 목록 이름과 슬롯 이름이 다른 챔피언(Renata Glasc/renata, Nunu & Willump/nunu)도 걸러지게 정식 이름으로도 비교한다
@@ -3298,6 +3346,8 @@ class ChampionScraperApp:
                 if (canonical_name or champ_name).lower() not in self.my_champions[target_lane]:
                     continue
             elif self.is_champion_ignored(champ_name):
+                continue
+            if exclude_ap and (canonical_name or champ_name).lower() in self.ap_champions:
                 continue
             if components["has_low_pick_gap"]:
                 continue

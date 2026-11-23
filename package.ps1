@@ -8,6 +8,7 @@ Write-Host "Copying files..."
 Copy-Item "dist/TtimoTtabbong_$version.exe" -Destination $releaseDir
 Copy-Item "data" -Destination $releaseDir -Recurse
 Copy-Item "ignored_champions.json" -Destination $releaseDir
+Copy-Item "ap_champions.json" -Destination $releaseDir
 Copy-Item "ui_settings.json" -Destination $releaseDir
 Copy-Item "credits.json" -Destination $releaseDir
 Copy-Item "champion_aliases.json" -Destination $releaseDir

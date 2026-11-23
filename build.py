@@ -16,6 +16,7 @@ args = [
     "--add-data=data;data",
     "--add-data=champion_aliases.json;.",
     "--add-data=ignored_champions.json;.",
+    "--add-data=ap_champions.json;.",
     "--add-data=credits.json;.",
     "--icon=icon.ico",
     "--exclude-module=scraper",

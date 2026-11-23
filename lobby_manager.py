@@ -2306,14 +2306,14 @@ class ChampionScraperApp:
             
         slot_canonical = slot.get("canonical_name")
         
-        # If this is the local player and my_lane_var is not set, set it to this slot's lane
-        if is_local_player:
-            if not self.my_lane_var.get():
-                slot_lane = slot.get("lane")
-                if slot_lane:
-                    lane_value = slot_lane.get().lower()
-                    if lane_value in LANES:
-                        self.my_lane_var.set(lane_value)
+        # If this is the local player and my_lane_var is not set, set it to the lane this slot ends up on:
+        # the client's assigned position (applied below unless the slot is manual), else the slot's current lane
+        if is_local_player and not self.my_lane_var.get():
+            lane_value = (entry.get("assignedPosition") or "").lower().replace("utility", "support")
+            if lane_value not in LANES or (slot.get("manual_var") and slot["manual_var"].get()):
+                lane_value = slot["lane"].get().lower() if slot.get("lane") else ""
+            if lane_value in LANES:
+                self.my_lane_var.set(lane_value)
         
         if slot_canonical and normalized and slot_canonical.lower() == normalized:
             slot["client_last_champion"] = normalized

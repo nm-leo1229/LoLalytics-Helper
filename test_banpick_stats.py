@@ -23,8 +23,8 @@ def test_solo_lane_plan_removes_inflation_and_bans_the_counter():
     assert plan["worst"][0] == "other1" and abs(plan["worst"][1] - 56.0) < 0.2  # 밴한 counter 를 빼고 남은 상대 중에서 고른다
     assert lane_plan(data, "top", ignored={"other1"})["second"] != "other1"
     assert abs(table_inflations(data)["counters", "top", "top"] - 2.5) < 1e-9
-    worst = worst_matchups(data, "top")  # 선픽 카드 판정에 쓰는 값: 가장 불리한 상대에게 거두는 승률
-    assert worst["strong"][1] == "counter" and abs(worst["strong"][0] - 40.0) < 0.2
+    win, _, ban = worst_matchups(data, "top")["strong"]  # 선픽 카드 판정에 쓰는 값: counter 를 밴하고 남은 상대 중 최저 승률
+    assert ban == "counter" and abs(win - 56.0) < 0.2
     # 종류별 선픽: AP 목록에 있는 챔피언 중 1위와 없는 챔피언 중 1위
     assert lane_plan(data, "top", ap={"counter", "other2"})["by_damage"] == [("AD", "strong"), ("AP", "other2")]
 

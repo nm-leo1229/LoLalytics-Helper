@@ -78,12 +78,19 @@ def table_inflations(data):
 
 
 def worst_matchups(data, lane):
-    """{챔피언: (가장 불리한 상대에게 거두는 승률, 그 상대)}: 선픽 카드 판정에 쓴다. 챔피언·상대의 범위는 통계 분석과 같다."""
+    """{챔피언: (밴 하나를 쓴 뒤 가장 불리한 상대에게 거두는 승률, 그 상대, 밴할 상대)}: 선픽 카드 판정에 쓴다.
+
+    가장 불리한 상대는 내가 밴한다고 보고 그다음으로 불리한 상대를 본다. 챔피언·상대의 범위는 통계 분석과 같다."""
     same = _table(data, lane, "counters", lane)
     share = _shares(same)
     versus = _shrunk(_corrected(same, same, False))
     popular = [b for b in share if share[b] >= MIN_OPPONENT_SHARE]
-    return {a: min((versus(a, b), b) for b in popular if b != a) for a in share if share[a] >= MIN_CANDIDATE_SHARE}
+    worst = {}
+    for a in share:
+        if share[a] >= MIN_CANDIDATE_SHARE:
+            (_, ban), (win, opponent) = sorted((versus(a, b), b) for b in popular if b != a)[:2]
+            worst[a] = (win, opponent, ban)
+    return worst
 
 
 def _corrected(mine, theirs, same_team):

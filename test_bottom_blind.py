@@ -145,3 +145,20 @@ def test_phase_picks_use_all_non_bottom_champions_and_keep_jungle_out():
         assert [(c.champion, c.early_style) for c in cards] == [("darius", True), ("kayle", False)]
     assert rank_lane_cards(profiles, "bottom") == []
     assert rank_lane_cards(profiles, "jungle") == []
+
+
+def test_style_pick_recommends_the_ban_that_raises_its_floor_most():
+    from bottom_blind import style_pick_rows
+
+    # ezreal 은 draven 에게 밀리고 zeri 를 이긴다 (jhin 은 이미 밴): draven 을 밴하면 불리한 상성 평균이 가장 오른다.
+    profiles = {
+        "ezreal": profile([("draven", 50, 30, 5000), ("jhin", 52, 30, 5000), ("zeri", 58, 30, 5000)], early=650),
+        "draven": profile([("ezreal", 52, 30, 5000), ("jhin", 52, 30, 5000), ("zeri", 52, 30, 5000)]),
+        "jhin": profile([("ezreal", 54, 30, 5000), ("draven", 52, 30, 5000), ("zeri", 52, 30, 5000)]),
+        "zeri": profile([("ezreal", 46, 30, 5000), ("draven", 52, 30, 5000), ("jhin", 52, 30, 5000)]),
+    }
+    rows = style_pick_rows("bottom", profiles, {"jhin"})
+    assert rows[0] == "초중반형 선픽  ezreal"
+    assert rows[3].startswith("  추천 밴 draven → 불리한 상성 ")
+    # 이미 밴된 상대는 다시 추천하지 않는다
+    assert not any("추천 밴 jhin" in row for row in rows)

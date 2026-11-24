@@ -160,12 +160,22 @@ def rank_bottom_cards(profiles, banned=frozenset()):
     return rank_lane_cards(profiles, "bottom", banned)
 
 
+def best_ban(champion, profiles, weights, banned=frozenset()):
+    """champion 을 선픽할 때 하나 더 밴하면 불리한 상성 평균이 가장 오르는 상대와 그때의 평균. 올릴 상대가 없으면 None."""
+    banned = set(banned)
+    options = [(floor, opponent) for opponent in sorted(weights) if opponent != champion and opponent not in banned
+               for floor in [matchup_floor(champion, profiles, weights, banned | {opponent})] if floor is not None]
+    current = matchup_floor(champion, profiles, weights, banned)
+    floor, opponent = max(options, default=(None, None))
+    return (opponent, floor) if opponent and (current is None or floor > current) else None
+
+
 def style_pick_rows(lane, profiles, banned=(), name=str):
     """라인 칸에 표시할 유형별 1순위. 기준 미달이면 해당 유형은 비워 둔다."""
     if lane not in STYLE_LANES:
         return []
     cards = rank_lane_cards(profiles, lane, banned)
-    weights = common_opponent_weights(profiles) if banned else {}
+    weights = common_opponent_weights(profiles)
     rows = []
     for early_style, label in ((True, "초중반형 선픽"), (False, "후반형 선픽")):
         card = next((c for c in cards if c.early_style == early_style), None)
@@ -179,4 +189,7 @@ def style_pick_rows(lane, profiles, banned=(), name=str):
         rows.extend([f"{label}  {name(card.champion)}",
                      f"  15–25분 {card.early:+.2f}%p · 30–40분 {card.late:+.2f}%p",
                      f"  불리한 상성 {floor}"])
+        ban = best_ban(card.champion, profiles, weights, banned)
+        if ban:
+            rows.append(f"  추천 밴 {name(ban[0])} → 불리한 상성 {ban[1]:.2f}%")
     return rows

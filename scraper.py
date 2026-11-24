@@ -659,7 +659,8 @@ def main():
             try:
                 collect_lane_snapshot(lane, champion_lane_list[lane], lambda name: read_lane_state(driver, name, lane),
                                       Path("data"))
-            except (ValueError, OSError, WebDriverException) as exc:
+            # 드라이버가 죽으면 selenium 이 urllib3 오류를 그대로 올린다: 이것도 잡아야 아래 챔피언별 수집으로 넘어간다
+            except (ValueError, OSError, WebDriverException, urllib3.exceptions.HTTPError) as exc:
                 print(f"{lane} blind-pick data could not be refreshed: {exc}")
     finally:
         quit_driver(driver)

@@ -1,1 +1,1 @@
-call python C:\Users\user\Documents\LoLalytics-Helper\LoLalytics-Helper\lobby_manager.py
+@python "%~dp0lobby_manager.py"

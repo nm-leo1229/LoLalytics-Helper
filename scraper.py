@@ -8,6 +8,11 @@ import time
 import json
 import os
 import urllib3
+from datetime import datetime, timezone
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+
+from bottom_blind import STYLE_LANES, common_opponent_weights, snapshot_path, valid_profile
 
 
 def load_champion_names():
@@ -88,6 +93,85 @@ def normalize_champion_name(name):
 def generate_url(name, lane):
     formatted_name = normalize_champion_name(name)
     return f"https://lolalytics.com/lol/{formatted_name}/build/?lane={lane}&tier=master_plus&patch=30"
+
+
+def extract_lane_profile(state, champion, lane):
+    """같은 빌드 페이지에서 종료 구간별 [게임 수, 승리 수]와 맞라인 상성을 읽는다."""
+    try:
+        objects = json.loads(state)["objs"]
+        records = [item for item in objects if isinstance(item, dict)]
+
+        def resolve(ref):
+            return objects[int(ref, 36)]
+
+        filters = {"champion": champion, "lane": lane, "tier": "master_plus",
+                   "region": "all", "mode": "ranked", "patch": "30"}
+        if not any(all(key in row and resolve(row[key]) == value for key, value in filters.items())
+                   for row in records):
+            raise ValueError("unexpected champion or queue filters")
+        chart = next(row for row in records if "time" in row and "timeWin" in row)
+        games = resolve(chart["time"])
+        wins = resolve(chart["timeWin"])
+        bins = [[resolve(games[str(i)]), resolve(wins[str(i)])] for i in range(1, 8)]
+
+        paths = resolve(next(row["champPath"] for row in records if "champPath" in row and "champId" in row))
+        rows = next(resolve(row[lane]) for row in records
+                    if row.keys() == set(LANES) and isinstance(resolve(row[lane]), list))
+        matchups = {}
+        for ref in rows:
+            champ_id, win_rate, _, _, popularity, count = map(resolve, resolve(ref))
+            opponent = resolve(paths[str(champ_id)])
+            matchups[opponent] = {"win_rate": win_rate, "popularity": popularity, "games": count}
+        profile = {"time": bins, "matchups": matchups}
+        if not valid_profile(profile):
+            raise ValueError("invalid game counts or matchups")
+        return profile
+    except (KeyError, IndexError, TypeError, ValueError, StopIteration) as exc:
+        raise ValueError(f"Invalid {lane} profile for {champion}: {exc}") from exc
+
+
+def collect_lane_snapshot(lane, champions, read_state, data_dir):
+    """모든 대상 수집이 끝난 뒤에만 이전 선픽 표본을 한 번에 교체한다."""
+    path = snapshot_path(data_dir, lane)
+    profiles = {name: extract_lane_profile(read_state(name), name, lane) for name in sorted(set(champions))}
+    if not profiles:
+        raise ValueError(f"Empty {lane} tier list")
+    # 후보와 자주 만나는 상대의 양방향 행을 보존한다.
+    opponents = profiles.keys() | common_opponent_weights(profiles).keys()
+    for name, profile in profiles.items():
+        profile["matchups"] = {enemy: row for enemy, row in profile["matchups"].items() if enemy in opponents}
+        if not profile["matchups"]:
+            raise ValueError(f"No {lane} opponents in the collected pool for {name}")
+    snapshot = {"collected_on": datetime.now(timezone.utc).date().isoformat(), "profiles": profiles}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = NamedTemporaryFile(dir=path.parent, delete=False, mode="w", encoding="utf-8")
+    temporary_path = Path(handle.name)
+    try:
+        with handle:
+            json.dump(snapshot, handle, indent=2, allow_nan=False)
+            handle.write("\n")
+        temporary_path.replace(path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def read_lane_state(driver, champion, lane):
+    driver.get(generate_url(champion, lane))
+    return WebDriverWait(driver, 15).until(lambda browser: browser.execute_script(
+        """return document.querySelector('script[type="qwik/json"]')?.textContent"""))
+
+
+def extract_bottom_profile(state, champion):
+    return extract_lane_profile(state, champion, "bottom")
+
+
+def collect_bottom_snapshot(champions, read_state, data_dir):
+    return collect_lane_snapshot("bottom", champions, read_state, data_dir)
+
+
+def read_bottom_state(driver, champion):
+    return read_lane_state(driver, champion, "bottom")
+
 
 def format_data(element):
     text = element.text.replace('\n', ' ').strip().split()
@@ -361,6 +445,22 @@ def save_data(full_name, data, lane):
     except IOError as e:
         print(f"Error saving data to file: {e}")
 
+def chrome_major_version():
+    override = os.environ.get("SCRAPER_CHROME_VERSION_MAIN", "").strip()
+    if override.isdigit():
+        return int(override)
+    if os.name == "nt":
+        import winreg
+
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Google\Chrome\BLBeacon") as key:
+                version, _ = winreg.QueryValueEx(key, "version")
+            return int(version.split(".")[0])
+        except (OSError, ValueError):
+            pass
+    return None  # 설치 정보를 읽을 수 없으면 드라이버의 기본 버전 선택을 사용한다.
+
+
 def create_driver():
     """Create and configure a new Chrome driver instance."""
     options = uc.ChromeOptions()
@@ -389,15 +489,7 @@ def create_driver():
     # 자동재생 비활성화
     options.add_argument('--autoplay-policy=user-gesture-required')
 
-    # 원격 서버의 Chrome 메이저 버전에 맞추려면 SCRAPER_CHROME_VERSION_MAIN=134 처럼 설정
-    chrome_kwargs = {"options": options}
-    vm = os.environ.get("SCRAPER_CHROME_VERSION_MAIN")
-    if vm and vm.strip().isdigit():
-        chrome_kwargs["version_main"] = int(vm.strip())
-    else:
-        chrome_kwargs["version_main"] = 152
-
-    driver = uc.Chrome(**chrome_kwargs)
+    driver = uc.Chrome(options=options, version_main=chrome_major_version())
     # 창이 다른 창에 가려져도 페이지가 계속 그려지게 한다 (안 하면 스크롤로 채워지는 목록이 멈추거나 일부만 수집된다)
     driver.execute_cdp_cmd("Emulation.setFocusEmulationEnabled", {"enabled": True})
     driver.set_page_load_timeout(60)
@@ -563,6 +655,12 @@ def main():
     driver = create_driver()
     try:
         champion_lane_list = {lane: fetch_lane_champions(driver, lane) for lane in LANES}
+        for lane in STYLE_LANES:
+            try:
+                collect_lane_snapshot(lane, champion_lane_list[lane], lambda name: read_lane_state(driver, name, lane),
+                                      Path("data"))
+            except (ValueError, OSError, WebDriverException) as exc:
+                print(f"{lane} blind-pick data could not be refreshed: {exc}")
     finally:
         quit_driver(driver)
     print({lane: len(names) for lane, names in champion_lane_list.items()})

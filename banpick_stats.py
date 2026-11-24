@@ -313,12 +313,22 @@ def lane_plan(data, lane, ignored=(), ap=()):
     return plan
 
 
-def plan_rows(plan, lane_names, name=str):
+def plan_rows(plan, lane_names, name=str, phases=None):
     """설계를 화면에 한 줄씩 보여줄 글로 바꾼다. lane_names 는 {라인: 표시 이름}, name 은 챔피언 표시 이름 함수"""
     score = {champion: value for champion, (value, _, _) in plan["pick"].items()}
-    rows = [f"선픽  {name(plan['first'])}  {score[plan['first']]:.1f}",
+
+    def pick_line(label, champion):
+        line = f"{label}  {name(champion)}  {score[champion]:.1f}"
+        if phases is None:
+            return line
+        values = phases.get(champion)
+        if values and max(values) > 0:
+            line += " · " + ("초중반형" if values[0] >= values[1] else "후반형")
+        return "종합 " + line
+
+    rows = [pick_line("선픽", plan["first"]),
             f"  밴 뒤 불리한 상대 {name(plan['pick'][plan['first']][1])}",
-            f"대안  {name(plan['second'])}  {score[plan['second']]:.1f}",
+            pick_line("대안", plan["second"]),
             f"밴  {name(plan['ban'])}"]
     rows += [f"{label} 선픽  {name(champion)}  {score[champion]:.1f}" for label, champion in plan.get("by_damage", []) if champion]
     gains = dict(plan["cards"])
@@ -336,13 +346,23 @@ def plan_rows(plan, lane_names, name=str):
 
 
 if __name__ == "__main__":
+    from bottom_blind import STYLE_LANES, load_lane_snapshot, phase_scores, style_pick_rows
     from weight_settings_tab import LANE_DISPLAY_NAMES
 
-    champion_data = load_data(resolve_resource_path("data"))
+    data_dir = Path(resolve_resource_path("data"))
+    champion_data = load_data(data_dir)
     with open(resolve_resource_path("ignored_champions.json"), encoding="utf-8") as handle:
         ignored_names = json.load(handle)
     with open(resolve_resource_path("ap_champions.json"), encoding="utf-8") as handle:
         ap_names = {_key(ap_name) for ap_name in json.load(handle)}
     for lane_name in LANES:
         print(f"[{LANE_DISPLAY_NAMES[lane_name]}]")
-        print("\n".join(plan_rows(lane_plan(champion_data, lane_name, ignored_names, ap_names), LANE_DISPLAY_NAMES)), end="\n\n")
+        rows = []
+        phases = None
+        if lane_name in STYLE_LANES:
+            profiles = load_lane_snapshot(data_dir, lane_name).get("profiles", {})
+            rows = style_pick_rows(lane_name, profiles)
+            phases = phase_scores(profiles)
+        rows.extend(plan_rows(lane_plan(champion_data, lane_name, ignored_names, ap_names), LANE_DISPLAY_NAMES,
+                              phases=phases))
+        print("\n".join(rows), end="\n\n")

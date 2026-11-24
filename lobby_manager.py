@@ -1206,11 +1206,16 @@ class ChampionScraperApp:
         print(f"Preloaded {len(self.champion_data_cache)} champion data files.")
         self.lane_files = {tuple(filename[:-len(".json")].rsplit("_", 1)): content
                            for filename, content in self.champion_data_cache.items()}
+        # 데이터가 없거나 깨져도 앱은 떠야 한다: 실패한 부분만 빼고 (보정 없이, 그 라인의 선픽 카드 없이) 뜬다
         try:
             self.inflation = table_inflations(self.lane_files)
-            self.pre_pick_worst = {lane: worst_matchups(self.lane_files, lane) for lane in LANES}
-        except Exception as error:  # 데이터가 없거나 깨져도 앱은 떠야 한다 (부풀림 보정과 선픽 카드 없이 뜬다)
+        except Exception as error:
             print(f"[WARN] Failed to prepare win rate correction: {error!r}")
+        for lane in LANES:
+            try:
+                self.pre_pick_worst[lane] = worst_matchups(self.lane_files, lane)
+            except Exception as error:
+                print(f"[WARN] Failed to prepare pre-pick scores for {lane}: {error!r}")
 
         self.ignored_champions = self._initialize_ignored_champions()
         try:

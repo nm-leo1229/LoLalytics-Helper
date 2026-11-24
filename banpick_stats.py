@@ -41,17 +41,25 @@ def _key(name):
     return {"nunu & willump": "nunu", "renata glasc": "renata"}.get(lowered) or lowered.replace("'", "").replace(".", "").replace(" ", "")
 
 
+def _dict(value):
+    return value if isinstance(value, dict) else {}
+
+
 def _table(data, lane, kind, other):
-    """{챔피언: {상대나 짝: (승률, 게임 수)}}: lane 파일들의 kind("counters"/"synergy") 안 other 라인 칸"""
+    """{챔피언: {상대나 짝: (승률, 게임 수)}}: lane 파일들의 kind("counters"/"synergy") 안 other 라인 칸.
+
+    손으로 고치다 형식이 틀어진 파일이나 칸은 건너뛴다 (한 칸 때문에 전체 계산이 멈추지 않게)."""
     table = {}
-    for (champion, file_lane), content in data.items():
-        if file_lane != lane:
+    for key, content in data.items():
+        if len(key) != 2 or key[1] != lane:
             continue
-        table[champion] = row = {}
-        for name, entry in content.get(kind, {}).get(other, {}).items():
-            win, games = _number(entry.get("win_rate")), _number(entry.get("games"))
+        row = {}
+        for name, entry in _dict(_dict(_dict(content).get(kind)).get(other)).items():
+            win, games = _number(_dict(entry).get("win_rate")), _number(_dict(entry).get("games"))
             if win is not None and games:
                 row[_key(name)] = (win, games)
+        if row:
+            table[key[0]] = row
     return table
 
 
@@ -172,7 +180,7 @@ class _Lane:
                 for a in self.candidates:
                     wins = {x: win(a, x) for x in partner_share}
                     usual = _mean(wins, partner_share)
-                    met = {x: mine[a][x][1] for x in partner_share if x in mine[a]}  # a 가 실제로 만난 분포
+                    met = {x: mine[a][x][1] for x in partner_share if x in mine.get(a, {})}  # a 가 실제로 만난 분포
                     self.base[a] += usual - _mean(wins, met or partner_share)
                     gaps[a] = {x: value - usual for x, value in wins.items()}
                 self.factors.append(self._factor(enemy, partner, partner_share, gaps))
@@ -299,7 +307,8 @@ def lane_plan(data, lane, ignored=(), ap=()):
     plan = _Lane(data, lane, set(ignored)).solve()
     if lane != "support":  # 딜러 라인은 팀의 AD·AP 균형을 맞춰 골라야 한다
         # ponytail: AP 딜러 목록에 없으면 AD 로 본다 (탱커도 AD 쪽에 낀다). AD 딜러 목록이 생기면 그것으로 가른다
-        plan["by_damage"] = [(label, next((a for a, *_ in sorted(plan["pick"].items(), key=lambda item: -item[1][0]) if (a in ap) == is_ap), None))
+        plan["by_damage"] = [(label, next((a for a, *_ in sorted(plan["pick"].items(), key=lambda item: -item[1][0])
+                                         if (a in ap) == is_ap and a != plan["ban"]), None))  # 밴할 챔피언을 뽑으라고 할 수는 없다
                              for label, is_ap in (("AD", False), ("AP", True))]
     return plan
 

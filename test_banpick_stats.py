@@ -24,7 +24,11 @@ def test_solo_lane_plan_removes_inflation_and_bans_the_counter():
     assert lane_plan(data, "top", ignored={"other1"})["second"] != "other1"
     assert abs(table_inflations(data)["counters", "top", "top"] - 2.5) < 1e-9
     assert worst_matchups(data, "top") == plan["pick"]  # 선픽 카드 탭과 통계 분석 탭은 같은 점수를 쓴다
-    # 종류별 선픽: AP 목록에 있는 챔피언 중 1위와 없는 챔피언 중 1위
+    # 형식이 틀어진 파일·칸은 건너뛰고 나머지로 같은 결과를 낸다
+    broken = {**data, ("list", "top"): [], ("note",): {}, ("other3", "top"): {"counters": {"top": {**data["other3", "top"]["counters"]["top"], "Bad": "N/A"}}}}
+    assert lane_plan(broken, "top")["first"] == "strong" and table_inflations(broken) == table_inflations(data)
+    # 종류별 선픽: AP 목록에 있는 챔피언 중 1위와 없는 챔피언 중 1위 (밴할 챔피언은 건너뛴다)
+    assert lane_plan(data, "top", ap={"strong"})["by_damage"][0][1] != "counter"
     assert lane_plan(data, "top", ap={"counter", "other2"})["by_damage"] == [("AD", "strong"), ("AP", "other2")]
 
 

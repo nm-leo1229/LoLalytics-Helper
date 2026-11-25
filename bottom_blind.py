@@ -156,10 +156,6 @@ def rank_lane_cards(profiles, lane, banned=frozenset()):
                                            -card.floor, card.champion))
 
 
-def rank_bottom_cards(profiles, banned=frozenset()):
-    return rank_lane_cards(profiles, "bottom", banned)
-
-
 def best_ban(champion, profiles, weights, banned=frozenset()):
     """champion 을 선픽할 때 하나 더 밴하면 불리한 상성 평균이 가장 오르는 상대와 그때의 평균. 올릴 상대가 없으면 None."""
     banned = set(banned)

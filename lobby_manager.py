@@ -11,7 +11,7 @@ import logging
 import webbrowser
 from pathlib import Path
 from collections import defaultdict
-from bottom_blind import STYLE_LANES, load_lane_snapshot, rank_bottom_cards
+from bottom_blind import STYLE_LANES, load_lane_snapshot
 from op_duos_tab import OpDuosTab
 from ignore_tab import IgnoreTab
 from my_champions_tab import MyChampionsTab, load_my_champions
@@ -1219,9 +1219,6 @@ class ChampionScraperApp:
                 print(f"[WARN] Failed to prepare pre-pick scores for {lane}: {error!r}")
 
         self.blind_snapshots = {lane: load_lane_snapshot(DATA_DIR, lane) for lane in STYLE_LANES}
-        bottom_snapshot = self.blind_snapshots["bottom"]
-        self.bottom_blind_profiles = bottom_snapshot.get("profiles", {})
-        self.bottom_blind_date = bottom_snapshot.get("collected_on", "")
         self.ignored_champions = self._initialize_ignored_champions()
         try:
             with open(AP_CHAMPIONS_FILE, "r", encoding="utf-8") as handle:
@@ -3459,22 +3456,11 @@ class ChampionScraperApp:
         return stripped
 
     def _refresh_blind_pick_views(self):
-        if hasattr(self, "pre_pick_tab"):
-            self.pre_pick_tab.bottom_panel.refresh_bottom()
         if hasattr(self, "stats_tab"):
             self.stats_tab.refresh_styles()
 
-    def bottom_blind_cards(self):
-        bans = frozenset(self.banned_champions)
-        if bans != getattr(self, "_bottom_card_bans", None):
-            self._bottom_cards = {card.champion: card for card in rank_bottom_cards(self.bottom_blind_profiles, bans)}
-            self._bottom_card_bans = bans
-        return self._bottom_cards
-
     def _qualifies_for_pre_pick_tag(self, champion_name: str, lane: str) -> bool:
         canonical = self._resolve_canonical_for_dataset(champion_name)
-        if lane == "bottom":
-            return (canonical or "").lower() in self.bottom_blind_cards()
         worst = self.pre_pick_worst.get(lane, {}).get((canonical or "").lower())
         return worst is not None and worst[0] >= PRE_PICK_MIN_WIN_RATE
 

@@ -35,7 +35,7 @@ class StatsTab:
 
         for lane in LANES:
             try:
-                plan = lane_plan(app.lane_files, lane, app.ignored_champions, app.ap_champions)
+                plan = lane_plan(app.lane_files, lane, app.ignored_champions, app.ap_champions, getattr(app, "region", None))
                 profiles = app.blind_snapshots.get(lane, {}).get("profiles", {})
                 phases = phase_scores(profiles) if lane in STYLE_LANES else None
                 self.plan_lines[lane] = plan_rows(plan, LANE_DISPLAY_NAMES, app.format_display_name, phases)
@@ -64,7 +64,10 @@ class StatsTab:
             box.yview_moveto(position)
         labels = ", ".join(self.app.format_display_name(name) for name in sorted(bans)) or "없음"
         dates = sorted({s["collected_on"] for s in self.app.blind_snapshots.values() if s.get("collected_on")})
-        self.status.configure(text=f"유형별 선픽 · 글로벌 마스터+ 최근 30일 · 수집 {', '.join(dates) or '자료 없음'} · 적용 밴 {labels}")
+        region = getattr(self.app, "region", None)
+        source = (f"상성 글로벌 30일 · 비중·챔피언 승률 한국 14일 ({region.get('collected_on', '?')})" if region
+                  else "글로벌 마스터+ 최근 30일")
+        self.status.configure(text=f"유형별 선픽 · {source} · 수집 {', '.join(dates) or '자료 없음'} · 적용 밴 {labels}")
 
 
 def add_stats_tab(notebook, app):

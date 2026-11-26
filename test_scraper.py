@@ -81,3 +81,16 @@ def test_mid_snapshot_reads_mid_opponents_and_rejects_wrong_role(tmp_path):
     assert not load_lane_snapshot(tmp_path, "bottom")
     with pytest.raises(ValueError):
         scraper.extract_lane_profile(state, "corki", "top")
+
+
+def test_region_tier_list_keeps_rows_of_the_requested_lane_only():
+    objs = [
+        {"lane": "1", "tier": "2", "region": "3", "patch": "4"}, "bottom", "master_plus", "kr", "14",
+        {"champPath": "6", "champId": "7"}, {"222": "8", "50": "9"}, {}, "jinx", "swain",
+        {"cid": "b", "fields": "7", "response": "7"}, {"222": "c", "50": "d"},
+        {"lane": "1", "wr": "e", "games": "f"}, {"lane": "g", "wr": "e", "games": "f"}, 52.77, 6591, "support",
+    ]
+    state = json.dumps({"objs": objs})
+    assert scraper.extract_tier_rows(state, "bottom", "kr", "14") == {"jinx": {"wr": 52.77, "games": 6591}}
+    with pytest.raises(ValueError):
+        scraper.extract_tier_rows(state, "bottom", "all", "30")

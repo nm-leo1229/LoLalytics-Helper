@@ -21,11 +21,67 @@ FIRST_PICK_GONE = 0.2  # 선픽이 밴되거나 뺏기는 판의 비율 (밴률 
 CARD_COST = 0.05  # 후픽 카드 하나는 전체 승률을 이만큼(%p) 올려야 넣는다
 MAX_CARDS = 3
 OTHERS = ""  # 점유율이 낮아 하나로 묶은 '그 밖의 챔피언' 칸
+REGION_FILE = Path("region", "tierlists.json")  # scraper.collect_region_tierlists 가 만든다
+# 챔피언 자체 승률의 진짜 지역 차이(%p²). 2026-11 원딜 16명의 한국-나머지 지역 비교에서 약 0.78%p 로 쟀다
+REGION_EFFECT_VARIANCE = 0.6
 
 
 def load_data(data_dir):
     """{(챔피언, 라인): 파일 내용}"""
     return {tuple(path.stem.rsplit("_", 1)): json.loads(path.read_text(encoding="utf-8")) for path in Path(data_dir).glob("*_*.json")}
+
+
+def load_region(data_dir):
+    """{"kr": {라인: {챔피언: {"wr", "games"}}}, "all": ...}: 한국 14일·전 지역 30일 티어 목록. 없거나 깨졌으면 {} (전 지역만 쓴다)"""
+    try:
+        content = json.loads(Path(data_dir, REGION_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return content if isinstance(content, dict) and isinstance(content.get("kr"), dict) and isinstance(content.get("all"), dict) else {}
+
+
+def _region_rows(region, key, lane):
+    rows = {}
+    for name, row in _dict(_dict(region.get(key)).get(lane)).items():
+        games, win = _dict(row).get("games"), _dict(row).get("wr")
+        if isinstance(games, int) and games > 0 and isinstance(win, (int, float)):
+            rows[_key(name)] = (win, games)
+    return rows
+
+
+def region_shares(region, lane):
+    """{챔피언: 한국 그 라인 판 비율}. 상대를 만날 확률과 후보 자격에 쓴다 (자료가 없으면 {})"""
+    games = {name: n for name, (_, n) in _region_rows(region, "kr", lane).items()}
+    total = sum(games.values())
+    return {name: n / total for name, n in games.items()} if total else {}
+
+
+def region_shifts(region, lane):
+    """{챔피언: 한국 승률 - 전 지역 승률(%p)}. 표본이 적을수록 0 쪽으로 당긴다 (스웨인 바텀 14일 ≈ 1,300판이면 절반쯤)."""
+    others = _region_rows(region, "all", lane)
+    return {name: (win - others[name][0]) * REGION_EFFECT_VARIANCE / (REGION_EFFECT_VARIANCE + 2500 / games)
+            for name, (win, games) in _region_rows(region, "kr", lane).items() if name in others}
+
+
+def _regional(shares, region, lane):
+    """전 지역 점유율을 한국 점유율로 바꾼다. 한국 목록에 없는 챔피언은 전 지역 값을 그대로 둔다."""
+    local = region_shares(region, lane)
+    if not local:
+        return shares
+    mixed = {name: local.get(name, share) for name, share in shares.items()}
+    total = sum(mixed.values())
+    return {name: share / total for name, share in mixed.items()}
+
+
+def regional_profiles(profiles, region, lane):
+    """유형별 선픽 자료(bottom_blind)의 상대 비중을 한국 비중으로, 상성 승률에 두 챔피언의 지역 차이를 얹은 사본"""
+    shares, shifts = region_shares(region, lane), region_shifts(region, lane)
+    if not shares:
+        return profiles
+    return {champion: {**profile, "matchups": {
+        opponent: {**row, "popularity": 100 * shares.get(opponent, row["popularity"] / 100),
+                   "win_rate": min(100.0, max(0.0, row["win_rate"] + shifts.get(champion, 0.0) - shifts.get(opponent, 0.0)))}
+        for opponent, row in profile["matchups"].items()}} for champion, profile in profiles.items()}
 
 
 def _number(text):
@@ -85,9 +141,9 @@ def table_inflations(data):
     return {(kind, lane, other): _inflation(table, tables[kind, other, lane]) for (kind, lane, other), table in tables.items()}
 
 
-def worst_matchups(data, lane):
+def worst_matchups(data, lane, region=None):
     """{챔피언: (선픽 점수, 그 점수를 정한 상대, 밴할 상대)}: 선픽 카드 탭에 쓴다. 추천 제외 목록의 챔피언도 넣는다."""
-    return _Lane(data, lane, set()).pick
+    return _Lane(data, lane, set(), region).pick
 
 
 def _corrected(mine, theirs, same_team):
@@ -161,18 +217,26 @@ def _mean(values, weights):
 class _Lane:
     """한 라인의 계산. 요인 = 내가 고를 때 이미 보일 수도 있는 다른 자리: (상대인지, 라인, {챔피언: 점유율}, {후보: {챔피언: 승률 기여}})"""
 
-    def __init__(self, data, lane, ignored):
+    def __init__(self, data, lane, ignored, region=None):
+        region = region or {}
         same = _table(data, lane, "counters", lane)
-        self.share = _shares(same)
-        versus = _shrunk(_corrected(same, same, False))
-        self.tilt = _counter_pick_tilt(same, self.share, versus)
+        self.share = _regional(_shares(same), region, lane)
+        # 상성은 표본이 많은 전 지역 30일 값에, 챔피언 자체 승률의 한국 차이만 얹는다
+        shift = region_shifts(region, lane)
+        matchup = _shrunk(_corrected(same, same, False))
+
+        def versus(a, b):
+            return matchup(a, b) + shift.get(a, 0.0) - shift.get(b, 0.0)
+        # 카운터 쏠림은 전 지역 상성 표에서 잰 것이라 전 지역 점유율로 잰다
+        self.tilt = _counter_pick_tilt(same, _shares(same), matchup)
         self.candidates = sorted(a for a in same if a not in ignored and self.share[a] >= MIN_CANDIDATE_SHARE)
         self.factors = [self._factor(True, lane, self.share, {a: {b: versus(a, b) for b in same} for a in self.candidates})]
         # 챔피언마다 자주 만나는 짝·상대가 다르다 (자야는 라칸, 제리는 유미). 평균적인 분포로 되돌렸을 때의 승률 변화를 더해 둔다.
         self.base = dict.fromkeys(self.candidates, 0.0)
         partner = DUO_PARTNER.get(lane)
         if partner:
-            partner_share = _shares(_table(data, partner, "counters", partner))
+            # ponytail: 짝(서폿) 상성·시너지에는 한국 승률 차이를 얹지 않는다. 짝 챔피언 강함이 지역마다 크게 다르면 추가
+            partner_share = _regional(_shares(_table(data, partner, "counters", partner)), region, partner)
             for enemy, kind in ((True, "counters"), (False, "synergy")):
                 mine = _table(data, lane, kind, partner)
                 win = _shrunk(_corrected(mine, _table(data, partner, kind, lane), not enemy))
@@ -299,12 +363,12 @@ class _Lane:
                 "ranking": [(a, self.pick[a][0], self.share[a]) for a in ranking[:5]]}
 
 
-def lane_plan(data, lane, ignored=(), ap=()):
+def lane_plan(data, lane, ignored=(), ap=(), region=None):
     """한 라인의 설계: 선픽 first, 대안 second, 밴 ban, 후픽 cards[(챔피언, 올리는 승률)], 꺼낼 때 uses, 선픽 순위 ranking,
     챔피언별 선픽 점수 pick{챔피언: (점수, 그 점수를 정한 상대, 밴할 상대)}.
 
     딜러 라인은 by_damage[("AD", 챔피언), ("AP", 챔피언)] 도 준다: 아군 조합이 한쪽으로 쏠릴 때 고를 종류별 선픽 1위. ap 는 AP 딜러 이름들."""
-    plan = _Lane(data, lane, set(ignored)).solve()
+    plan = _Lane(data, lane, set(ignored), region).solve()
     if lane != "support":  # 딜러 라인은 팀의 AD·AP 균형을 맞춰 골라야 한다
         # ponytail: AP 딜러 목록에 없으면 AD 로 본다 (탱커도 AD 쪽에 낀다). AD 딜러 목록이 생기면 그것으로 가른다
         plan["by_damage"] = [(label, next((a for a, *_ in sorted(plan["pick"].items(), key=lambda item: -item[1][0])
@@ -351,6 +415,7 @@ if __name__ == "__main__":
 
     data_dir = Path(resolve_resource_path("data"))
     champion_data = load_data(data_dir)
+    region_data = load_region(data_dir)
     with open(resolve_resource_path("ignored_champions.json"), encoding="utf-8") as handle:
         ignored_names = json.load(handle)
     with open(resolve_resource_path("ap_champions.json"), encoding="utf-8") as handle:
@@ -360,9 +425,9 @@ if __name__ == "__main__":
         rows = []
         phases = None
         if lane_name in STYLE_LANES:
-            profiles = load_lane_snapshot(data_dir, lane_name).get("profiles", {})
+            profiles = regional_profiles(load_lane_snapshot(data_dir, lane_name).get("profiles", {}), region_data, lane_name)
             rows = style_pick_rows(lane_name, profiles)
             phases = phase_scores(profiles)
-        rows.extend(plan_rows(lane_plan(champion_data, lane_name, ignored_names, ap_names), LANE_DISPLAY_NAMES,
+        rows.extend(plan_rows(lane_plan(champion_data, lane_name, ignored_names, ap_names, region_data), LANE_DISPLAY_NAMES,
                               phases=phases))
         print("\n".join(rows), end="\n\n")

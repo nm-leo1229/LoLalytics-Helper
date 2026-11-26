@@ -15,7 +15,8 @@ from bottom_blind import STYLE_LANES, load_lane_snapshot
 from op_duos_tab import OpDuosTab
 from ignore_tab import IgnoreTab
 from my_champions_tab import MyChampionsTab, load_my_champions
-from banpick_stats import table_inflations, worst_matchups
+from game_results import MATCH_HISTORY_PATH, fill_results, history_games, pending_snapshots
+from banpick_stats import load_region, regional_profiles, table_inflations, worst_matchups
 from pre_pick_tab import PRE_PICK_MIN_WIN_RATE, PrePickTab
 from stats_tab import add_stats_tab
 from counter_synergy_tab import CounterSynergyTab
@@ -55,6 +56,7 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 LCU_LOG_FILE = LOG_DIR / "lcu_responses.log"
 DEBUG_DATA_DIR = Path(resolve_resource_path("debug_data"))
 DEBUG_DATA_DIR.mkdir(parents=True, exist_ok=True)
+RESULT_CHECK_INTERVAL = 120  # 픽창 밖에서 승패를 채우러 클라이언트 전적을 읽는 간격(초)
 APP_ROOT = Path(__file__).resolve().parent
 DEBUG_LOG_PATH = APP_ROOT / ".cursor" / "debug.log"
 DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -558,6 +560,7 @@ else:
             self._first_pick_side = None  # 첫 픽이 어느 진영인지
             self._pick_counter = 0  # synthetic pickTurn 카운터
             self._seen_picks: set[tuple[int, int]] = set()  # (cellId, championId)
+            self._next_result_check = 0.0  # 픽창 밖에서 스냅샷 승패를 채우러 갈 시각
             if urllib3 is not None:
                 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -683,7 +686,23 @@ else:
                         self._last_status = message
                         if self._status_callback:
                             self._status_callback(message)
+                    self._fill_game_results()
                 self._stop_event.wait(self.poll_interval)
+
+        def _fill_game_results(self):
+            """픽창 밖에 있을 때 2분마다, 승패가 빈 스냅샷이 있으면 클라이언트 전적에서 찾아 채운다."""
+            if time.time() < self._next_result_check:
+                return
+            self._next_result_check = time.time() + RESULT_CHECK_INTERVAL
+            try:
+                if not pending_snapshots(DEBUG_DATA_DIR):
+                    return
+                response = self._perform_lcu_get(MATCH_HISTORY_PATH, timeout=5)
+                filled = fill_results(DEBUG_DATA_DIR, history_games(response.json()))
+                if filled:
+                    LCU_LOGGER.info(f"스냅샷 {filled}개에 승패를 채웠습니다.")
+            except Exception as exc:  # 곁다리 일이다: 손으로 고친 스냅샷 하나 때문에 픽창 감시 스레드가 죽으면 안 된다
+                LCU_LOGGER.warning(f"승패 채우기 실패: {exc!r}")
 
         def _fetch_session(self):
             self._ensure_connection()
@@ -783,6 +802,7 @@ else:
                 "enemies": enemies,
                 "timer": session.get("timer"),
                 "firstPickSide": self._first_pick_side,
+                "gameId": session.get("gameId"),  # 결과를 전적에서 찾을 때 쓴다 (없으면 시각과 내 챔피언으로 찾는다)
                 # raw championId 리스트 (밴 정보는 이후 단계에서 이름으로 해석)
                 "allyBans": ally_bans,
                 "enemyBans": enemy_bans,
@@ -1212,13 +1232,19 @@ class ChampionScraperApp:
             self.inflation = table_inflations(self.lane_files)
         except Exception as error:
             print(f"[WARN] Failed to prepare win rate correction: {error!r}")
+        self.region = load_region(DATA_DIR)
         for lane in LANES:
             try:
-                self.pre_pick_worst[lane] = worst_matchups(self.lane_files, lane)
+                self.pre_pick_worst[lane] = worst_matchups(self.lane_files, lane, self.region)
             except Exception as error:
                 print(f"[WARN] Failed to prepare pre-pick scores for {lane}: {error!r}")
 
-        self.blind_snapshots = {lane: load_lane_snapshot(DATA_DIR, lane) for lane in STYLE_LANES}
+        self.blind_snapshots = {}
+        for lane in STYLE_LANES:
+            snapshot = load_lane_snapshot(DATA_DIR, lane)
+            if snapshot:
+                snapshot["profiles"] = regional_profiles(snapshot["profiles"], self.region, lane)
+            self.blind_snapshots[lane] = snapshot
         self.ignored_champions = self._initialize_ignored_champions()
         try:
             with open(AP_CHAMPIONS_FILE, "r", encoding="utf-8") as handle:

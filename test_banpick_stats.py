@@ -57,3 +57,14 @@ def test_duo_lane_plan_undoes_partner_skew():
     assert plan["first"] == "solid"  # 선픽 점수 56: paired 를 밴하고 남은 상대(filler) 에게 56
     # paired: solid 를 밴하고 남은 상대에게 56, 여기에 서포터 분포를 반반으로 되돌린 차이 (60 + 48) / 2 - (60 * 0.9 + 48 * 0.1) = -4.8 을 더한다
     assert abs(plan["pick"]["paired"][0] - 51.2) < 0.3
+
+
+def test_region_replaces_shares_and_shrinks_small_samples():
+    from banpick_stats import _regional, region_shifts
+    region = {"kr": {"bottom": {"Big": {"wr": 52.0, "games": 1_000_000}, "Small": {"wr": 52.0, "games": 100}}},
+              "all": {"bottom": {"Big": {"wr": 50.0, "games": 9_000_000}, "Small": {"wr": 50.0, "games": 900}}}}
+    shifts = region_shifts(region, "bottom")
+    assert 1.99 < shifts["big"] <= 2.0 and shifts["small"] < 0.1  # 판수가 적으면 지역 차이를 거의 믿지 않는다
+    mixed = _regional({"big": 0.5, "small": 0.3, "gone": 0.2}, region, "bottom")
+    assert mixed["big"] > mixed["small"] and abs(sum(mixed.values()) - 1) < 1e-9  # 한국 목록에 없으면 전 지역 값
+    assert _regional({"big": 1.0}, {}, "bottom") == {"big": 1.0}

@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+from banpick_stats import REGION_FILE
 from bottom_blind import STYLE_LANES, common_opponent_weights, snapshot_path, valid_profile
 
 
@@ -130,6 +131,68 @@ def extract_lane_profile(state, champion, lane):
         raise ValueError(f"Invalid {lane} profile for {champion}: {exc}") from exc
 
 
+# 라인 비중과 챔피언 자체 승률: 한국은 최근 14일(메타를 빨리 따라감), 비교 기준인 전 지역은 상성과 같은 30일
+TIER_SOURCES = {"kr": ("kr", "14"), "all": ("all", "30")}
+def replace_json(path, content):
+    """다 쓴 뒤에만 기존 파일을 바꾼다 (수집이 중간에 죽어도 이전 자료가 남는다)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = NamedTemporaryFile(dir=path.parent, delete=False, mode="w", encoding="utf-8")
+    temporary_path = Path(handle.name)
+    try:
+        with handle:
+            json.dump(content, handle, indent=2, allow_nan=False)
+            handle.write("\n")
+        temporary_path.replace(path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def tierlist_url(lane, region, patch):
+    return f"https://lolalytics.com/lol/tierlist/?lane={lane}&tier=master_plus&patch={patch}&region={region}"
+
+
+def extract_tier_rows(state, lane, region, patch):
+    """티어 목록 페이지 state 에서 {챔피언: {"wr": 승률, "games": 판수}} (그 라인 행만)."""
+    try:
+        objects = json.loads(state)["objs"]
+        records = [item for item in objects if isinstance(item, dict)]
+
+        def resolve(ref):
+            return objects[int(ref, 36)]
+
+        filters = {"lane": lane, "tier": "master_plus", "region": region, "patch": patch}
+        if not any(all(key in row and resolve(row[key]) == value for key, value in filters.items()) for row in records):
+            raise ValueError("unexpected tier list filters")
+        paths = resolve(next(row["champPath"] for row in records if "champPath" in row and "champId" in row))
+        table = resolve(next(row["cid"] for row in records if "cid" in row and "fields" in row and "response" in row))
+        rows = {}
+        for champ_id, ref in table.items():
+            row = {key: resolve(value) for key, value in resolve(ref).items() if key in ("lane", "wr", "games")}
+            if row.get("lane") == lane and isinstance(row.get("games"), int) and row["games"] > 0 \
+                    and isinstance(row.get("wr"), (int, float)) and 0 <= row["wr"] <= 100:
+                rows[resolve(paths[champ_id])] = {"wr": row["wr"], "games": row["games"]}
+        if not rows:
+            raise ValueError("no champion rows")
+        return rows
+    except (KeyError, IndexError, TypeError, ValueError, StopIteration) as exc:
+        raise ValueError(f"Invalid {region}/{patch} tier list for {lane}: {exc}") from exc
+
+
+def collect_region_tierlists(read_state, data_dir):
+    """{"collected_on", "kr": {라인: 행}, "all": {라인: 행}} 을 다 받은 뒤에만 한 번에 교체한다."""
+    content = {"collected_on": datetime.now(timezone.utc).date().isoformat()}
+    for key, (region, patch) in TIER_SOURCES.items():
+        content[key] = {lane: extract_tier_rows(read_state(tierlist_url(lane, region, patch)), lane, region, patch)
+                        for lane in LANES}
+    replace_json(Path(data_dir, REGION_FILE), content)
+
+
+def read_page_state(driver, url):
+    driver.get(url)
+    return WebDriverWait(driver, 15).until(lambda browser: browser.execute_script(
+        """return document.querySelector('script[type="qwik/json"]')?.textContent"""))
+
+
 def collect_lane_snapshot(lane, champions, read_state, data_dir):
     """모든 대상 수집이 끝난 뒤에만 이전 선픽 표본을 한 번에 교체한다."""
     path = snapshot_path(data_dir, lane)
@@ -143,22 +206,11 @@ def collect_lane_snapshot(lane, champions, read_state, data_dir):
         if not profile["matchups"]:
             raise ValueError(f"No {lane} opponents in the collected pool for {name}")
     snapshot = {"collected_on": datetime.now(timezone.utc).date().isoformat(), "profiles": profiles}
-    path.parent.mkdir(parents=True, exist_ok=True)
-    handle = NamedTemporaryFile(dir=path.parent, delete=False, mode="w", encoding="utf-8")
-    temporary_path = Path(handle.name)
-    try:
-        with handle:
-            json.dump(snapshot, handle, indent=2, allow_nan=False)
-            handle.write("\n")
-        temporary_path.replace(path)
-    finally:
-        temporary_path.unlink(missing_ok=True)
+    replace_json(path, snapshot)
 
 
 def read_lane_state(driver, champion, lane):
-    driver.get(generate_url(champion, lane))
-    return WebDriverWait(driver, 15).until(lambda browser: browser.execute_script(
-        """return document.querySelector('script[type="qwik/json"]')?.textContent"""))
+    return read_page_state(driver, generate_url(champion, lane))
 
 
 def extract_bottom_profile(state, champion):
@@ -655,6 +707,10 @@ def main():
     driver = create_driver()
     try:
         champion_lane_list = {lane: fetch_lane_champions(driver, lane) for lane in LANES}
+        try:
+            collect_region_tierlists(lambda url: read_page_state(driver, url), Path("data"))
+        except (ValueError, OSError, WebDriverException, urllib3.exceptions.HTTPError) as exc:
+            print(f"Region tier lists could not be refreshed: {exc}")
         for lane in STYLE_LANES:
             try:
                 collect_lane_snapshot(lane, champion_lane_list[lane], lambda name: read_lane_state(driver, name, lane),
